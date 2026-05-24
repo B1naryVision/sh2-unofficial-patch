@@ -2,4 +2,4 @@
 #include <windows.h>
 #include <cstddef>
 
-void InstallHook(void *targetAddress, void *detourFunction, size_t instructionLength);
+void installHook(void *targetAddress, void *detourFunction, size_t instructionLength);

@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
 project(S2_UnofficialPatch CXX)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 if(MSVC)
     add_compile_options(/arch:IA32)
     add_link_options(/MACHINE:X86)
@@ -13,9 +15,9 @@ add_library(S2_UnofficialPatch SHARED
     src/dllmain.cpp
     src/core/hook.cpp
     src/core/log.cpp
-    src/proxy/version_proxy.cpp
+    src/proxy/versionProxy.cpp
     src/patches/registry.cpp
-    src/patches/knight_catapult_crash.cpp
+    src/patches/knightCatapultCrash.cpp
 )
 
 target_include_directories(S2_UnofficialPatch PRIVATE src)

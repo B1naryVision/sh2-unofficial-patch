@@ -74,5 +74,5 @@ This targets exactly the crash instruction, leaving all other code paths — inc
 
 ## References
 
-- Implementation: [src/patches/knight_catapult_crash.cpp](../../src/patches/knight_catapult_crash.cpp)
+- Implementation: [src/patches/knightCatapultCrash.cpp](../../src/patches/knightCatapultCrash.cpp)
 - Hook infrastructure: [docs/architecture.md](../architecture.md)

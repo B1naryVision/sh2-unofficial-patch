@@ -1,20 +1,17 @@
 #include <windows.h>
-#include "proxy/version_proxy.h"
+#include "proxy/versionProxy.h"
 #include "patches/registry.h"
 #include "core/log.h"
 
-BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
-{
-    if (ul_reason_for_call == DLL_PROCESS_ATTACH)
-    {
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
+    if (ul_reason_for_call == DLL_PROCESS_ATTACH) {
         DisableThreadLibraryCalls(hModule);
-        LoadRealVersionDll();
-        ApplyUnofficialPatches();
+        loadRealVersionDll();
+        applyUnofficialPatches();
     }
 #ifdef DEBUG
-    else if (ul_reason_for_call == DLL_PROCESS_DETACH)
-    {
-        Log_Flush("patch_debug.txt");
+    else if (ul_reason_for_call == DLL_PROCESS_DETACH) {
+        logFlush("patch_debug.txt");
     }
 #endif
     return TRUE;

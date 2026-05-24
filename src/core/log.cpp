@@ -5,28 +5,30 @@
 #endif
 
 static constexpr size_t kRingSize = 10;
-static uintptr_t g_Ring[kRingSize] = {};
-static size_t g_Head = 0;
-static size_t g_Count = 0;
+static uintptr_t s_ring[kRingSize] = {};
+static size_t s_head = 0;
+static size_t s_count = 0;
 
-void Log_PushContext(uintptr_t value)
-{
-    g_Ring[g_Head] = value;
-    g_Head = (g_Head + 1) % kRingSize;
-    if (g_Count < kRingSize) ++g_Count;
+void logPushContext(uintptr_t value) {
+    s_ring[s_head] = value;
+    s_head = (s_head + 1) % kRingSize;
+
+    if (s_count < kRingSize) {
+        ++s_count;
+    }
 }
 
 #ifdef DEBUG
-void Log_Flush(const char *path)
-{
+void logFlush(const char *path) {
     std::ofstream f(path);
-    if (!f.is_open()) return;
-    f << "[SH2 Patch] Last " << std::dec << g_Count << " context(s):\n";
-    size_t oldest = (g_Head + kRingSize - g_Count) % kRingSize;
-    for (size_t i = 0; i < g_Count; ++i)
-    {
+    if (!f.is_open()) {
+        return;
+    }
+    f << "[SH2 Patch] Last " << std::dec << s_count << " context(s):\n";
+    size_t oldest = (s_head + kRingSize - s_count) % kRingSize;
+    for (size_t i = 0; i < s_count; ++i) {
         size_t idx = (oldest + i) % kRingSize;
-        f << "  [" << i << "] = 0x" << std::hex << g_Ring[idx] << "\n";
+        f << "  [" << i << "] = 0x" << std::hex << s_ring[idx] << "\n";
     }
 }
 #endif

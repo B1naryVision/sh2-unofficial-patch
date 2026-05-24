@@ -90,18 +90,23 @@ Returning `hiddenReturn` from EAX is correct; returning a scalar `uint64` is not
 ### Filter predicate
 
 ```cpp
-static bool IsLobbyInProgress(ISteamMatchmaking *mm, CSteamID id)
-{
+static bool isLobbyInProgress(ISteamMatchmaking *mm, CSteamID id) {
     // HostName absent → host cleared it at game start
-    const char *host = GetLobbyData(mm, id, "HostName");
-    if (!host || !host[0]) return true;
+    const char *host = getLobbyData(mm, id, "HostName");
+    if (!host || !host[0]) {
+        return true;
+    }
 
     // Members < NumPlayers(meta) → players left after game started
-    const char *s = GetLobbyData(mm, id, "NumPlayers");
-    if (!s || !s[0]) return false;
+    const char *s = getLobbyData(mm, id, "NumPlayers");
+    if (!s || !s[0]) {
+        return false;
+    }
     int numPlayers = atoi(s);
-    if (numPlayers <= 0) return false;
-    return GetNumLobbyMembers(mm, id) < numPlayers;
+    if (numPlayers <= 0) {
+        return false;
+    }
+    return getNumLobbyMembers(mm, id) < numPlayers;
 }
 ```
 

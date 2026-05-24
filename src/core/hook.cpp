@@ -1,7 +1,6 @@
 #include "hook.h"
 
-void InstallHook(void *targetAddress, void *detourFunction, size_t instructionLength)
-{
+void installHook(void *targetAddress, void *detourFunction, size_t instructionLength) {
     DWORD oldProtect;
     VirtualProtect(targetAddress, instructionLength, PAGE_EXECUTE_READWRITE, &oldProtect);
 
@@ -9,8 +8,9 @@ void InstallHook(void *targetAddress, void *detourFunction, size_t instructionLe
     *(unsigned char *)targetAddress = 0xE9;
     *(uintptr_t *)((uintptr_t)targetAddress + 1) = relativeAddress;
 
-    for (size_t i = 5; i < instructionLength; ++i)
+    for (size_t i = 5; i < instructionLength; ++i) {
         *(unsigned char *)((uintptr_t)targetAddress + i) = 0x90;
+    }
 
     VirtualProtect(targetAddress, instructionLength, oldProtect, &oldProtect);
 }

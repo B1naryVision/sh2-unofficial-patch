@@ -19,9 +19,9 @@ No game files are ever modified on disk.
 
 ## DLL Proxy Layer
 
-The proxy is defined in `version.def` (export ordinals) and implemented via naked `__declspec(naked)` functions that jump through a table of real function pointers (`realFunctions[]`).
+The proxy is defined in `version.def` (export ordinals) and implemented via naked `__declspec(naked)` functions that jump through a table of real function pointers (`g_realFunctions[]`).
 
-`LoadRealVersionDll()` must be called before any proxy exports can be used. It loads the system `version.dll` by absolute path from `GetSystemDirectoryA` and resolves each export via `GetProcAddress`.
+`loadRealVersionDll()` must be called before any proxy exports can be used. It loads the system `version.dll` by absolute path from `GetSystemDirectoryA` and resolves each export via `GetProcAddress`.
 
 **Exports proxied:**
 
@@ -40,7 +40,7 @@ The proxy is defined in `version.def` (export ordinals) and implemented via nake
 
 ### 5-Byte Relative JMP Detour
 
-`InstallHook(targetAddress, detourFunction, instructionLength)`:
+`installHook(targetAddress, detourFunction, instructionLength)`:
 
 1. Calls `VirtualProtect` to make the target page writable
 2. Writes `0xE9` (near JMP) + 4-byte relative offset at `targetAddress`
@@ -53,7 +53,7 @@ The detour function must be a `__declspec(naked)` assembly function that:
 - Performs the fix logic
 - Restores registers (`popal`)
 - Re-executes the original instruction (if still needed)
-- Jumps to `kReturnAddress` (set to `targetAddress + instructionLength`)
+- Jumps to `s_returnAddress` (set to `targetAddress + instructionLength`)
 
 ### Calling Conventions in 32-bit MinGW
 
@@ -65,7 +65,7 @@ Each hook sets a global return address before installing the hook:
 
 ```cpp
 s_returnAddress = targetInstruction + instructionLength;
-InstallHook((void*)targetInstruction, detourFn, instructionLength);
+installHook((void*)targetInstruction, detourFn, instructionLength);
 ```
 
 The naked function jumps to `*_s_returnAddress` at the end. Each hook needs its own return address global, and that global must **not** be `static` — inline assembly cannot resolve LOCAL symbols at link time.
@@ -74,7 +74,7 @@ The naked function jumps to `*_s_returnAddress` at the end. Each hook needs its 
 
 ## Debug Logging
 
-`Log_PushContext(value)` in `src/core/log.cpp` writes to a 10-entry in-memory ring buffer with zero disk I/O during gameplay. The buffer is flushed to `patch_debug.txt` only on `DLL_PROCESS_DETACH` (game exit or crash), and only in debug builds.
+`logPushContext(value)` in `src/core/log.cpp` writes to a 10-entry in-memory ring buffer with zero disk I/O during gameplay. The buffer is flushed to `patch_debug.txt` only on `DLL_PROCESS_DETACH` (game exit or crash), and only in debug builds.
 
 `make debug` passes `-DDEBUG`; `make` (release) does not, making all logging a compile-time no-op.
 
@@ -106,14 +106,14 @@ sh2-unofficial-patch/
 ├── src/
 │   ├── dllmain.cpp                     ← DllMain only; calls proxy init + apply patches
 │   ├── core/
-│   │   ├── hook.h / hook.cpp           ← InstallHook
+│   │   ├── hook.h / hook.cpp           ← installHook
 │   │   └── log.h / log.cpp             ← ring-buffer logging (no-op in release)
 │   ├── proxy/
-│   │   ├── version_proxy.h
-│   │   └── version_proxy.cpp           ← LoadRealVersionDll + all 6 naked exports
+│   │   ├── versionProxy.h
+│   │   └── versionProxy.cpp            ← loadRealVersionDll + all 6 naked exports
 │   └── patches/
-│       ├── registry.h / registry.cpp   ← ApplyUnofficialPatches() dispatcher
-│       └── knight_catapult_crash.cpp   ← one .cpp per fix
+│       ├── registry.h / registry.cpp   ← applyUnofficialPatches() dispatcher
+│       └── knightCatapultCrash.cpp     ← one .cpp per fix
 ├── docs/
 │   ├── architecture.md
 │   └── bugs/
@@ -141,23 +141,21 @@ sh2-unofficial-patch/
 // Return-address globals must NOT be static — inline assembly can't resolve LOCAL symbols.
 uintptr_t s_returnAddress = 0;
 
-__declspec(naked) static void Hook_BugId()
-{
+__declspec(naked) static void bugIdHook() {
     __asm__ volatile(
         // ... re-execute overwritten instruction(s), then:
         "jmp *_s_returnAddress\n\t");
 }
 
-void Patch_BugId_Install()
-{
+void installBugIdFix() {
     uintptr_t base = (uintptr_t)GetModuleHandleA(NULL);
     uintptr_t target = base + 0xXXXXXX;
     s_returnAddress = target + INSTRUCTION_LENGTH;
-    InstallHook((void *)target, reinterpret_cast<void *>(Hook_BugId), INSTRUCTION_LENGTH);
+    installHook((void *)target, reinterpret_cast<void *>(bugIdHook), INSTRUCTION_LENGTH);
 }
 ```
 
-And `registry.cpp` calls each `Patch_*_Install()` in sequence.
+And `registry.cpp` calls each `install*Fix()` in sequence.
 
 ---
 

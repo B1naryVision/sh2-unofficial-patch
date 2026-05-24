@@ -7,9 +7,9 @@ DEF      = version.def
 SRCS = src/dllmain.cpp \
        src/core/hook.cpp \
        src/core/log.cpp \
-       src/proxy/version_proxy.cpp \
+       src/proxy/versionProxy.cpp \
        src/patches/registry.cpp \
-       src/patches/knight_catapult_crash.cpp
+       src/patches/knightCatapultCrash.cpp
 
 DEPLOY_PATH = /mnt/c/Games/Steam/steamapps/common/Stronghold\ 2/
 
