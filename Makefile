@@ -1,0 +1,30 @@
+CXX      = i686-w64-mingw32-g++
+CXXFLAGS = -m32 -O2 -std=c++17 -Wall -Isrc
+LDFLAGS  = -shared -Wl,--enable-stdcall-fixup -static-libgcc -static-libstdc++ -lkernel32
+TARGET   = version.dll
+DEF      = version.def
+
+SRCS = src/dllmain.cpp \
+       src/core/hook.cpp \
+       src/core/log.cpp \
+       src/proxy/version_proxy.cpp \
+       src/patches/registry.cpp \
+       src/patches/knight_catapult_crash.cpp
+
+DEPLOY_PATH = /mnt/c/Games/Steam/steamapps/common/Stronghold\ 2/
+
+all: $(TARGET)
+
+$(TARGET): $(SRCS) $(DEF)
+	$(CXX) $(CXXFLAGS) -o $@ $(SRCS) $(DEF) $(LDFLAGS)
+
+debug: CXXFLAGS += -DDEBUG -g
+debug: $(TARGET)
+
+deploy: $(TARGET)
+	cp $(TARGET) $(DEPLOY_PATH)
+
+clean:
+	rm -f $(TARGET)
+
+.PHONY: all debug deploy clean
