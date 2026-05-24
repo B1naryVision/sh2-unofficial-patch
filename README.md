@@ -88,18 +88,45 @@ Log location: `<Stronghold 2 game directory>\patch_debug.txt`
 
 ## Reporting Bugs
 
-If you've found a crash or other bug in Stronghold 2 that you'd like to see fixed, open a GitHub issue with the following:
+If you've found a crash or other bug, please report it so it can be investigated and fixed.
 
-**Required:**
+### How to open a report
 
-1. Steps to reproduce — what were you doing in-game when it happened? (unit types, game mode, approximate point in the battle)
-2. Windows Event Viewer log — open Event Viewer → Windows Logs → Application, find the entry for `Stronghold2.exe`, and paste the full error block. The fault offset and faulting module are the most useful fields.
+**Option 1 — GitHub** (preferred, keeps everything public and trackable):
 
-**Nice to have:**
+1. Go to the [Issues page](https://github.com/B1naryVision/sh2-unofficial-patch/issues) on GitHub. (GitHub is a free website — you'll need to create an account if you don't have one.)
+2. Click the green **New issue** button.
+3. Give your issue a short title, e.g. *"Game crashes when catapult fires at a wall"*.
+4. Fill in the description using the information below, then click **Submit new issue**.
 
-- A video of the crash occurring — even a short clip showing the sequence of events immediately before the crash is extremely helpful for identifying the exact scenario
+**Option 2 — Discord** (if you'd rather not sign up for GitHub):
 
-The more reproducible the steps, the faster a fix can be found and verified.
+Send a direct message to BinaryVision (`196165954042986496`) on Discord with the same details listed below.
+
+### What to include
+
+**Required — describe what happened:**
+
+- What were you doing when the crash or bug occurred? For example: Multiplayer, Kingmaker or a mission? Which units were involved, and roughly how far into the game it happened.
+- What steps would someone else need to take to make it happen again? The more specific the better — "it crashed randomly" is hard to investigate; "it always crashes when I fire the catapult at knights in the process of mounting" can be fixed.
+
+**Required — attach the Windows error log:**
+
+Windows automatically records crash details. Here's how to find them:
+
+1. Press **Win + R**, type `eventvwr`, and press Enter. This opens Event Viewer.
+2. In the left panel, expand **Windows Logs** and click **Application**.
+3. Look through the list for a red **Error** entry that appeared around the time of the crash. The source will usually be `Application Error`.
+4. Double-click that entry to open it.
+5. Copy the full text from the **General** tab and paste it into your report. The lines that start with *Faulting application name* and *Fault offset* are the most important.
+
+If there is also a `patch_debug.txt` file in your Stronghold 2 game folder, please attach that too. (See [Debug Logging](#debug-logging) above for where to find it.)
+
+**Optional but very helpful:**
+
+- A short video or screen recording of the crash happening — even 10–15 seconds showing what you were doing just before the crash can make a big difference.
+
+The more detail you can provide, the faster a fix can be found and verified.
 
 ---
 
