@@ -44,6 +44,7 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [BUG-001](docs/bugs/knight-catapult-crash.md) | Knight/catapult mount crash | `base+0x1048BB` | Fixed in v0.1.0 |
 | [FEAT-001](docs/features/mp-ai-enable.md) | AI opponents in multiplayer lobbies | `base+0x2A0F69` | Added in v0.2.0 |
 | [FEAT-002](docs/features/intro-skip.md) | Skip Firefly logo intro on launch | `base+0x4DA9F8`, `base+0x27BB0D` | Added in v0.2.0 |
+| [FEAT-003](docs/features/unit-cap-raise.md) | Unit cap always 550 regardless of player count | `base+0x16827`, `base+0x18768`, `base+0x189FB` | Added in v0.2.0 |
 
 ---
 

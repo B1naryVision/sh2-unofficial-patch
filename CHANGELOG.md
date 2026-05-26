@@ -8,6 +8,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+- **FEAT-003: Unit cap raise** — Per-player unit cap is now always 550 (the 2-player
+  maximum), regardless of player count. Vanilla formula `300 + floor(500/n)` produces
+  caps as low as 362 in 8-player games. Three functions share the same cap-check logic;
+  each is patched by replacing `ADD EAX, 300` (`05 2C 01 00 00`) with `MOV EAX, 550`
+  (`B8 26 02 00 00`) at `base+0x16827`, `base+0x18768`, and `base+0x189FB`.
+  Cap check is gated on multiplayer mode; single-player is unaffected.
+- **FEAT-002: Intro skip** — Firefly Studios logo video is bypassed on launch; game proceeds
+  directly to the main menu. Two patches applied: counter at `base+0x4DA9F8` initialised to 2
+  (was 0) so only one completion-check tick is needed; `BinkOpen` call at `base+0x27BB0D`
+  replaced with a stack-balancing `add esp,0x18` to leave the Bink handle NULL, triggering
+  the completion check immediately on the first `Update` tick.
 - **FEAT-001: Multiplayer AI enable** — AI opponents can now be configured in
   multiplayer lobbies. Two consecutive instructions at `base+0x2A0F69` suppressed the
   AI-enabled flag unconditionally on lobby entry; NOP'ing both (14 bytes) restores the
