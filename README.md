@@ -1,6 +1,6 @@
 # Stronghold 2 Unofficial Patch
 
-An unofficial community patch for **Stronghold 2** (Firefly Studios, 2005) targeting severe crashes and memory corruption bugs while preserving original gameplay and full save compatibility.
+An unofficial community patch for **Stronghold 2** (Firefly Studios, 2005) fixing crashes, restoring missing functionality, and improving quality of life — all while remaining fully compatible with vanilla saves and stock installs.
 
 [![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](https://unlicense.org)
 
@@ -22,25 +22,28 @@ No game files are modified. Removing the DLL restores the original behavior comp
 
 ### Goals
 
-- Fix crashes and memory corruption bugs in the original binary
-- Preserve original gameplay behavior exactly
+- Fix crashes and memory corruption bugs
+- Restore suppressed or broken functionality to its intended state
+- Improve quality of life where the original behavior is a clear oversight
 - Remain compatible with vanilla Steam installs and existing saves
 - Remain unobtrusive — zero overhead in release builds
 
 ### Non-Goals (for now)
 
-- Balance changes or gameplay modifications
-- Multiplayer or online feature changes
+- Balance changes or rebalancing of existing mechanics
+- Content additions (new units, buildings, missions)
 
 ---
 
-## Current Fixes
+## Current Fixes and Features
 
-### v0.1.0
+### v0.2.0
 
 | ID | Description | Offset | Status |
 | --- | --- | --- | --- |
 | [BUG-001](docs/bugs/knight-catapult-crash.md) | Knight/catapult mount crash | `base+0x1048BB` | Fixed in v0.1.0 |
+| [FEAT-001](docs/features/mp-ai-enable.md) | AI opponents in multiplayer lobbies | `base+0x2A0F69` | Added in v0.2.0 |
+| [FEAT-002](docs/features/intro-skip.md) | Skip Firefly logo intro on launch | `base+0x4DA9F8`, `base+0x27BB0D` | Added in v0.2.0 |
 
 ---
 
