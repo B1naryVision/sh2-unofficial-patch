@@ -8,6 +8,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+- **FEAT-001: Multiplayer AI enable** — AI opponents can now be configured in
+  multiplayer lobbies. Two consecutive instructions at `base+0x2A0F69` suppressed the
+  AI-enabled flag unconditionally on lobby entry; NOP'ing both (14 bytes) restores the
+  host's configured value. Only the host needs the patch. Desync risk exists since AI
+  is computed locally on each client.
+  Offset credit: Daniel Jenssen (`gitlab.com/Daerandin/sh2_mp_ai_enabler`).
+
 ---
 
 ## [0.1.0] — 2026-05-24
