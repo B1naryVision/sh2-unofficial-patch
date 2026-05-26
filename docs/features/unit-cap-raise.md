@@ -67,9 +67,12 @@ comparison.
 
 ## Multiplayer Compatibility
 
-Each client enforces its own cap locally. All players in a lobby should run the
-same version of the patch to avoid confusion, though the cap being higher than
-vanilla does not itself cause desync.
+**This patch is not compatible with vanilla multiplayer.** Each client enforces
+the cap locally, so a patched player can field 550 units while an unpatched
+player is capped at the vanilla value. This creates an unfair asymmetry and
+potential confusion. All players in a lobby must run the same patch version.
+
+For this reason FEAT-003 is currently excluded from the build.
 
 The check is gated on `DAT_00db8454 == 0`, which is 0 only in multiplayer mode,
 so single-player games are unaffected.
