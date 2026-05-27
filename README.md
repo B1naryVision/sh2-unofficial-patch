@@ -12,9 +12,9 @@ The patch is delivered as a `version.dll` that sits in the game directory. Windo
 
 No game files are modified. Removing the DLL restores the original behavior completely.
 
-**Target**: Stronghold 2, Steam build v1.5.0
-**Architecture**: 32-bit x86 Windows PE  
-**Development environment**: Linux/WSL with MinGW cross-compiler
+- Target: Stronghold 2, Steam build v1.5.0
+- Architecture: 32-bit x86 Windows PE  
+- Development environment: Linux/WSL with MinGW cross-compiler
 
 ---
 
