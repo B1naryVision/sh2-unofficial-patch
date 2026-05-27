@@ -8,6 +8,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+- **FEAT-003: Ballista auto-fire restore** — field-deployed ballistae now automatically
+  target and fire at enemies, matching the behaviour of tower-mounted ballistae.
+  Four patches required. (1) `jne +0x2e4` at `base+0x180c4f`: `[this+0x308]` is set
+  to `0x01` by the fire path after the first shot; on every subsequent tick the `jne`
+  routes to the manual-target handler — NOP'd 6 bytes so execution always falls through.
+  (2) `je +0x2c2` at `base+0x180c71`: `FireBallista::think` calls `0x415f20` with the
+  owner's player object; that function returns 0 for human players (1 for AI), so the
+  `je` exits before the tick gate on every tick for human-owned ballistae —
+  `Ballista::think` (tower) has no equivalent check; NOP'd 6 bytes. (3) `je +0x10` at
+  `base+0x180c92`: `[this+0xb4]` is a float field set to `1536.0` in the constructor
+  and never cleared; the `je` (zero-branch) is never taken, falling through to an
+  epilogue that returns before the tick gate — `74` → `eb` (1 byte). (4) CALL at
+  `base+0x180ef9` targeted `0x17f8c0`, a cached-target retriever whose cache is never
+  populated; redirected to `0x177b90`, the same proven fresh-search-and-fire function
+  used by tower ballistae. Safe for multiplayer; no desync risk.
+
 ---
 
 ## [0.2.0]
