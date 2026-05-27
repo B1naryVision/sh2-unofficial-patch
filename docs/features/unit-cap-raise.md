@@ -1,4 +1,4 @@
-# FEAT-003: Unit Cap Raise
+# Unit Cap Raise
 
 **Status:** Not added, incompatible in multiplayer for players without patch.
 **Affects:** Stronghold 2 Steam v1.5.0 (32-bit, `Stronghold2.exe`)

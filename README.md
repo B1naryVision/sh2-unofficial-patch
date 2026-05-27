@@ -24,18 +24,24 @@ No game files are modified. Removing the DLL restores the original behavior comp
 
 - Fix crashes and memory corruption bugs
 - Restore suppressed or broken functionality to its intended state
-- Improve quality of life where the original behavior is a clear oversight
+- Improve quality of life
 - Remain compatible with vanilla Steam installs and existing saves
 - Remain unobtrusive — zero overhead in release builds
+- Balance changes or rebalancing of existing mechanics
 
 ### Non-Goals (for now)
 
-- Balance changes or rebalancing of existing mechanics
 - Content additions (new units, buildings, missions)
 
 ---
 
 ## Current Fixes and Features
+
+### Unreleased
+
+| ID | Description | Offsets | Status |
+| --- | --- | --- | --- |
+| [FEAT-003](docs/features/ballista-auto-fire.md) | Field ballista auto-fire restore | `base+0x180c4f`, `0x180c71`, `0x180c92`, `0x180ef9` | Pending v0.3.0 |
 
 ### v0.2.0
 
@@ -44,6 +50,17 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [BUG-001](docs/bugs/knight-catapult-crash.md) | Knight/catapult mount crash | `base+0x1048BB` | Fixed in v0.1.0 |
 | [FEAT-001](docs/features/mp-ai-enable.md) | AI opponents in multiplayer lobbies | `base+0x2A0F69` | Added in v0.2.0 |
 | [FEAT-002](docs/features/intro-skip.md) | Skip Firefly logo intro on launch | `base+0x4DA9F8`, `base+0x27BB0D` | Added in v0.2.0 |
+
+---
+
+## Roadmap
+
+Items under active investigation or queued for a future release.
+
+| Priority | Type | Description | Requested by |
+| --- | --- | --- | --- |
+| Medium | Bug fix | Wheat Farmers and Candle Makers should not be eligible to become criminals — they get permanently stuck inside buildings | TheSettler |
+| Low | Feature | Checkbox to disable market placement in No Market multiplayer games | Ignite |
 
 ---
 
@@ -145,6 +162,14 @@ This is an open reverse-engineering project. Contributions are welcome.
 4. Add an entry to `CHANGELOG.md` and the fix table in this README
 
 See [docs/architecture.md](docs/architecture.md) for technical background on the hook infrastructure, naming conventions, and safe patching patterns.
+
+---
+
+## Acknowledgements
+
+**TheSettler** — Primary multiplayer co-tester, invaluable in verifying that each release stays fully compatible with vanilla Stronghold 2 installs. Also a key source of ideas for improvements to the game.
+
+**Ignite** — Ongoing assistance debugging patch loading issues on Windows 10, and a steady stream of ideas for features and fixes that have shaped the project's direction.
 
 ---
 

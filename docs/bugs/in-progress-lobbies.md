@@ -1,4 +1,4 @@
-# BUG-002: In-Progress Lobbies Visible in Lobby Browser
+# In-Progress Lobbies Visible in Lobby Browser
 
 **Status**: Investigation abandoned — fundamental detection limit reached  
 **Severity**: Minor UX — players see un-joinable lobbies in the list; clicking them silently fails  
