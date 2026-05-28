@@ -1,5 +1,5 @@
 /**
- * [BUG-001] Knight/Catapult Mount Crash
+ * Knight/Catapult Mount Crash
  *
  * Hook 1 — base+0x39031F: CALL EDX + MOV [ESI+10],EAX (5 bytes)
  * Hook 2 — base+0x1048BB: MOV BYTE PTR [ECX+300],1   (7 bytes)

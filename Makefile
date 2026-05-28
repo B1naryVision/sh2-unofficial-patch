@@ -11,8 +11,7 @@ SRCS = src/dllmain.cpp \
        src/patches/registry.cpp \
        src/patches/knightCatapultCrash.cpp \
        src/patches/mpAiEnable.cpp \
-       src/patches/introSkip.cpp \
-       src/patches/ballistaAutoFire.cpp
+       src/patches/introSkip.cpp
 
 DEPLOY_PATH = /mnt/c/Games/Steam/steamapps/common/Stronghold\ 2/
 

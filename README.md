@@ -37,25 +37,26 @@ No game files are modified. Removing the DLL restores the original behavior comp
 
 ## Current Fixes and Features
 
-### Unreleased
-
-| ID | Description | Offsets | Status |
-| --- | --- | --- | --- |
-| [FEAT-003](docs/features/ballista-auto-fire.md) | Field ballista auto-fire restore | `base+0x180c4f`, `0x180c71`, `0x180c92`, `0x180ef9` | Pending v0.3.0 |
-
 ### v0.2.0
 
-| ID | Description | Offset | Status |
-| --- | --- | --- | --- |
-| [BUG-001](docs/bugs/knight-catapult-crash.md) | Knight/catapult mount crash | `base+0x1048BB` | Fixed in v0.1.0 |
-| [FEAT-001](docs/features/mp-ai-enable.md) | AI opponents in multiplayer lobbies | `base+0x2A0F69` | Added in v0.2.0 |
-| [FEAT-002](docs/features/intro-skip.md) | Skip Firefly logo intro on launch | `base+0x4DA9F8`, `base+0x27BB0D` | Added in v0.2.0 |
+| Description | Offset | Status |
+| --- | --- | --- |
+| [Knight/catapult mount crash](docs/bugs/knight-catapult-crash.md) | `base+0x1048BB` | Fixed in v0.1.0 |
+| [AI opponents in multiplayer lobbies](docs/features/mp-ai-enable.md) | `base+0x2A0F69` | Added in v0.2.0 |
+| [Skip Firefly logo intro on launch](docs/features/intro-skip.md) | `base+0x4DA9F8`, `base+0x27BB0D` | Added in v0.2.0 |
 
 ---
 
 ## Roadmap
 
 Items under active investigation or queued for a future release.
+
+The following are implemented but excluded from the build until the patch has broader adoption — both require **all players to run the same patch version** to avoid multiplayer desyncs:
+
+| Description | Notes |
+| --- | --- |
+| [Field ballista auto-fire restore](docs/features/ballista-auto-fire.md) | Modifies unit health state each tick |
+| [Unit cap raise (550 in all lobby sizes)](docs/features/unit-cap-raise.md) | Per-player cap enforced locally; patched vs unpatched clients diverge |
 
 | Priority | Type | Description | Requested by |
 | --- | --- | --- | --- |

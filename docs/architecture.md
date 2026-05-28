@@ -129,7 +129,7 @@ sh2-unofficial-patch/
 
 ```cpp
 /**
- * [BUG-ID] Short description
+ * Short description
  *
  * Hook — base+0xXXXXXX: <original instruction> (N bytes)
  *

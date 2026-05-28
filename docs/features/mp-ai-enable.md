@@ -1,4 +1,4 @@
-# FEAT-001: Multiplayer AI Enable
+# Multiplayer AI Enable
 
 **Status:** Added in v0.2.0  
 **Affects:** Stronghold 2 Steam v1.5.0 (32-bit, `Stronghold2.exe`)

@@ -1,4 +1,4 @@
-# BUG-001: Knight/Catapult Mount Crash
+# Knight/Catapult Mount Crash
 
 **Status**: Fixed in v0.1.0
 **Severity**: Critical — deterministic crash, no workaround for the player

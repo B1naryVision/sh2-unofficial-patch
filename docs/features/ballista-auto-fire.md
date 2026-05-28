@@ -1,6 +1,6 @@
-# FEAT-003: Ballista Auto-Fire Restore
+# Ballista Auto-Fire Restore
 
-**Status:** Added in v0.3.0  
+**Status:** Implemented, not yet enabled — requires broad patch adoption for multiplayer compatibility  
 **Affects:** Stronghold 2 Steam v1.5.0 (32-bit, `Stronghold2.exe`)
 
 ---
@@ -116,9 +116,11 @@ Displacement arithmetic for patch 4: next IP = `0x180efe`; target = `0x177b90`; 
 
 ## Multiplayer Compatibility
 
-Both the field ballista and the tower ballista auto-fire logic are executed locally per client against shared world state. No network messages are sent by the change. The fix is safe for multiplayer.
+Stronghold 2 multiplayer runs a deterministic lockstep simulation: both clients execute the same game logic on the same shared state each tick. Field ballista auto-fire modifies that shared state (enemy unit health). If one client fires and the other does not, the simulation diverges and the engine detects a desync, crashing both clients.
 
-Anyone not using the patch will be at a disadvantage — their field ballistae will not auto-fire.
+**Both players must have the patch installed.** Playing against an unpatched client will cause a desync crash.
+
+Players without the patch will also be at a mechanical disadvantage: their field ballistae will not auto-fire.
 
 ---
 

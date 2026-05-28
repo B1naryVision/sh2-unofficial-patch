@@ -6,34 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [Unreleased]
-
-- **FEAT-003: Ballista auto-fire restore** — field-deployed ballistae now automatically
-  target and fire at enemies, matching the behaviour of tower-mounted ballistae.
-  Four patches required. (1) `jne +0x2e4` at `base+0x180c4f`: `[this+0x308]` is set
-  to `0x01` by the fire path after the first shot; on every subsequent tick the `jne`
-  routes to the manual-target handler — NOP'd 6 bytes so execution always falls through.
-  (2) `je +0x2c2` at `base+0x180c71`: `FireBallista::think` calls `0x415f20` with the
-  owner's player object; that function returns 0 for human players (1 for AI), so the
-  `je` exits before the tick gate on every tick for human-owned ballistae —
-  `Ballista::think` (tower) has no equivalent check; NOP'd 6 bytes. (3) `je +0x10` at
-  `base+0x180c92`: `[this+0xb4]` is a float field set to `1536.0` in the constructor
-  and never cleared; the `je` (zero-branch) is never taken, falling through to an
-  epilogue that returns before the tick gate — `74` → `eb` (1 byte). (4) CALL at
-  `base+0x180ef9` targeted `0x17f8c0`, a cached-target retriever whose cache is never
-  populated; redirected to `0x177b90`, the same proven fresh-search-and-fire function
-  used by tower ballistae. Safe for multiplayer; no desync risk.
-
----
-
 ## [0.2.0]
 
-- **FEAT-002: Intro skip** — Firefly Studios logo video is bypassed on launch; game proceeds
+- **Intro skip** — Firefly Studios logo video is bypassed on launch; game proceeds
   directly to the main menu. Two patches applied: counter at `base+0x4DA9F8` initialised to 2
   (was 0) so only one completion-check tick is needed; `BinkOpen` call at `base+0x27BB0D`
   replaced with a stack-balancing `add esp,0x18` to leave the Bink handle NULL, triggering
   the completion check immediately on the first `Update` tick.
-- **FEAT-001: Multiplayer AI enable** — AI opponents can now be configured in
+- **Multiplayer AI enable** — AI opponents can now be configured in
   multiplayer lobbies. Two consecutive instructions at `base+0x2A0F69` suppressed the
   AI-enabled flag unconditionally on lobby entry; NOP'ing both (14 bytes) restores the
   host's configured value. Only the host needs the patch. Desync risk exists since AI
@@ -46,7 +26,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
-- **BUG-001: Knight/catapult mount crash** — game crashed when a knight was struck by a catapult projectile at the exact moment of mounting a horse. A sub-object pointer at `[ESI+0x440]` is zeroed during partial destruction before the game's own validity check fires, causing a null dereference at `base+0x1048BB`. Fixed with a targeted null guard at the crash instruction; unaffected units continue executing the normal code path.
+- **Knight/catapult mount crash** — game crashed when a knight was struck by a catapult projectile at the exact moment of mounting a horse. A sub-object pointer at `[ESI+0x440]` is zeroed during partial destruction before the game's own validity check fires, causing a null dereference at `base+0x1048BB`. Fixed with a targeted null guard at the crash instruction; unaffected units continue executing the normal code path.
 
 ### Added
 

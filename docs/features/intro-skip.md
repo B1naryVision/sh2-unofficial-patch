@@ -1,4 +1,4 @@
-# FEAT-002: Intro Skip
+# Intro Skip
 
 **Status:** Added in v0.3.0  
 **Affected version:** Stronghold 2 Steam v1.5.0  
