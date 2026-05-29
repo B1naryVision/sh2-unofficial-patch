@@ -6,6 +6,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+- **Multiplayer connect-complete crash** — game crashed with access violation at
+  `base+0x3d86b8` when a `CONNECT_COMPLETE` network message arrived for a peer with no
+  entry in the local peer table. The error-log path in `handleConnectCompleteMessage`
+  assumed `esi` (the peer pointer) was non-null and immediately did `add esi,0x18`,
+  causing a dereference of address `0x2C` when `esi` was zero. Fix: redirect the
+  null-peer `je` at `base+0x3d85c6` from the shared error-log path to the function's
+  return epilogue (`base+0x3d86fe`) — 6-byte patch, original `0f 84 ce 00 00 00`,
+  replacement `0f 84 32 01 00 00`. The spurious message is silently ignored; the
+  already-connected peer path is unchanged. Safe for version mismatch.
+
+---
+
 ## [0.2.0]
 
 - **Intro skip** — Firefly Studios logo video is bypassed on launch; game proceeds

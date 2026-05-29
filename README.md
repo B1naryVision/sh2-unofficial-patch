@@ -37,6 +37,12 @@ No game files are modified. Removing the DLL restores the original behavior comp
 
 ## Current Fixes and Features
 
+### Unreleased
+
+| Description | Offset | Status |
+| --- | --- | --- |
+| [MP connect-complete crash](docs/bugs/mp-connect-complete-crash.md) | `base+0x3d85c6` | Fixed (unreleased) |
+
 ### v0.2.0
 
 | Description | Offset | Status |
