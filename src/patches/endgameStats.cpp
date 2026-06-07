@@ -486,6 +486,11 @@ static void collectStats(uintptr_t base, bool won) {
         for (int t = 0; t < 256 && !hasUnits; ++t)
             if (i < 32 && s_unitsMade[i][t]) hasUnits = true;
         if (!hasUnits) continue;
+        // Skip if the live object looks zeroed (crash/cleanup cleared the fields).
+        // Pass 4 will use the cache snapshot instead.
+        int gold  = (int)*(float *)(pp + OFF_GOLD);
+        int honor = *(int *)(pp + OFF_HONOR);
+        if (gold == 0 && honor == 0) continue;
         colorSeen[color] = true;
         if (i < 32) slotAdded[i] = true;
         fillStat(i, pp);
