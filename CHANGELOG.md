@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+---
+
+## [0.3.0]
+
 - **End-of-game statistics** — a transparent Win32 overlay window appears when the
   victory or defeat screen activates, showing per-player gold, honour, army size,
   per-source income, per-source honour, and cumulative recruited unit counts by type
