@@ -1,6 +1,6 @@
 #include "mpAiEnable.h"
-#include <windows.h>
 #include <cstring>
+#include <windows.h>
 
 void installMpAiEnable() {
     uintptr_t base = (uintptr_t)GetModuleHandleA(NULL);

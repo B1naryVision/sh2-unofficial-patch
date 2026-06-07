@@ -22,12 +22,12 @@ void loadRealVersionDll() {
 }
 
 extern "C" {
-__declspec(naked) WINBOOL WINAPI GetFileVersionInfoA(LPCSTR lptstrFilename, DWORD dwHandle,
-                                                     DWORD dwLen, LPVOID lpData) {
+__declspec(naked) WINBOOL WINAPI
+GetFileVersionInfoA(LPCSTR lptstrFilename, DWORD dwHandle, DWORD dwLen, LPVOID lpData) {
     __asm__("jmp *%0" : : "m"(g_realFunctions[0]));
 }
-__declspec(naked) WINBOOL WINAPI GetFileVersionInfoW(LPCWSTR lptstrFilename, DWORD dwHandle,
-                                                     DWORD dwLen, LPVOID lpData) {
+__declspec(naked) WINBOOL WINAPI
+GetFileVersionInfoW(LPCWSTR lptstrFilename, DWORD dwHandle, DWORD dwLen, LPVOID lpData) {
     __asm__("jmp *%0" : : "m"(g_realFunctions[1]));
 }
 __declspec(naked) DWORD WINAPI GetFileVersionInfoSizeA(LPCSTR lptstrFilename, LPDWORD lpdwHandle) {
@@ -36,12 +36,12 @@ __declspec(naked) DWORD WINAPI GetFileVersionInfoSizeA(LPCSTR lptstrFilename, LP
 __declspec(naked) DWORD WINAPI GetFileVersionInfoSizeW(LPCWSTR lptstrFilename, LPDWORD lpdwHandle) {
     __asm__("jmp *%0" : : "m"(g_realFunctions[3]));
 }
-__declspec(naked) WINBOOL WINAPI VerQueryValueA(LPCVOID pBlock, LPCSTR lpSubBlock,
-                                                LPVOID *lplpBuffer, PUINT puLen) {
+__declspec(naked) WINBOOL WINAPI
+VerQueryValueA(LPCVOID pBlock, LPCSTR lpSubBlock, LPVOID *lplpBuffer, PUINT puLen) {
     __asm__("jmp *%0" : : "m"(g_realFunctions[4]));
 }
-__declspec(naked) WINBOOL WINAPI VerQueryValueW(LPCVOID pBlock, LPCWSTR lpSubBlock,
-                                                LPVOID *lplpBuffer, PUINT puLen) {
+__declspec(naked) WINBOOL WINAPI
+VerQueryValueW(LPCVOID pBlock, LPCWSTR lpSubBlock, LPVOID *lplpBuffer, PUINT puLen) {
     __asm__("jmp *%0" : : "m"(g_realFunctions[5]));
 }
 }

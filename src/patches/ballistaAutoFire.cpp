@@ -1,6 +1,6 @@
 #include "ballistaAutoFire.h"
-#include <windows.h>
 #include <cstring>
+#include <windows.h>
 
 void installBallistaAutoFire() {
     uintptr_t base = (uintptr_t)GetModuleHandleA(NULL);
@@ -45,24 +45,27 @@ void installBallistaAutoFire() {
     // After  (site): e9 [rel32 to cave]  + 90 90 90 90 90 90 90 90
     {
         unsigned char *cave = (unsigned char *)VirtualAlloc(
-            NULL, 57, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-        if (!cave) return;
+            NULL, 57, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE
+        );
+        if (!cave) {
+            return;
+        }
 
         static const unsigned char tmpl[57] = {
-            0x83,0xbe,0x98,0x01,0x00,0x00,0x00,  // +00 cmp dword [esi+0x198],0
-            0x74,0x2b,                            // +07 jz auto_fire
-            0x0f,0xb7,0x86,0x98,0x01,0x00,0x00,  // +09 movzx eax,word[esi+0x198]
-            0x8b,0x4e,0x30,                       // +10 mov ecx,[esi+0x30]
-            0x39,0xc8,                            // +13 cmp eax,ecx
-            0x75,0x0e,                            // +15 jne not_own_cell
-            0x0f,0xb7,0x86,0x9a,0x01,0x00,0x00,  // +17 movzx eax,word[esi+0x19a]
-            0x8b,0x4e,0x34,                       // +1e mov ecx,[esi+0x34]
-            0x39,0xc8,                            // +21 cmp eax,ecx
-            0x74,0x05,                            // +23 je is_own_cell
-            0xe9,0x00,0x00,0x00,0x00,             // +25 jmp manual_handler (disp@+26)
-            0xc7,0x86,0x98,0x01,0x00,0x00,        // +2a mov dword[esi+0x198],0 ...
-            0x00,0x00,0x00,0x00,                  //     ... imm32=0
-            0xe9,0x00,0x00,0x00,0x00              // +34 jmp return_site (disp@+35)
+            0x83, 0xbe, 0x98, 0x01, 0x00, 0x00, 0x00, // +00 cmp dword [esi+0x198],0
+            0x74, 0x2b, // +07 jz auto_fire
+            0x0f, 0xb7, 0x86, 0x98, 0x01, 0x00, 0x00, // +09 movzx eax,word[esi+0x198]
+            0x8b, 0x4e, 0x30, // +10 mov ecx,[esi+0x30]
+            0x39, 0xc8, // +13 cmp eax,ecx
+            0x75, 0x0e, // +15 jne not_own_cell
+            0x0f, 0xb7, 0x86, 0x9a, 0x01, 0x00, 0x00, // +17 movzx eax,word[esi+0x19a]
+            0x8b, 0x4e, 0x34, // +1e mov ecx,[esi+0x34]
+            0x39, 0xc8, // +21 cmp eax,ecx
+            0x74, 0x05, // +23 je is_own_cell
+            0xe9, 0x00, 0x00, 0x00, 0x00, // +25 jmp manual_handler (disp@+26)
+            0xc7, 0x86, 0x98, 0x01, 0x00, 0x00, // +2a mov dword[esi+0x198],0 ...
+            0x00, 0x00, 0x00, 0x00, //     ... imm32=0
+            0xe9, 0x00, 0x00, 0x00, 0x00 // +34 jmp return_site (disp@+35)
         };
         memcpy(cave, tmpl, 57);
 
@@ -77,7 +80,14 @@ void installBallistaAutoFire() {
             (unsigned char)(cave_disp >> 8),
             (unsigned char)(cave_disp >> 16),
             (unsigned char)(cave_disp >> 24),
-            0x90,0x90,0x90,0x90,0x90,0x90,0x90,0x90
+            0x90,
+            0x90,
+            0x90,
+            0x90,
+            0x90,
+            0x90,
+            0x90,
+            0x90
         };
         VirtualProtect(site, 13, PAGE_EXECUTE_READWRITE, &oldProtect);
         memcpy(site, p, 13);
@@ -93,7 +103,7 @@ void installBallistaAutoFire() {
     // rotation check regardless of player type.
     // Before: 0f 84 c2 02 00 00  (je +0x2c2 → 0x180f39)
     {
-        static const unsigned char p[] = { 0x90,0x90,0x90,0x90,0x90,0x90 };
+        static const unsigned char p[] = {0x90, 0x90, 0x90, 0x90, 0x90, 0x90};
         void *site = (void *)(base + 0x180c71);
         VirtualProtect(site, 6, PAGE_EXECUTE_READWRITE, &oldProtect);
         memcpy(site, p, 6);
@@ -110,7 +120,7 @@ void installBallistaAutoFire() {
     // cmp byte [esi+0x352], bl inside the tick gate.
     // Before: 74  (je)   After: eb  (jmp short)
     {
-        static const unsigned char p[] = { 0xeb };
+        static const unsigned char p[] = {0xeb};
         void *site = (void *)(base + 0x180c92);
         VirtualProtect(site, 1, PAGE_EXECUTE_READWRITE, &oldProtect);
         memcpy(site, p, 1);
@@ -129,11 +139,10 @@ void installBallistaAutoFire() {
     {
         void *site = (void *)(base + 0x180ef9);
         uintptr_t disp = (uintptr_t)(base + 0x177b90) - (uintptr_t)site - 5;
-        unsigned char p[5] = { 0xe8,
-            (unsigned char)(disp),
-            (unsigned char)(disp >> 8),
-            (unsigned char)(disp >> 16),
-            (unsigned char)(disp >> 24) };
+        unsigned char p[5] = {
+            0xe8, (unsigned char)(disp), (unsigned char)(disp >> 8), (unsigned char)(disp >> 16),
+            (unsigned char)(disp >> 24)
+        };
         VirtualProtect(site, 5, PAGE_EXECUTE_READWRITE, &oldProtect);
         memcpy(site, p, 5);
         VirtualProtect(site, 5, oldProtect, &oldProtect);

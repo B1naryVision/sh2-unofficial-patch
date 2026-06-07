@@ -1,7 +1,7 @@
 #include "introSkip.h"
-#include <windows.h>
 #include <cstdint>
 #include <cstring>
+#include <windows.h>
 
 void installIntroSkip() {
     uintptr_t base = (uintptr_t)GetModuleHandleA(NULL);

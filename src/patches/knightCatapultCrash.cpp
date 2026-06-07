@@ -20,29 +20,25 @@ uintptr_t s_returnAddress = 0;
 uintptr_t s_crashSiteReturn = 0;
 uintptr_t s_crashSiteSkip = 0;
 
-extern "C" void logEngineState() {
-    logPushContext(g_targetRegisterContext);
-}
+extern "C" void logEngineState() { logPushContext(g_targetRegisterContext); }
 
 __declspec(naked) static void gameLoopHook() {
-    __asm__ volatile(
-        "pushal\n\t"
-        "movl %edx, _g_targetRegisterContext\n\t"
-        "call _logEngineState\n\t"
-        "popal\n\t"
-        "call *%edx\n\t"
-        "movl %eax, 0x10(%esi)\n\t"
-        "jmp *_s_returnAddress\n\t");
+    __asm__ volatile("pushal\n\t"
+                     "movl %edx, _g_targetRegisterContext\n\t"
+                     "call _logEngineState\n\t"
+                     "popal\n\t"
+                     "call *%edx\n\t"
+                     "movl %eax, 0x10(%esi)\n\t"
+                     "jmp *_s_returnAddress\n\t");
 }
 
 __declspec(naked) static void nullGuardHook() {
-    __asm__ volatile(
-        "testl %ecx, %ecx\n\t"
-        "je .LNullGuardSkip\n\t"
-        "movb $1, 0x300(%ecx)\n\t"
-        "jmp *_s_crashSiteReturn\n\t"
-        ".LNullGuardSkip:\n\t"
-        "jmp *_s_crashSiteSkip\n\t");
+    __asm__ volatile("testl %ecx, %ecx\n\t"
+                     "je .LNullGuardSkip\n\t"
+                     "movb $1, 0x300(%ecx)\n\t"
+                     "jmp *_s_crashSiteReturn\n\t"
+                     ".LNullGuardSkip:\n\t"
+                     "jmp *_s_crashSiteSkip\n\t");
 }
 
 void installKnightCatapultCrashFix() {
