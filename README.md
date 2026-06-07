@@ -37,20 +37,15 @@ No game files are modified. Removing the DLL restores the original behavior comp
 
 ## Current Fixes and Features
 
-### Unreleased
-
-| Description | Offset | Status |
-| --- | --- | --- |
-| [MP connect-complete crash](docs/bugs/mp-connect-complete-crash.md) | `base+0x3d85c6` | Fixed (unreleased) |
-| [End-of-game statistics overlay](docs/features/endgame-stats.md) | `base+0x297fa0`, `base+0x297700` | Added (unreleased) |
-
-### v0.2.0
+### v0.3.0
 
 | Description | Offset | Status |
 | --- | --- | --- |
 | [Knight/catapult mount crash](docs/bugs/knight-catapult-crash.md) | `base+0x1048BB` | Fixed in v0.1.0 |
 | [AI opponents in multiplayer lobbies](docs/features/mp-ai-enable.md) | `base+0x2A0F69` | Added in v0.2.0 |
 | [Skip Firefly logo intro on launch](docs/features/intro-skip.md) | `base+0x4DA9F8`, `base+0x27BB0D` | Added in v0.2.0 |
+| [MP connect-complete crash](docs/bugs/mp-connect-complete-crash.md) | `base+0x3d85c6` | Added in v0.3.0 |
+| [End-of-game statistics overlay](docs/features/endgame-stats.md) | `base+0x297fa0`, `base+0x297700` | Added in v0.3.0 |
 
 ---
 
