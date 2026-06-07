@@ -654,6 +654,14 @@ static void collectStats(uintptr_t base, bool won) {
         if (color < 1 || color > 10 || colorSeen[color]) {
             continue;
         }
+
+        // Same guard as passes 2 and 3: ghost slots are polled by the timer and
+        // get valid=true before the 3-poll detection fires.  A real player always
+        // has non-zero gold or honour in their last snapshot.
+        if (s_slotCache[i].stat.gold == 0 && s_slotCache[i].stat.honor == 0) {
+            continue;
+        }
+
         colorSeen[color] = true;
         slotAdded[i] = true;
         PlayerStat &stat = s_stats[s_statCount++];
