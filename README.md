@@ -42,6 +42,7 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | Description | Offset | Status |
 | --- | --- | --- |
 | [MP connect-complete crash](docs/bugs/mp-connect-complete-crash.md) | `base+0x3d85c6` | Fixed (unreleased) |
+| [End-of-game statistics overlay](docs/features/endgame-stats.md) | `base+0x297fa0`, `base+0x297700` | Added (unreleased) |
 
 ### v0.2.0
 
@@ -177,6 +178,8 @@ See [docs/architecture.md](docs/architecture.md) for technical background on the
 **TheSettler** — Primary multiplayer co-tester, invaluable in verifying that each release stays fully compatible with vanilla Stronghold 2 installs. Also a key source of ideas for improvements to the game.
 
 **Ignite** — Ongoing assistance debugging patch loading issues on Windows 10, and a steady stream of ideas for features and fixes that have shaped the project's direction.
+
+**SD7804** — Instrumental in finding the relevant memory locations for the end-of-game statistics feature.
 
 ---
 

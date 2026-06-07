@@ -1,6 +1,6 @@
 CXX      = i686-w64-mingw32-g++
 CXXFLAGS = -m32 -O2 -std=c++17 -Wall -Isrc
-LDFLAGS  = -shared -Wl,--enable-stdcall-fixup -static-libgcc -static-libstdc++ -lkernel32
+LDFLAGS  = -shared -Wl,--enable-stdcall-fixup -static-libgcc -static-libstdc++ -lkernel32 -luser32 -lgdi32
 TARGET   = version.dll
 DEF      = version.def
 
@@ -12,7 +12,8 @@ SRCS = src/dllmain.cpp \
        src/patches/knightCatapultCrash.cpp \
        src/patches/mpAiEnable.cpp \
        src/patches/introSkip.cpp \
-       src/patches/mpConnectCompleteCrash.cpp
+       src/patches/mpConnectCompleteCrash.cpp \
+       src/patches/endgameStats.cpp
 
 DEPLOY_PATH = /mnt/c/Games/Steam/steamapps/common/Stronghold\ 2/
 

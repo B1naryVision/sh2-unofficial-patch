@@ -8,6 +8,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+- **End-of-game statistics** — a transparent Win32 overlay window appears when the
+  victory or defeat screen activates, showing per-player gold, honour, army size,
+  per-source income, per-source honour, and cumulative recruited unit counts by type
+  for all active players (up to 8). Player detection uses four passes: local player
+  via `base+0x6E8C60`, live remote players via castle flag (`[player+0x10F8] == 1`),
+  unit-spawn tracking (hook at `base+0x0EE3BE`, 7 bytes), and a periodic 60-second
+  snapshot cache for players who leave before the endgame screen fires. Hooks:
+  `WinScreen::OnActivate` at `base+0x297fa0`, `LoseScreen::OnActivate` at
+  `base+0x297700`, `WinScreen` dtor at `base+0x297f10`, `LoseScreen` dtor at
+  `base+0x297670`. Safe for version mismatch.
+
 - **Multiplayer connect-complete crash** — game crashed with access violation at
   `base+0x3d86b8` when a `CONNECT_COMPLETE` network message arrived for a peer with no
   entry in the local peer table. The error-log path in `handleConnectCompleteMessage`
