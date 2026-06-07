@@ -110,33 +110,33 @@ static HWND s_overlayHwnd = NULL;
 
 // ── Periodic poll helpers ─────────────────────────────────────────────────────
 
-static uint64_t makeFingerprint(uintptr_t pp) {
-    uint64_t gold = (uint32_t)(int)*(float *)(pp + OFF_GOLD);
-    uint64_t honor = (uint32_t)*(int *)(pp + OFF_HONOR);
-    uint64_t troops = (uint32_t)*(int *)(pp + OFF_TROOPS);
-    uint64_t siege = (uint32_t)*(int *)(pp + OFF_SIEGE);
+static uint64_t makeFingerprint(uintptr_t playerPtr) {
+    uint64_t gold = (uint32_t)(int)*(float *)(playerPtr + OFF_GOLD);
+    uint64_t honor = (uint32_t)*(int *)(playerPtr + OFF_HONOR);
+    uint64_t troops = (uint32_t)*(int *)(playerPtr + OFF_TROOPS);
+    uint64_t siege = (uint32_t)*(int *)(playerPtr + OFF_SIEGE);
     return gold | (honor << 32) | (troops * 0x10001ULL) | (siege * 0x100010001ULL);
 }
 
-static void snapshotToCache(int i, uintptr_t pp) {
-    PlayerStat &p = s_slotCache[i].stat;
-    p.slot = i;
-    p.colorIdx = *(int *)(pp + OFF_COLOR);
-    p.gold = (int)*(float *)(pp + OFF_GOLD);
-    p.honor = *(int *)(pp + OFF_HONOR);
-    p.troops = *(int *)(pp + OFF_TROOPS);
-    p.siege = *(int *)(pp + OFF_SIEGE);
-    p.titleIdx = *(int *)(pp + OFF_TITLE);
-    p.popularity = *(float *)(pp + OFF_POPULARITY);
-    p.income[0] = *(int *)(pp + OFF_INC_TRADE);
-    p.income[1] = *(int *)(pp + OFF_INC_TAX_CASTLE);
-    p.income[2] = *(int *)(pp + OFF_INC_TAX_ESTATES);
+static void snapshotToCache(int i, uintptr_t playerPtr) {
+    PlayerStat &stat = s_slotCache[i].stat;
+    stat.slot = i;
+    stat.colorIdx = *(int *)(playerPtr + OFF_COLOR);
+    stat.gold = (int)*(float *)(playerPtr + OFF_GOLD);
+    stat.honor = *(int *)(playerPtr + OFF_HONOR);
+    stat.troops = *(int *)(playerPtr + OFF_TROOPS);
+    stat.siege = *(int *)(playerPtr + OFF_SIEGE);
+    stat.titleIdx = *(int *)(playerPtr + OFF_TITLE);
+    stat.popularity = *(float *)(playerPtr + OFF_POPULARITY);
+    stat.income[0] = *(int *)(playerPtr + OFF_INC_TRADE);
+    stat.income[1] = *(int *)(playerPtr + OFF_INC_TAX_CASTLE);
+    stat.income[2] = *(int *)(playerPtr + OFF_INC_TAX_ESTATES);
 
-    for (int s = 0; s < 8; ++s) {
-        p.honSrc[s] = *(int *)(pp + OFF_HON_BASE + (uintptr_t)s * 4);
+    for (int src = 0; src < 8; ++src) {
+        stat.honSrc[src] = *(int *)(playerPtr + OFF_HON_BASE + (uintptr_t)src * 4);
     }
 
-    memset(p.unitsByType, 0, sizeof(p.unitsByType)); // filled from s_unitsMade at endgame
+    memset(stat.unitsByType, 0, sizeof(stat.unitsByType)); // filled from s_unitsMade at endgame
 }
 
 static VOID CALLBACK pollTimerCallback(PVOID, BOOLEAN) {
@@ -144,41 +144,41 @@ static VOID CALLBACK pollTimerCallback(PVOID, BOOLEAN) {
     uintptr_t *table = (uintptr_t *)(base + PLAYER_TABLE_RVA);
 
     for (int i = 0; i < 32; ++i) {
-        uintptr_t pp = table[i];
+        uintptr_t playerPtr = table[i];
 
-        if (!pp) {
+        if (!playerPtr) {
             continue;
         }
 
-        int color = *(int *)(pp + OFF_COLOR);
+        int color = *(int *)(playerPtr + OFF_COLOR);
 
         if (color < 1 || color > 10) {
             continue;
         }
 
-        uint64_t fp = makeFingerprint(pp);
-        SlotCache &sc = s_slotCache[i];
+        uint64_t fingerprint = makeFingerprint(playerPtr);
+        SlotCache &cache = s_slotCache[i];
 
-        if (!sc.seen) {
-            sc.seen = true;
-            sc.lastFp = fp;
-            sc.unchanged = 1;
-            sc.valid = true; // tentative until proven ghost
-            snapshotToCache(i, pp);
-        } else if (fp != sc.lastFp) {
-            sc.lastFp = fp;
-            sc.everChanged = true;
-            sc.unchanged = 0;
-            snapshotToCache(i, pp);
+        if (!cache.seen) {
+            cache.seen = true;
+            cache.lastFp = fingerprint;
+            cache.unchanged = 1;
+            cache.valid = true; // tentative until proven ghost
+            snapshotToCache(i, playerPtr);
+        } else if (fingerprint != cache.lastFp) {
+            cache.lastFp = fingerprint;
+            cache.everChanged = true;
+            cache.unchanged = 0;
+            snapshotToCache(i, playerPtr);
         } else {
-            if (sc.unchanged < 255) {
-                sc.unchanged++;
+            if (cache.unchanged < 255) {
+                cache.unchanged++;
             }
 
             // Three consecutive polls with no change and no prior change seen →
             // slot is a leftover ghost entry, not a real player this session.
-            if (!sc.everChanged && sc.unchanged >= 3) {
-                sc.valid = false;
+            if (!cache.everChanged && cache.unchanged >= 3) {
+                cache.valid = false;
             }
         }
     }
@@ -219,13 +219,13 @@ extern "C" void unitSpawnLogic() {
             // Unit recruitment is definitive proof of a real player.
             // Reinstate if the periodic poll tentatively marked this slot a ghost,
             // and snapshot now so pass 4 has data even if the timer hasn't fired yet.
-            SlotCache &sc = s_slotCache[i];
-            sc.valid = true;
-            sc.everChanged = true;
+            SlotCache &cache = s_slotCache[i];
+            cache.valid = true;
+            cache.everChanged = true;
 
-            if (!sc.seen) {
-                sc.seen = true;
-                sc.lastFp = makeFingerprint(playerBase);
+            if (!cache.seen) {
+                cache.seen = true;
+                cache.lastFp = makeFingerprint(playerBase);
                 snapshotToCache(i, playerBase);
             }
             break;
@@ -270,22 +270,24 @@ __declspec(naked) static void loseDtorHook() {
 
 // ── Overlay window ────────────────────────────────────────────────────────────
 
-static void
-drawRow(HDC hdc, int x, int y, const wchar_t *label, const int *vals, int n, COLORREF labelClr) {
+static void drawRow(
+    HDC hdc, int x, int rowY, const wchar_t *label, const int *vals, int playerCount,
+    COLORREF labelClr
+) {
     SetTextColor(hdc, labelClr);
-    TextOutW(hdc, x, y, label, (int)wcslen(label));
+    TextOutW(hdc, x, rowY, label, (int)wcslen(label));
 
-    for (int p = 0; p < n; ++p) {
-        int ci = 0;
+    for (int playerIdx = 0; playerIdx < playerCount; ++playerIdx) {
+        int colorIdx = 0;
 
-        if (s_stats[p].colorIdx >= 1 && s_stats[p].colorIdx <= 10) {
-            ci = s_stats[p].colorIdx;
+        if (s_stats[playerIdx].colorIdx >= 1 && s_stats[playerIdx].colorIdx <= 10) {
+            colorIdx = s_stats[playerIdx].colorIdx;
         }
 
-        SetTextColor(hdc, COLOR_VALS[ci]);
-        wchar_t num[16];
-        _snwprintf_s(num, 16, _TRUNCATE, L"%d", vals[p]);
-        TextOutW(hdc, x + 200 + p * 90, y, num, (int)wcslen(num));
+        SetTextColor(hdc, COLOR_VALS[colorIdx]);
+        wchar_t numBuf[16];
+        _snwprintf_s(numBuf, 16, _TRUNCATE, L"%d", vals[playerIdx]);
+        TextOutW(hdc, x + 200 + playerIdx * 90, rowY, numBuf, (int)wcslen(numBuf));
     }
 }
 
@@ -296,136 +298,137 @@ static LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
         HDC hdc = BeginPaint(hwnd, &ps);
         RECT rc;
         GetClientRect(hwnd, &rc);
-        HBRUSH bg = CreateSolidBrush(RGB(45, 45, 55));
-        FillRect(hdc, &rc, bg);
-        DeleteObject(bg);
+        HBRUSH bgBrush = CreateSolidBrush(RGB(45, 45, 55));
+        FillRect(hdc, &rc, bgBrush);
+        DeleteObject(bgBrush);
         // Thin border
         HPEN pen = CreatePen(PS_SOLID, 1, RGB(100, 100, 120));
-        HPEN old = (HPEN)SelectObject(hdc, pen);
-        HBRUSH nb = (HBRUSH)GetStockObject(NULL_BRUSH);
-        HBRUSH ob = (HBRUSH)SelectObject(hdc, nb);
+        HPEN prevPen = (HPEN)SelectObject(hdc, pen);
+        HBRUSH nullBrush = (HBRUSH)GetStockObject(NULL_BRUSH);
+        HBRUSH prevBrush = (HBRUSH)SelectObject(hdc, nullBrush);
         Rectangle(hdc, 0, 0, rc.right, rc.bottom);
-        SelectObject(hdc, old);
-        SelectObject(hdc, ob);
+        SelectObject(hdc, prevPen);
+        SelectObject(hdc, prevBrush);
         DeleteObject(pen);
         SetBkMode(hdc, TRANSPARENT);
 
-        int y = 8, lx = 10, n = s_statCount;
+        int rowY = 8, labelX = 10, playerCount = s_statCount;
 
         // Title
         SetTextColor(hdc, RGB(255, 255, 255));
-        wchar_t hdr[128];
+        wchar_t headerBuf[128];
         _snwprintf_s(
-            hdr, 128, _TRUNCATE, L"=== End of Game Statistics — %s ===",
+            headerBuf, 128, _TRUNCATE, L"=== End of Game Statistics — %s ===",
             s_gameWon ? L"VICTORY" : L"DEFEAT"
         );
-        TextOutW(hdc, lx, y, hdr, (int)wcslen(hdr));
-        y += 22;
+        TextOutW(hdc, labelX, rowY, headerBuf, (int)wcslen(headerBuf));
+        rowY += 22;
 
         // Player colour header
-        for (int p = 0; p < n; ++p) {
-            int ci = 0;
+        for (int playerIdx = 0; playerIdx < playerCount; ++playerIdx) {
+            int colorIdx = 0;
 
-            if (s_stats[p].colorIdx >= 1 && s_stats[p].colorIdx <= 10) {
-                ci = s_stats[p].colorIdx;
+            if (s_stats[playerIdx].colorIdx >= 1 && s_stats[playerIdx].colorIdx <= 10) {
+                colorIdx = s_stats[playerIdx].colorIdx;
             }
 
-            SetTextColor(hdc, COLOR_VALS[ci]);
-            wchar_t wn[16];
-            _snwprintf_s(wn, 16, _TRUNCATE, L"%-9S", COLOR_NAMES[ci]);
-            TextOutW(hdc, lx + 200 + p * 90, y, wn, (int)wcslen(wn));
+            SetTextColor(hdc, COLOR_VALS[colorIdx]);
+            wchar_t colorNameBuf[16];
+            _snwprintf_s(colorNameBuf, 16, _TRUNCATE, L"%-9S", COLOR_NAMES[colorIdx]);
+            TextOutW(hdc, labelX + 200 + playerIdx * 90, rowY, colorNameBuf, (int)wcslen(colorNameBuf));
         }
-        y += 20;
+
+        rowY += 20;
 
         // Title row
         SetTextColor(hdc, RGB(210, 210, 210));
-        TextOutW(hdc, lx, y, L"Title", 5);
+        TextOutW(hdc, labelX, rowY, L"Title", 5);
 
-        for (int p = 0; p < n; ++p) {
-            int ci = 0;
+        for (int playerIdx = 0; playerIdx < playerCount; ++playerIdx) {
+            int colorIdx = 0;
 
-            if (s_stats[p].colorIdx >= 1 && s_stats[p].colorIdx <= 10) {
-                ci = s_stats[p].colorIdx;
+            if (s_stats[playerIdx].colorIdx >= 1 && s_stats[playerIdx].colorIdx <= 10) {
+                colorIdx = s_stats[playerIdx].colorIdx;
             }
 
-            SetTextColor(hdc, COLOR_VALS[ci]);
-            int ti = s_stats[p].titleIdx;
-            const char *titleName = (ti >= 0 && ti <= 9) ? TITLE_NAMES[ti] : "?";
-            wchar_t wt[20];
-            _snwprintf_s(wt, 20, _TRUNCATE, L"%-10S", titleName);
-            TextOutW(hdc, lx + 200 + p * 90, y, wt, (int)wcslen(wt));
+            SetTextColor(hdc, COLOR_VALS[colorIdx]);
+            int titleIdx = s_stats[playerIdx].titleIdx;
+            const char *titleName = (titleIdx >= 0 && titleIdx <= 9) ? TITLE_NAMES[titleIdx] : "?";
+            wchar_t titleNameBuf[20];
+            _snwprintf_s(titleNameBuf, 20, _TRUNCATE, L"%-10S", titleName);
+            TextOutW(hdc, labelX + 200 + playerIdx * 90, rowY, titleNameBuf, (int)wcslen(titleNameBuf));
         }
-        y += 20;
+        rowY += 20;
 
         auto makeRow = [&](const wchar_t *label, auto getter) {
             int vals[8];
 
-            for (int p = 0; p < n; ++p) {
-                vals[p] = getter(s_stats[p]);
+            for (int playerIdx = 0; playerIdx < playerCount; ++playerIdx) {
+                vals[playerIdx] = getter(s_stats[playerIdx]);
             }
 
-            drawRow(hdc, lx, y, label, vals, n, RGB(220, 220, 220));
-            y += 18;
+            drawRow(hdc, labelX, rowY, label, vals, playerCount, RGB(220, 220, 220));
+            rowY += 18;
         };
-        makeRow(L"Gold (treasury)", [](const PlayerStat &p) { return p.gold; });
-        makeRow(L"Honour (total)", [](const PlayerStat &p) { return p.honor; });
-        makeRow(L"Army (troops)", [](const PlayerStat &p) { return p.troops; });
-        makeRow(L"Army (siege)", [](const PlayerStat &p) { return p.siege; });
-        y += 6;
+        makeRow(L"Gold (treasury)", [](const PlayerStat &stat) { return stat.gold; });
+        makeRow(L"Honour (total)", [](const PlayerStat &stat) { return stat.honor; });
+        makeRow(L"Army (troops)", [](const PlayerStat &stat) { return stat.troops; });
+        makeRow(L"Army (siege)", [](const PlayerStat &stat) { return stat.siege; });
+        rowY += 6;
 
         // Income
         SetTextColor(hdc, RGB(255, 215, 100));
-        TextOutW(hdc, lx, y, L"— Gold by source —", 18);
-        y += 18;
+        TextOutW(hdc, labelX, rowY, L"— Gold by source —", 18);
+        rowY += 18;
 
-        for (int s = 0; s < 3; ++s) {
+        for (int src = 0; src < 3; ++src) {
             int vals[8];
 
-            for (int p = 0; p < n; ++p) {
-                vals[p] = s_stats[p].income[s];
+            for (int playerIdx = 0; playerIdx < playerCount; ++playerIdx) {
+                vals[playerIdx] = s_stats[playerIdx].income[src];
             }
 
-            wchar_t wl[32];
-            _snwprintf_s(wl, 32, _TRUNCATE, L"  %S", INC_LABELS[s]);
-            drawRow(hdc, lx, y, wl, vals, n, RGB(230, 230, 200));
-            y += 18;
+            wchar_t labelBuf[32];
+            _snwprintf_s(labelBuf, 32, _TRUNCATE, L"  %S", INC_LABELS[src]);
+            drawRow(hdc, labelX, rowY, labelBuf, vals, playerCount, RGB(230, 230, 200));
+            rowY += 18;
         }
-        y += 6;
+        rowY += 6;
 
         // Honour
         SetTextColor(hdc, RGB(140, 210, 255));
-        TextOutW(hdc, lx, y, L"— Honour by source —", 20);
-        y += 18;
+        TextOutW(hdc, labelX, rowY, L"— Honour by source —", 20);
+        rowY += 18;
 
-        for (int s = 0; s < 8; ++s) {
+        for (int src = 0; src < 8; ++src) {
             int vals[8];
 
-            for (int p = 0; p < n; ++p) {
-                vals[p] = s_stats[p].honSrc[s];
+            for (int playerIdx = 0; playerIdx < playerCount; ++playerIdx) {
+                vals[playerIdx] = s_stats[playerIdx].honSrc[src];
             }
 
-            wchar_t wl[32];
-            _snwprintf_s(wl, 32, _TRUNCATE, L"  %S", HON_LABELS[s]);
-            drawRow(hdc, lx, y, wl, vals, n, RGB(200, 230, 245));
-            y += 18;
+            wchar_t labelBuf[32];
+            _snwprintf_s(labelBuf, 32, _TRUNCATE, L"  %S", HON_LABELS[src]);
+            drawRow(hdc, labelX, rowY, labelBuf, vals, playerCount, RGB(200, 230, 245));
+            rowY += 18;
         }
-        y += 6;
+        rowY += 6;
 
         // Units recruited — only rows where at least one player has count > 0
         SetTextColor(hdc, RGB(160, 240, 140));
-        TextOutW(hdc, lx, y, L"— Units recruited —", 19);
-        y += 18;
+        TextOutW(hdc, labelX, rowY, L"— Units recruited —", 19);
+        rowY += 18;
         bool anyUnits = false;
 
-        for (int t = 0; t < 256; ++t) {
-            if (!s_unitNames[t]) {
+        for (int unitType = 0; unitType < 256; ++unitType) {
+            if (!s_unitNames[unitType]) {
                 continue;
             }
 
             bool hasAny = false;
 
-            for (int p = 0; p < n; ++p) {
-                if (s_stats[p].unitsByType[t]) {
+            for (int playerIdx = 0; playerIdx < playerCount; ++playerIdx) {
+                if (s_stats[playerIdx].unitsByType[unitType]) {
                     hasAny = true;
                     break;
                 }
@@ -438,31 +441,31 @@ static LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
             anyUnits = true;
             int vals[8];
 
-            for (int p = 0; p < n; ++p) {
-                vals[p] = (int)s_stats[p].unitsByType[t];
+            for (int playerIdx = 0; playerIdx < playerCount; ++playerIdx) {
+                vals[playerIdx] = (int)s_stats[playerIdx].unitsByType[unitType];
             }
 
-            wchar_t wl[40];
-            _snwprintf_s(wl, 40, _TRUNCATE, L"  %S", s_unitNames[t]);
-            drawRow(hdc, lx, y, wl, vals, n, RGB(210, 240, 200));
-            y += 18;
+            wchar_t labelBuf[40];
+            _snwprintf_s(labelBuf, 40, _TRUNCATE, L"  %S", s_unitNames[unitType]);
+            drawRow(hdc, labelX, rowY, labelBuf, vals, playerCount, RGB(210, 240, 200));
+            rowY += 18;
         }
 
         if (!anyUnits) {
             SetTextColor(hdc, RGB(160, 160, 160));
-            TextOutW(hdc, lx + 200, y, L"(none recorded)", 15);
-            y += 18;
+            TextOutW(hdc, labelX + 200, rowY, L"(none recorded)", 15);
+            rowY += 18;
         }
 
         EndPaint(hwnd, &ps);
         return 0;
     }
     case WM_TIMER: {
-        HWND fg = GetForegroundWindow();
+        HWND fgWnd = GetForegroundWindow();
 
-        if (fg) {
+        if (fgWnd) {
             DWORD fgPid = 0;
-            GetWindowThreadProcessId(fg, &fgPid);
+            GetWindowThreadProcessId(fgWnd, &fgPid);
 
             if (fgPid != GetCurrentProcessId()) {
                 DestroyWindow(hwnd);
@@ -480,25 +483,25 @@ static LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
 
 // ── Data collection ───────────────────────────────────────────────────────────
 
-static void fillStat(int slot, uintptr_t pp) {
-    PlayerStat &p = s_stats[s_statCount++];
-    p.slot = slot;
-    p.colorIdx = *(int *)(pp + OFF_COLOR);
-    p.gold = (int)*(float *)(pp + OFF_GOLD);
-    p.honor = *(int *)(pp + OFF_HONOR);
-    p.troops = *(int *)(pp + OFF_TROOPS);
-    p.siege = *(int *)(pp + OFF_SIEGE);
-    p.titleIdx = *(int *)(pp + OFF_TITLE);
-    p.popularity = *(float *)(pp + OFF_POPULARITY);
-    p.income[0] = *(int *)(pp + OFF_INC_TRADE);
-    p.income[1] = *(int *)(pp + OFF_INC_TAX_CASTLE);
-    p.income[2] = *(int *)(pp + OFF_INC_TAX_ESTATES);
+static void fillStat(int slot, uintptr_t playerPtr) {
+    PlayerStat &stat = s_stats[s_statCount++];
+    stat.slot = slot;
+    stat.colorIdx = *(int *)(playerPtr + OFF_COLOR);
+    stat.gold = (int)*(float *)(playerPtr + OFF_GOLD);
+    stat.honor = *(int *)(playerPtr + OFF_HONOR);
+    stat.troops = *(int *)(playerPtr + OFF_TROOPS);
+    stat.siege = *(int *)(playerPtr + OFF_SIEGE);
+    stat.titleIdx = *(int *)(playerPtr + OFF_TITLE);
+    stat.popularity = *(float *)(playerPtr + OFF_POPULARITY);
+    stat.income[0] = *(int *)(playerPtr + OFF_INC_TRADE);
+    stat.income[1] = *(int *)(playerPtr + OFF_INC_TAX_CASTLE);
+    stat.income[2] = *(int *)(playerPtr + OFF_INC_TAX_ESTATES);
 
-    for (int s = 0; s < 8; ++s) {
-        p.honSrc[s] = *(int *)(pp + OFF_HON_BASE + (uintptr_t)s * 4);
+    for (int src = 0; src < 8; ++src) {
+        stat.honSrc[src] = *(int *)(playerPtr + OFF_HON_BASE + (uintptr_t)src * 4);
     }
 
-    memcpy(p.unitsByType, s_unitsMade[slot], sizeof(p.unitsByType));
+    memcpy(stat.unitsByType, s_unitsMade[slot], sizeof(stat.unitsByType));
 }
 
 static void collectStats(uintptr_t base, bool won) {
@@ -554,19 +557,19 @@ static void collectStats(uintptr_t base, bool won) {
             continue;
         }
 
-        uintptr_t pp = table[i];
+        uintptr_t playerPtr = table[i];
 
-        if (!pp) {
+        if (!playerPtr) {
             continue;
         }
 
-        int castle = *(int *)(pp + OFF_CASTLE);
+        int castle = *(int *)(playerPtr + OFF_CASTLE);
 
         if (castle != 1) {
             continue;
         }
 
-        int color = *(int *)(pp + OFF_COLOR);
+        int color = *(int *)(playerPtr + OFF_COLOR);
 
         if (color < 1 || color > 10 || colorSeen[color]) {
             continue;
@@ -574,8 +577,8 @@ static void collectStats(uintptr_t base, bool won) {
 
         // Skip template/ghost entries that have never had any data written to them.
         // A real player always has non-zero gold or non-zero honour by game end.
-        int gold = (int)*(float *)(pp + OFF_GOLD);
-        int honor = *(int *)(pp + OFF_HONOR);
+        int gold = (int)*(float *)(playerPtr + OFF_GOLD);
+        int honor = *(int *)(playerPtr + OFF_HONOR);
 
         if (gold == 0 && honor == 0) {
             continue;
@@ -587,7 +590,7 @@ static void collectStats(uintptr_t base, bool won) {
             slotAdded[i] = true;
         }
 
-        fillStat(i, pp);
+        fillStat(i, playerPtr);
     }
 
     // ── Pass 3: unit-spawn tracking fallback ──────────────────────────────────
@@ -597,13 +600,13 @@ static void collectStats(uintptr_t base, bool won) {
             continue;
         }
 
-        uintptr_t pp = table[i];
+        uintptr_t playerPtr = table[i];
 
-        if (!pp) {
+        if (!playerPtr) {
             continue;
         }
 
-        int color = *(int *)(pp + OFF_COLOR);
+        int color = *(int *)(playerPtr + OFF_COLOR);
 
         if (color < 1 || color > 10 || colorSeen[color]) {
             continue;
@@ -611,8 +614,8 @@ static void collectStats(uintptr_t base, bool won) {
 
         bool hasUnits = false;
 
-        for (int t = 0; t < 256 && !hasUnits; ++t) {
-            if (i < 32 && s_unitsMade[i][t]) {
+        for (int unitType = 0; unitType < 256 && !hasUnits; ++unitType) {
+            if (i < 32 && s_unitsMade[i][unitType]) {
                 hasUnits = true;
             }
         }
@@ -623,8 +626,8 @@ static void collectStats(uintptr_t base, bool won) {
 
         // Skip if the live object looks zeroed (crash/cleanup cleared the fields).
         // Pass 4 will use the cache snapshot instead.
-        int gold = (int)*(float *)(pp + OFF_GOLD);
-        int honor = *(int *)(pp + OFF_HONOR);
+        int gold = (int)*(float *)(playerPtr + OFF_GOLD);
+        int honor = *(int *)(playerPtr + OFF_HONOR);
 
         if (gold == 0 && honor == 0) {
             continue;
@@ -636,7 +639,7 @@ static void collectStats(uintptr_t base, bool won) {
             slotAdded[i] = true;
         }
 
-        fillStat(i, pp);
+        fillStat(i, playerPtr);
     }
 
     // ── Pass 4: periodic-poll cache for eliminated/disconnected players ────────
@@ -653,9 +656,9 @@ static void collectStats(uintptr_t base, bool won) {
         }
         colorSeen[color] = true;
         slotAdded[i] = true;
-        PlayerStat &p = s_stats[s_statCount++];
-        p = s_slotCache[i].stat;
-        memcpy(p.unitsByType, s_unitsMade[i], sizeof(p.unitsByType));
+        PlayerStat &stat = s_stats[s_statCount++];
+        stat = s_slotCache[i].stat;
+        memcpy(stat.unitsByType, s_unitsMade[i], sizeof(stat.unitsByType));
     }
 }
 
@@ -676,29 +679,29 @@ static void showOverlay(bool won) {
     memset(s_slotCache, 0, sizeof(s_slotCache));
 
     HINSTANCE hInst = (HINSTANCE)GetModuleHandleA("version.dll");
-    WNDCLASSW wc = {};
-    wc.lpfnWndProc = OverlayWndProc;
-    wc.hInstance = hInst;
-    wc.lpszClassName = OVERLAY_CLASS;
-    RegisterClassW(&wc);
+    WNDCLASSW wndClass = {};
+    wndClass.lpfnWndProc = OverlayWndProc;
+    wndClass.hInstance = hInst;
+    wndClass.lpszClassName = OVERLAY_CLASS;
+    RegisterClassW(&wndClass);
 
     HWND gameWnd = FindWindowA(NULL, "Stronghold 2");
-    RECT gr = {0, 0, 1024, 768};
+    RECT gameRect = {0, 0, 1024, 768};
 
     if (gameWnd) {
-        GetWindowRect(gameWnd, &gr);
+        GetWindowRect(gameWnd, &gameRect);
     }
 
     // Count how many unit rows will be non-zero
     int unitRows = 0;
 
-    for (int t = 0; t < 256; ++t) {
-        if (!s_unitNames[t]) {
+    for (int unitType = 0; unitType < 256; ++unitType) {
+        if (!s_unitNames[unitType]) {
             continue;
         }
 
-        for (int p = 0; p < s_statCount; ++p) {
-            if (s_stats[p].unitsByType[t]) {
+        for (int playerIdx = 0; playerIdx < s_statCount; ++playerIdx) {
+            if (s_stats[playerIdx].unitsByType[unitType]) {
                 ++unitRows;
                 break;
             }
@@ -718,8 +721,8 @@ static void showOverlay(bool won) {
     // 1+unitRows(units) + 1(footer)
     int winH = (2 + 2 + 4 + 1 + 4 + 1 + 9 + 1 + 1 + unitRows + 1) * 18 + 30;
 
-    int winX = gr.left + (gr.right - gr.left - winW) / 2;
-    int winY = gr.top + (gr.bottom - gr.top - winH) / 2;
+    int winX = gameRect.left + (gameRect.right - gameRect.left - winW) / 2;
+    int winY = gameRect.top + (gameRect.bottom - gameRect.top - winH) / 2;
 
     s_overlayHwnd = CreateWindowExW(
         WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT, OVERLAY_CLASS, L"Game Statistics",
