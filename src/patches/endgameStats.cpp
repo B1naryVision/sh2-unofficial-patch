@@ -302,8 +302,6 @@ static LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
         TextOutW(hdc, lx, y, hdr, (int)wcslen(hdr)); y += 22;
 
         // Player colour header
-        SetTextColor(hdc, RGB(210,210,210));
-        TextOutW(hdc, lx + 200, y, L"Players →", 9);
         for (int p = 0; p < n; ++p) {
             int ci = (s_stats[p].colorIdx >= 1 && s_stats[p].colorIdx <= 10)
                          ? s_stats[p].colorIdx : 0;
