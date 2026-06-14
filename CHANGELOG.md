@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+- **Fix: end-of-game stats overlay dropped most players in multi-player games**
+- **Enhancement: end-of-game stats overlay now shows real player names**
+  (`docs/features/endgame-stats.md`)
+
 ---
 
 ## [0.3.0]

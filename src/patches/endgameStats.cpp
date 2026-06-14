@@ -5,6 +5,11 @@
 #include <cstring>
 #include <windows.h>
 
+#ifdef DEBUG
+#include <fstream>
+#include <string>
+#endif
+
 // Per-player, per-unit-type recruit count [table_slot][unit_type_id].
 // Incremented by the spawn hook at RVA 0x0EE3BE.
 // 32 slots observed in x32dbg dump; only 8 active players max but they can be at any slot.
@@ -30,6 +35,18 @@ static const uintptr_t SPAWN_HOOK_RVA = 0x0EE3BE;
 
 // Player table RVA.  module_base + 0x6E8Bd8 = VA 0xAE8Bd8 at ImageBase 0x400000.
 static const uintptr_t PLAYER_TABLE_RVA = 0x6E8Bd8;
+
+// Per-session player name array.  module_base + 0xDB89B0 = VA 0x11B89B0 at
+// ImageBase 0x400000.  Up to 8 records, stride 0x1C; +0x10 = pointer to a
+// heap UTF-16LE null-terminated name string.  Unused trailing records are
+// all-zero and the array is packed (first zero pointer ends the list).
+// Confirmed via minidump analysis to persist from the lobby through to the
+// end-game screen; record 0 = local player, records 1.. = remote players.
+static const uintptr_t NAME_ARRAY_RVA = 0xDB89B0;
+static const uintptr_t NAME_ARRAY_STRIDE = 0x1C;
+static const uintptr_t NAME_ARRAY_PTR_OFF = 0x10;
+static const int NAME_ARRAY_COUNT = 8;
+static const int MAX_NAME_CHARS = 24;
 
 // ── Player object offsets (all confirmed in x32dbg) ───────────────────────────
 static const uintptr_t OFF_COLOR = 0x4;
@@ -83,6 +100,7 @@ struct PlayerStat {
     int income[3];
     int honSrc[8];
     uint32_t unitsByType[256]; // copy of s_unitsMade[slot]
+    wchar_t name[MAX_NAME_CHARS]; // from the name array; empty if unavailable
 };
 
 static PlayerStat s_stats[8];
@@ -270,6 +288,12 @@ __declspec(naked) static void loseDtorHook() {
 
 // ── Overlay window ────────────────────────────────────────────────────────────
 
+// Per-player column width and max displayed name length. 11 chars / 110px
+// was too narrow — clan-tagged names like "4H|TheSettler" (13 chars) got cut
+// off. 16/150 keeps roughly the same px-per-char ratio with more headroom.
+static const int NAME_DISPLAY_CHARS = 16;
+static const int COL_WIDTH = 150;
+
 static void drawRow(
     HDC hdc, int x, int rowY, const wchar_t *label, const int *vals, int playerCount,
     COLORREF labelClr
@@ -287,7 +311,7 @@ static void drawRow(
         SetTextColor(hdc, COLOR_VALS[colorIdx]);
         wchar_t numBuf[16];
         _snwprintf_s(numBuf, 16, _TRUNCATE, L"%d", vals[playerIdx]);
-        TextOutW(hdc, x + 200 + playerIdx * 90, rowY, numBuf, (int)wcslen(numBuf));
+        TextOutW(hdc, x + 200 + playerIdx * COL_WIDTH, rowY, numBuf, (int)wcslen(numBuf));
     }
 }
 
@@ -324,7 +348,9 @@ static LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
         TextOutW(hdc, labelX, rowY, headerBuf, (int)wcslen(headerBuf));
         rowY += 22;
 
-        // Player colour header
+        // Player name header. Falls back to the colour label when the name
+        // array has no entry for this player (e.g. vs AI) — see
+        // docs/features/endgame-stats.md "Player Name Mapping".
         for (int playerIdx = 0; playerIdx < playerCount; ++playerIdx) {
             int colorIdx = 0;
 
@@ -333,9 +359,20 @@ static LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
             }
 
             SetTextColor(hdc, COLOR_VALS[colorIdx]);
-            wchar_t colorNameBuf[16];
-            _snwprintf_s(colorNameBuf, 16, _TRUNCATE, L"%-9S", COLOR_NAMES[colorIdx]);
-            TextOutW(hdc, labelX + 200 + playerIdx * 90, rowY, colorNameBuf, (int)wcslen(colorNameBuf));
+            wchar_t nameBuf[MAX_NAME_CHARS];
+
+            if (s_stats[playerIdx].name[0] != 0) {
+                _snwprintf_s(
+                    nameBuf, MAX_NAME_CHARS, _TRUNCATE, L"%-*.*ls", NAME_DISPLAY_CHARS,
+                    NAME_DISPLAY_CHARS, s_stats[playerIdx].name
+                );
+            } else {
+                _snwprintf_s(nameBuf, MAX_NAME_CHARS, _TRUNCATE, L"%-9S", COLOR_NAMES[colorIdx]);
+            }
+
+            TextOutW(
+                hdc, labelX + 200 + playerIdx * COL_WIDTH, rowY, nameBuf, (int)wcslen(nameBuf)
+            );
         }
 
         rowY += 20;
@@ -356,7 +393,10 @@ static LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
             const char *titleName = (titleIdx >= 0 && titleIdx <= 9) ? TITLE_NAMES[titleIdx] : "?";
             wchar_t titleNameBuf[20];
             _snwprintf_s(titleNameBuf, 20, _TRUNCATE, L"%-10S", titleName);
-            TextOutW(hdc, labelX + 200 + playerIdx * 90, rowY, titleNameBuf, (int)wcslen(titleNameBuf));
+            TextOutW(
+                hdc, labelX + 200 + playerIdx * COL_WIDTH, rowY, titleNameBuf,
+                (int)wcslen(titleNameBuf)
+            );
         }
         rowY += 20;
 
@@ -504,12 +544,81 @@ static void fillStat(int slot, uintptr_t playerPtr) {
     memcpy(stat.unitsByType, s_unitsMade[slot], sizeof(stat.unitsByType));
 }
 
+// Reads the per-session player name array (see NAME_ARRAY_RVA above) into
+// `names`, returning the number of entries found. Stops at the first pointer
+// that is null, outside a plausible user-mode heap range, or no longer backed
+// by committed/readable memory — this marks the end of the packed array in
+// both captured sessions, and guards against reading garbage in code paths
+// (e.g. single-player) where the array's initialization state has not been
+// verified. The VirtualQuery check is load-bearing: on a second match, a
+// record's string pointer can be a stale reference into a per-match memory
+// pool the game has since freed, causing a hard access violation on the very
+// first read if dereferenced without checking.
+static int loadPlayerNames(uintptr_t base, wchar_t names[][MAX_NAME_CHARS]) {
+    uintptr_t arr = base + NAME_ARRAY_RVA;
+    int count = 0;
+
+    for (int i = 0; i < NAME_ARRAY_COUNT; ++i) {
+        uintptr_t ptr = *(uintptr_t *)(arr + (uintptr_t)i * NAME_ARRAY_STRIDE + NAME_ARRAY_PTR_OFF);
+
+        if (ptr < 0x10000 || ptr >= 0x80000000) {
+            break;
+        }
+
+        MEMORY_BASIC_INFORMATION mbi;
+
+        if (!VirtualQuery((LPCVOID)ptr, &mbi, sizeof(mbi)) || mbi.State != MEM_COMMIT ||
+            mbi.Protect == PAGE_NOACCESS || (mbi.Protect & PAGE_GUARD)) {
+            break;
+        }
+
+        const wchar_t *src = (const wchar_t *)ptr;
+        int len = 0;
+
+        while (len < MAX_NAME_CHARS - 1 && src[len] != 0) {
+            names[count][len] = src[len];
+            ++len;
+        }
+
+        names[count][len] = 0;
+        ++count;
+    }
+
+    return count;
+}
+
+// A cached slot is a genuine ghost/template entry — never a real player —
+// only if its last snapshot is entirely zero (gold, honour, troops, AND
+// siege) and there is no corroborating evidence of activity: the fingerprint
+// never changed across polls, and the unit-spawn hook never recorded a
+// recruit for this slot. Real players eliminated early in the game can
+// legitimately have zero gold and honour in their last snapshot, so those
+// two fields alone cannot identify a ghost.
+static bool isGhostCacheEntry(int slot) {
+    const PlayerStat &stat = s_slotCache[slot].stat;
+
+    if (stat.gold != 0 || stat.honor != 0 || stat.troops != 0 || stat.siege != 0) {
+        return false;
+    }
+
+    if (s_slotCache[slot].everChanged) {
+        return false;
+    }
+
+    for (int unitType = 0; unitType < 256; ++unitType) {
+        if (s_unitsMade[slot][unitType]) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 static void collectStats(uintptr_t base, bool won) {
     s_statCount = 0;
     s_gameWon = won;
 
     uintptr_t *table = (uintptr_t *)(base + PLAYER_TABLE_RVA);
-    bool colorSeen[11] = {};
     bool slotAdded[32] = {};
 
     // The player table has 31 observed non-null entries (slots 0–30) followed by
@@ -540,10 +649,11 @@ static void collectStats(uintptr_t base, bool won) {
             } else {
                 // Not in the first TABLE_SEARCH slots — add without unit data.
                 // Use slot 0 as a sentinel; s_unitsMade[0] will be all-zero.
+                // Claim slot 0 so passes 2-4 don't also add its real occupant
+                // as a separate, misattributed entry.
+                slotAdded[0] = true;
                 fillStat(0, localPtr);
             }
-
-            colorSeen[color] = true;
         }
     }
 
@@ -571,7 +681,7 @@ static void collectStats(uintptr_t base, bool won) {
 
         int color = *(int *)(playerPtr + OFF_COLOR);
 
-        if (color < 1 || color > 10 || colorSeen[color]) {
+        if (color < 1 || color > 10) {
             continue;
         }
 
@@ -583,8 +693,6 @@ static void collectStats(uintptr_t base, bool won) {
         if (gold == 0 && honor == 0) {
             continue;
         }
-
-        colorSeen[color] = true;
 
         if (i < 32) {
             slotAdded[i] = true;
@@ -608,7 +716,7 @@ static void collectStats(uintptr_t base, bool won) {
 
         int color = *(int *)(playerPtr + OFF_COLOR);
 
-        if (color < 1 || color > 10 || colorSeen[color]) {
+        if (color < 1 || color > 10) {
             continue;
         }
 
@@ -633,8 +741,6 @@ static void collectStats(uintptr_t base, bool won) {
             continue;
         }
 
-        colorSeen[color] = true;
-
         if (i < 32) {
             slotAdded[i] = true;
         }
@@ -651,24 +757,151 @@ static void collectStats(uintptr_t base, bool won) {
         }
         int color = s_slotCache[i].stat.colorIdx;
 
-        if (color < 1 || color > 10 || colorSeen[color]) {
+        if (color < 1 || color > 10) {
             continue;
         }
 
-        // Same guard as passes 2 and 3: ghost slots are polled by the timer and
-        // get valid=true before the 3-poll detection fires.  A real player always
-        // has non-zero gold or honour in their last snapshot.
-        if (s_slotCache[i].stat.gold == 0 && s_slotCache[i].stat.honor == 0) {
+        // See isGhostCacheEntry(): a real player eliminated early can have
+        // zero gold and honour in their last snapshot, so check troops,
+        // siege, everChanged, and recorded recruits too before excluding.
+        if (isGhostCacheEntry(i)) {
             continue;
         }
 
-        colorSeen[color] = true;
         slotAdded[i] = true;
         PlayerStat &stat = s_stats[s_statCount++];
         stat = s_slotCache[i].stat;
         memcpy(stat.unitsByType, s_unitsMade[i], sizeof(stat.unitsByType));
     }
+
+    // ── Player names ───────────────────────────────────────────────────────
+    // name[0] is always the local player's real name (confirmed in both a
+    // 1v1 dump and a 3-player FFA dump). s_stats[0] is *not* always the local
+    // player though: Pass 1 (base+0x6E8C60) can fail to find it — observed in
+    // the FFA dump — in which case the local player is only added later by
+    // Pass 3/4, at whatever index that pass reaches. Find the local player's
+    // s_stats[] entry via its table slot's castle flag (== 2) and pair it
+    // with name[0] directly, regardless of position. The remaining records
+    // (1..) are paired with the remaining s_stats[] entries in order —
+    // confirmed correct for 1v1; for 3+ players this is still best-effort
+    // (see docs/features/endgame-stats.md).
+    wchar_t names[NAME_ARRAY_COUNT][MAX_NAME_CHARS];
+    int nameCount = loadPlayerNames(base, names);
+
+    for (int i = 0; i < s_statCount; ++i) {
+        s_stats[i].name[0] = 0;
+    }
+
+    int localStatIdx = -1;
+
+    for (int i = 0; i < s_statCount; ++i) {
+        uintptr_t playerPtr = table[s_stats[i].slot];
+
+        if (playerPtr && *(int *)(playerPtr + OFF_CASTLE) == 2) {
+            localStatIdx = i;
+            break;
+        }
+    }
+
+    if (localStatIdx >= 0 && nameCount > 0) {
+        memcpy(s_stats[localStatIdx].name, names[0], sizeof(names[0]));
+    }
+
+    int nextName = 1;
+
+    for (int i = 0; i < s_statCount; ++i) {
+        if (i == localStatIdx || nextName >= nameCount) {
+            continue;
+        }
+
+        memcpy(s_stats[i].name, names[nextName], sizeof(names[nextName]));
+        ++nextName;
+    }
 }
+
+#ifdef DEBUG
+// Converts a null-terminated wide string to UTF-8 for the debug log.
+static std::string wideToUtf8(const wchar_t *s) {
+    int len = WideCharToMultiByte(CP_UTF8, 0, s, -1, NULL, 0, NULL, NULL);
+
+    if (len <= 1) {
+        return "";
+    }
+
+    std::string out(len - 1, '\0'); // exclude null terminator
+    WideCharToMultiByte(CP_UTF8, 0, s, -1, out.data(), len, NULL, NULL);
+    return out;
+}
+
+// Dumps per-slot live/cache state plus the final selected players to
+// endgame_debug.txt, so a missing or extra player can be diagnosed against
+// the raw data that fed each detection pass.
+static void dumpEndgameDebug(uintptr_t base) {
+    std::ofstream f("endgame_debug.txt");
+
+    if (!f.is_open()) {
+        return;
+    }
+
+    uintptr_t *table = (uintptr_t *)(base + PLAYER_TABLE_RVA);
+
+    f << "=== Player name array ===\n";
+    wchar_t names[NAME_ARRAY_COUNT][MAX_NAME_CHARS];
+    int nameCount = loadPlayerNames(base, names);
+
+    for (int i = 0; i < nameCount; ++i) {
+        f << "  name[" << i << "] = \"" << wideToUtf8(names[i]) << "\"\n";
+    }
+
+    f << "=== Endgame slot dump ===\n";
+
+    for (int i = 0; i < 32; ++i) {
+        uintptr_t playerPtr = table[i];
+        SlotCache &cache = s_slotCache[i];
+
+        bool hasUnits = false;
+
+        for (int unitType = 0; unitType < 256; ++unitType) {
+            if (s_unitsMade[i][unitType]) {
+                hasUnits = true;
+                break;
+            }
+        }
+
+        f << "slot " << i << ": table=" << (playerPtr ? "set" : "null");
+
+        if (playerPtr) {
+            int color = *(int *)(playerPtr + OFF_COLOR);
+            int castle = *(int *)(playerPtr + OFF_CASTLE);
+            int gold = (int)*(float *)(playerPtr + OFF_GOLD);
+            int honor = *(int *)(playerPtr + OFF_HONOR);
+            int troops = *(int *)(playerPtr + OFF_TROOPS);
+            int siege = *(int *)(playerPtr + OFF_SIEGE);
+            f << " live[color=" << color << " castle=" << castle << " gold=" << gold
+              << " honor=" << honor << " troops=" << troops << " siege=" << siege << "]";
+        }
+
+        f << " cache[seen=" << cache.seen << " valid=" << cache.valid
+          << " everChanged=" << cache.everChanged << " unchanged=" << (int)cache.unchanged
+          << " color=" << cache.stat.colorIdx << " gold=" << cache.stat.gold
+          << " honor=" << cache.stat.honor << " troops=" << cache.stat.troops
+          << " siege=" << cache.stat.siege << "]";
+
+        f << " hasUnits=" << hasUnits << " ghost=" << isGhostCacheEntry(i) << "\n";
+    }
+
+    f << "=== Selected players (s_statCount=" << s_statCount << ") ===\n";
+
+    for (int p = 0; p < s_statCount; ++p) {
+        uintptr_t playerPtr = table[s_stats[p].slot];
+        int castle = playerPtr ? *(int *)(playerPtr + OFF_CASTLE) : -1;
+
+        f << "  stat[" << p << "]: slot=" << s_stats[p].slot << " color=" << s_stats[p].colorIdx
+          << " castle=" << castle << " gold=" << s_stats[p].gold << " honor=" << s_stats[p].honor
+          << " name=\"" << wideToUtf8(s_stats[p].name) << "\"\n";
+    }
+}
+#endif
 
 // ── Show overlay ──────────────────────────────────────────────────────────────
 
@@ -681,6 +914,10 @@ static void showOverlay(bool won) {
 
     uintptr_t base = (uintptr_t)GetModuleHandleA(NULL);
     collectStats(base, won);
+
+#ifdef DEBUG
+    dumpEndgameDebug(base);
+#endif
 
     // Reset tracking state for the next game now that we've snapshotted into s_stats.
     memset(s_unitsMade, 0, sizeof(s_unitsMade));
@@ -720,7 +957,7 @@ static void showOverlay(bool won) {
         unitRows = 1; // "none recorded" row
     }
 
-    int winW = 200 + s_statCount * 90 + 20;
+    int winW = 200 + s_statCount * COL_WIDTH + 20;
 
     if (winW < 500) {
         winW = 500;
