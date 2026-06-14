@@ -77,10 +77,11 @@ static const char *TITLE_NAMES[] = {
 };
 static const char *COLOR_NAMES[] = {"?",    "Red",    "Orange", "Green",    "Cyan", "Blue",
                                     "Pink", "Yellow", "Violet", "Dark Red", "Gray"};
-static const COLORREF COLOR_VALS[] = {RGB(200, 200, 200), RGB(220, 50, 50),  RGB(255, 165, 0),
-                                      RGB(50, 200, 50),   RGB(0, 200, 200),  RGB(80, 80, 255),
-                                      RGB(255, 150, 200), RGB(220, 220, 0),  RGB(160, 0, 200),
-                                      RGB(139, 0, 0),     RGB(150, 150, 150)};
+
+// Player name/title/stat text is rendered in a fixed colour rather than the
+// player's in-game colour — several in-game colours (e.g. Red, Dark Red) are
+// hard to read against the overlay background.
+static const COLORREF PLAYER_TEXT_COLOR = RGB(255, 255, 255);
 
 static const char *INC_LABELS[] = {"Trade Income", "Tax: Castle", "Tax: Estates"};
 static const char *HON_LABELS[] = {"Feasting", "Dancing", "Monastery", "Jousting",
@@ -301,14 +302,9 @@ static void drawRow(
     SetTextColor(hdc, labelClr);
     TextOutW(hdc, x, rowY, label, (int)wcslen(label));
 
+    SetTextColor(hdc, PLAYER_TEXT_COLOR);
+
     for (int playerIdx = 0; playerIdx < playerCount; ++playerIdx) {
-        int colorIdx = 0;
-
-        if (s_stats[playerIdx].colorIdx >= 1 && s_stats[playerIdx].colorIdx <= 10) {
-            colorIdx = s_stats[playerIdx].colorIdx;
-        }
-
-        SetTextColor(hdc, COLOR_VALS[colorIdx]);
         wchar_t numBuf[16];
         _snwprintf_s(numBuf, 16, _TRUNCATE, L"%d", vals[playerIdx]);
         TextOutW(hdc, x + 200 + playerIdx * COL_WIDTH, rowY, numBuf, (int)wcslen(numBuf));
@@ -351,6 +347,8 @@ static LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
         // Player name header. Falls back to the colour label when the name
         // array has no entry for this player (e.g. vs AI) — see
         // docs/features/endgame-stats.md "Player Name Mapping".
+        SetTextColor(hdc, PLAYER_TEXT_COLOR);
+
         for (int playerIdx = 0; playerIdx < playerCount; ++playerIdx) {
             int colorIdx = 0;
 
@@ -358,7 +356,6 @@ static LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
                 colorIdx = s_stats[playerIdx].colorIdx;
             }
 
-            SetTextColor(hdc, COLOR_VALS[colorIdx]);
             wchar_t nameBuf[MAX_NAME_CHARS];
 
             if (s_stats[playerIdx].name[0] != 0) {
@@ -381,14 +378,9 @@ static LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
         SetTextColor(hdc, RGB(210, 210, 210));
         TextOutW(hdc, labelX, rowY, L"Title", 5);
 
+        SetTextColor(hdc, PLAYER_TEXT_COLOR);
+
         for (int playerIdx = 0; playerIdx < playerCount; ++playerIdx) {
-            int colorIdx = 0;
-
-            if (s_stats[playerIdx].colorIdx >= 1 && s_stats[playerIdx].colorIdx <= 10) {
-                colorIdx = s_stats[playerIdx].colorIdx;
-            }
-
-            SetTextColor(hdc, COLOR_VALS[colorIdx]);
             int titleIdx = s_stats[playerIdx].titleIdx;
             const char *titleName = (titleIdx >= 0 && titleIdx <= 9) ? TITLE_NAMES[titleIdx] : "?";
             wchar_t titleNameBuf[20];

@@ -11,6 +11,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Fix: end-of-game stats overlay dropped most players in multi-player games**
 - **Enhancement: end-of-game stats overlay now shows real player names**
   (`docs/features/endgame-stats.md`)
+- **Enhancement: end-of-game stats overlay now renders player names, titles,
+  and stat values in white as colors were hard to read against the overlay
+  background. The section breakdown headers/labels are unchanged.
 
 ---
 

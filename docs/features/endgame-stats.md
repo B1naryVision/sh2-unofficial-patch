@@ -239,12 +239,15 @@ readable (not `PAGE_NOACCESS`/`PAGE_GUARD`).
   unknown. It also does not reliably match the player's visual castle colour in
   the game UI.
 
-  **Consequence for this patch**: the overlay's per-player colour label and text
-  colour (`COLOR_NAMES[colorIdx]` / `COLOR_VALS[colorIdx]`) can show the *same*
-  colour/name for multiple distinct players when they share a `colorIdx`. This is
-  cosmetic only — each player's data column is still correct — but the headers
-  may all read e.g. "Red". Finding the real per-player colour field is a separate
-  investigation.
+  **Consequence for this patch**: the overlay's per-player colour label
+  (`COLOR_NAMES[colorIdx]`, used as a fallback name when the name array has no
+  entry) can show the *same* name for multiple distinct players when they
+  share a `colorIdx`. This is cosmetic only — each player's data column is
+  still correct — but the fallback labels may all read e.g. "Red". Finding the
+  real per-player colour field is a separate investigation. (Player name,
+  title, and stat text are now rendered in a fixed white colour rather than
+  `COLOR_VALS[colorIdx]`, so this no longer affects readability — see
+  `CHANGELOG.md`.)
 
   **Consequence that was a real bug (fixed)**: detection previously deduplicated
   players via a `colorSeen[colorIdx]` array — once one player with a given
