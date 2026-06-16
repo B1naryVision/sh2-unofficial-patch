@@ -1,4 +1,5 @@
 #include "registry.h"
+#include "barracksCrash.h"
 #include "endgameStats.h"
 #include "introSkip.h"
 #include "knightCatapultCrash.h"
@@ -11,4 +12,5 @@ void applyUnofficialPatches() {
     installIntroSkip();
     installMpConnectCompleteCrashFix();
     installEndgameStats();
+    installBarracksCrashFix();
 }

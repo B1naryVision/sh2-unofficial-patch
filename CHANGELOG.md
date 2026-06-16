@@ -1,73 +1,62 @@
-# Changelog
-
-All notable changes to this project will be documented here.
-
-Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+# Stronghold 2 Unofficial Patch — Player Changelog
 
 ---
 
 ## [Unreleased]
 
-- **Fix: end-of-game stats overlay dropped most players in multi-player games**
-- **Enhancement: end-of-game stats overlay now shows real player names**
-  (`docs/features/endgame-stats.md`)
-- **Enhancement: end-of-game stats overlay now renders player names, titles,
-  and stat values in white as colors were hard to read against the overlay
-  background. The section breakdown headers/labels are unchanged.
+### [Fix] - Crash When Your Lord Dies in the Barracks Menu
+
+- **What the issue was:** If you had the barracks or recruitment screen open at the moment your Lord died, the game crashed to the desktop instead of showing the defeat screen.
+- **What we changed:** The game now handles the Lord's death gracefully while the recruitment menu is open, so the defeat screen appears as intended.
+
+### [Fix] - End-of-Game Stats Missing Most Players in Multiplayer
+
+- **What the issue was:** The end-of-game statistics screen only showed a small fraction of the players from a multiplayer match.
+- **What we changed:** All active players now appear in the final stats summary.
+
+### [Improvement] - Player Names on End-of-Game Stats Screen
+
+- **What the issue was:** The stats screen showed generic placeholders instead of the actual names of players in the match.
+- **What we changed:** Real player names are now displayed correctly on the end-of-game stats overlay.
+
+### [Improvement] - Readability of End-of-Game Stats
+
+- **What the issue was:** Stat values and player names were hard to read because they blended into the dark overlay background.
+- **What we changed:** Player names and all stat values are now shown in white for much easier reading.
 
 ---
 
 ## [0.3.0]
 
-- **End-of-game statistics** — a transparent Win32 overlay window appears when the
-  victory or defeat screen activates, showing per-player gold, honour, army size,
-  per-source income, per-source honour, and cumulative recruited unit counts by type
-  for all active players (up to 8). Player detection uses four passes: local player
-  via `base+0x6E8C60`, live remote players via castle flag (`[player+0x10F8] == 1`),
-  unit-spawn tracking (hook at `base+0x0EE3BE`, 7 bytes), and a periodic 60-second
-  snapshot cache for players who leave before the endgame screen fires. Hooks:
-  `WinScreen::OnActivate` at `base+0x297fa0`, `LoseScreen::OnActivate` at
-  `base+0x297700`, `WinScreen` dtor at `base+0x297f10`, `LoseScreen` dtor at
-  `base+0x297670`. Safe for version mismatch.
+### [Fix] - Multiplayer Crash During Player Connection
 
-- **Multiplayer connect-complete crash** — game crashed with access violation at
-  `base+0x3d86b8` when a `CONNECT_COMPLETE` network message arrived for a peer with no
-  entry in the local peer table. The error-log path in `handleConnectCompleteMessage`
-  assumed `esi` (the peer pointer) was non-null and immediately did `add esi,0x18`,
-  causing a dereference of address `0x2C` when `esi` was zero. Fix: redirect the
-  null-peer `je` at `base+0x3d85c6` from the shared error-log path to the function's
-  return epilogue (`base+0x3d86fe`) — 6-byte patch, original `0f 84 ce 00 00 00`,
-  replacement `0f 84 32 01 00 00`. The spurious message is silently ignored; the
-  already-connected peer path is unchanged. Safe for version mismatch.
+- **What the issue was:** The game could crash to desktop during a multiplayer session when a stray connection message arrived with no matching player entry.
+- **What we changed:** The game now safely ignores these edge-case messages so the session continues without crashing.
+
+### [Improvement] - End-of-Game Statistics Screen
+
+- **What the issue was:** When a match ended there was no summary of how each player performed — gold, honour, army size, and recruitment numbers were not shown anywhere.
+- **What we changed:** A stats overlay now appears on the victory and defeat screens showing gold, honour, army size, income sources, and unit recruitment counts for every player in the match.
 
 ---
 
 ## [0.2.0]
 
-- **Intro skip** — Firefly Studios logo video is bypassed on launch; game proceeds
-  directly to the main menu. Two patches applied: counter at `base+0x4DA9F8` initialised to 2
-  (was 0) so only one completion-check tick is needed; `BinkOpen` call at `base+0x27BB0D`
-  replaced with a stack-balancing `add esp,0x18` to leave the Bink handle NULL, triggering
-  the completion check immediately on the first `Update` tick.
-- **Multiplayer AI enable** — AI opponents can now be configured in
-  multiplayer lobbies. Two consecutive instructions at `base+0x2A0F69` suppressed the
-  AI-enabled flag unconditionally on lobby entry; NOP'ing both (14 bytes) restores the
-  host's configured value. Only the host needs the patch. Desync risk exists since AI
-  is computed locally on each client.
-  Offset credit: Daniel Jenssen (`gitlab.com/Daerandin/sh2_mp_ai_enabler`).
+### [Improvement] - Skip Intro Video on Launch
+
+- **What the issue was:** Every time you launched the game you were forced to watch the Firefly Studios logo video before the main menu appeared.
+- **What we changed:** The game now loads directly to the main menu on startup, skipping the intro video entirely.
+
+### [Improvement] - AI Opponents in Multiplayer Lobbies
+
+- **What the issue was:** The option to add AI opponents to a multiplayer game existed in the lobby but was silently disabled and never worked.
+- **What we changed:** AI opponents can now be configured and added to multiplayer matches. The host must have the patch installed; AI behaviour is the same as in single-player.
 
 ---
 
-## [0.1.0] — 2026-05-24
+## [0.1.0]
 
-### Fixed
+### [Fix] - Crash When a Knight Is Hit by a Catapult While Mounting
 
-- **Knight/catapult mount crash** — game crashed when a knight was struck by a catapult projectile at the exact moment of mounting a horse. A sub-object pointer at `[ESI+0x440]` is zeroed during partial destruction before the game's own validity check fires, causing a null dereference at `base+0x1048BB`. Fixed with a targeted null guard at the crash instruction; unaffected units continue executing the normal code path.
-
-### Added
-
-- DLL proxy layer forwarding all `version.dll` exports to the system library (`LoadRealVersionDll` via `GetSystemDirectoryA`)
-- Hook infrastructure: `InstallHook()` for 5-byte relative JMP detours with `VirtualProtect` guard
-- In-memory ring buffer logging (last 10 hook contexts); flushed to `patch_debug.txt` on exit in debug builds only
-- Makefile with `all`, `debug`, `deploy`, and `clean` targets
-- Source structure: `src/core/`, `src/proxy/`, `src/patches/` layout
+- **What the issue was:** If a catapult projectile hit a knight at the exact moment they were getting on a horse, the game crashed to desktop instantly.
+- **What we changed:** Knights can now be hit by projectiles while mounting without causing a crash; the unit is defeated normally instead.
