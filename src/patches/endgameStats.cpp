@@ -7,6 +7,7 @@
 
 #ifdef DEBUG
 #include <fstream>
+#include <iomanip>
 #include <string>
 #endif
 
@@ -37,11 +38,11 @@ static const uintptr_t SPAWN_HOOK_RVA = 0x0EE3BE;
 static const uintptr_t PLAYER_TABLE_RVA = 0x6E8Bd8;
 
 // Per-session player name array.  module_base + 0xDB89B0 = VA 0x11B89B0 at
-// ImageBase 0x400000.  Up to 8 records, stride 0x1C; +0x10 = pointer to a
-// heap UTF-16LE null-terminated name string.  Unused trailing records are
-// all-zero and the array is packed (first zero pointer ends the list).
-// Confirmed via minidump analysis to persist from the lobby through to the
-// end-game screen; record 0 = local player, records 1.. = remote players.
+// ImageBase 0x400000.  8 records, stride 0x1C; +0x10 = pointer to a heap
+// UTF-16LE null-terminated name string.  Indexed by (colour - 1): record i
+// belongs to the player whose colour is i+1 (the host assigns colours on
+// join). A colour with no current owner holds a stale/freed pointer.
+// See loadNameAtIndex() and docs/features/endgame-stats.md.
 static const uintptr_t NAME_ARRAY_RVA = 0xDB89B0;
 static const uintptr_t NAME_ARRAY_STRIDE = 0x1C;
 static const uintptr_t NAME_ARRAY_PTR_OFF = 0x10;
@@ -54,7 +55,7 @@ static const uintptr_t OFF_HONOR = 0x1C;
 static const uintptr_t OFF_TROOPS = 0xD8C;
 static const uintptr_t OFF_SIEGE = 0xD90;
 static const uintptr_t OFF_TITLE = 0xF58;
-static const uintptr_t OFF_CASTLE = 0x10F8; // must be 2 for active slot
+static const uintptr_t OFF_CASTLE = 0x10F8; // 2 = castle standing, 1 = destroyed, 0 = unused
 static const uintptr_t OFF_GOLD = 0x1010; // float
 static const uintptr_t OFF_POPULARITY = 0x1028; // float
 
@@ -119,6 +120,10 @@ struct SlotCache {
     bool everChanged; // fingerprint moved after the first poll
     uint8_t unchanged; // consecutive polls with identical fingerprint
     uint64_t lastFp; // fingerprint from previous poll
+    int stableColor; // true colour captured at first sighting, never overwritten
+                     // (the live colour field corrupts to the local player's
+                     // colour near endgame). 0 = not yet captured. Used as the
+                     // name-array index (colour-1) — see collectStats().
 };
 
 static SlotCache s_slotCache[32] = {};
@@ -177,6 +182,13 @@ static VOID CALLBACK pollTimerCallback(PVOID, BOOLEAN) {
 
         uint64_t fingerprint = makeFingerprint(playerPtr);
         SlotCache &cache = s_slotCache[i];
+
+        // Freeze the true colour the first time we see a valid one. The live
+        // colour field gets overwritten (to the local player's colour) near
+        // endgame, so the earliest reading is the reliable one.
+        if (cache.stableColor == 0) {
+            cache.stableColor = color;
+        }
 
         if (!cache.seen) {
             cache.seen = true;
@@ -241,6 +253,14 @@ extern "C" void unitSpawnLogic() {
             SlotCache &cache = s_slotCache[i];
             cache.valid = true;
             cache.everChanged = true;
+
+            // Freeze the true colour as early as possible (recruit can happen
+            // before the first 60 s poll) — see pollTimerCallback.
+            int color = *(int *)(playerBase + OFF_COLOR);
+
+            if (cache.stableColor == 0 && color >= 1 && color <= 10) {
+                cache.stableColor = color;
+            }
 
             if (!cache.seen) {
                 cache.seen = true;
@@ -513,6 +533,78 @@ static LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
     return DefWindowProc(hwnd, msg, wp, lp);
 }
 
+#ifdef DEBUG
+// ISteamFriends::GetPersonaName() — the local player's Steam display name.
+// NOTE: this is the Steam name, which differs from the in-game (Firefly
+// Online) name, so it cannot identify a player in the name array. Kept for
+// the debug log only.
+static const char *getSteamPersonaName() {
+    HMODULE steamApi = GetModuleHandleA("steam_api.dll");
+
+    if (!steamApi) {
+        return NULL;
+    }
+
+    typedef void *(__cdecl * SteamFriends_fn)();
+    auto pSteamFriends = (SteamFriends_fn)GetProcAddress(steamApi, "SteamFriends");
+
+    if (!pSteamFriends) {
+        return NULL;
+    }
+
+    void *friends = pSteamFriends();
+
+    if (!friends) {
+        return NULL;
+    }
+
+    void **vtable = *(void ***)friends;
+    typedef const char *(__attribute__((thiscall)) * GetPersonaName_fn)(void *);
+    auto getName = (GetPersonaName_fn)vtable[0];
+
+    return getName(friends);
+}
+#endif
+
+// Reads a single name-array record by index directly into `out` (an array of
+// at least MAX_NAME_CHARS wchars). Returns true if a non-empty name was read.
+//
+// The name array is indexed by (colour - 1): the host assigns each joining
+// player a colour, and that colour is the player's slot in this array. A
+// player who leaves can leave a stale or freed string pointer at their colour
+// index — the VirtualQuery guard treats those as "no name" (false), and the
+// overlay falls back to the colour label. See docs/features/endgame-stats.md.
+static bool loadNameAtIndex(uintptr_t base, int idx, wchar_t *out) {
+    if (idx < 0 || idx >= NAME_ARRAY_COUNT) {
+        return false;
+    }
+
+    uintptr_t recordBase = base + NAME_ARRAY_RVA + (uintptr_t)idx * NAME_ARRAY_STRIDE;
+    uintptr_t ptr = *(uintptr_t *)(recordBase + NAME_ARRAY_PTR_OFF);
+
+    if (ptr < 0x10000 || ptr >= 0x80000000) {
+        return false;
+    }
+
+    MEMORY_BASIC_INFORMATION mbi;
+
+    if (!VirtualQuery((LPCVOID)ptr, &mbi, sizeof(mbi)) || mbi.State != MEM_COMMIT ||
+        mbi.Protect == PAGE_NOACCESS || (mbi.Protect & PAGE_GUARD)) {
+        return false;
+    }
+
+    const wchar_t *src = (const wchar_t *)ptr;
+    int len = 0;
+
+    while (len < MAX_NAME_CHARS - 1 && src[len] != 0) {
+        out[len] = src[len];
+        ++len;
+    }
+
+    out[len] = 0;
+    return len > 0;
+}
+
 // ── Data collection ───────────────────────────────────────────────────────────
 
 static void fillStat(int slot, uintptr_t playerPtr) {
@@ -534,49 +626,6 @@ static void fillStat(int slot, uintptr_t playerPtr) {
     }
 
     memcpy(stat.unitsByType, s_unitsMade[slot], sizeof(stat.unitsByType));
-}
-
-// Reads the per-session player name array (see NAME_ARRAY_RVA above) into
-// `names`, returning the number of entries found. Stops at the first pointer
-// that is null, outside a plausible user-mode heap range, or no longer backed
-// by committed/readable memory — this marks the end of the packed array in
-// both captured sessions, and guards against reading garbage in code paths
-// (e.g. single-player) where the array's initialization state has not been
-// verified. The VirtualQuery check is load-bearing: on a second match, a
-// record's string pointer can be a stale reference into a per-match memory
-// pool the game has since freed, causing a hard access violation on the very
-// first read if dereferenced without checking.
-static int loadPlayerNames(uintptr_t base, wchar_t names[][MAX_NAME_CHARS]) {
-    uintptr_t arr = base + NAME_ARRAY_RVA;
-    int count = 0;
-
-    for (int i = 0; i < NAME_ARRAY_COUNT; ++i) {
-        uintptr_t ptr = *(uintptr_t *)(arr + (uintptr_t)i * NAME_ARRAY_STRIDE + NAME_ARRAY_PTR_OFF);
-
-        if (ptr < 0x10000 || ptr >= 0x80000000) {
-            break;
-        }
-
-        MEMORY_BASIC_INFORMATION mbi;
-
-        if (!VirtualQuery((LPCVOID)ptr, &mbi, sizeof(mbi)) || mbi.State != MEM_COMMIT ||
-            mbi.Protect == PAGE_NOACCESS || (mbi.Protect & PAGE_GUARD)) {
-            break;
-        }
-
-        const wchar_t *src = (const wchar_t *)ptr;
-        int len = 0;
-
-        while (len < MAX_NAME_CHARS - 1 && src[len] != 0) {
-            names[count][len] = src[len];
-            ++len;
-        }
-
-        names[count][len] = 0;
-        ++count;
-    }
-
-    return count;
 }
 
 // A cached slot is a genuine ghost/template entry — never a real player —
@@ -766,48 +815,33 @@ static void collectStats(uintptr_t base, bool won) {
         memcpy(stat.unitsByType, s_unitsMade[i], sizeof(stat.unitsByType));
     }
 
-    // ── Player names ───────────────────────────────────────────────────────
-    // name[0] is always the local player's real name (confirmed in both a
-    // 1v1 dump and a 3-player FFA dump). s_stats[0] is *not* always the local
-    // player though: Pass 1 (base+0x6E8C60) can fail to find it — observed in
-    // the FFA dump — in which case the local player is only added later by
-    // Pass 3/4, at whatever index that pass reaches. Find the local player's
-    // s_stats[] entry via its table slot's castle flag (== 2) and pair it
-    // with name[0] directly, regardless of position. The remaining records
-    // (1..) are paired with the remaining s_stats[] entries in order —
-    // confirmed correct for 1v1; for 3+ players this is still best-effort
-    // (see docs/features/endgame-stats.md).
-    wchar_t names[NAME_ARRAY_COUNT][MAX_NAME_CHARS];
-    int nameCount = loadPlayerNames(base, names);
-
+    // ── Player names and colours ────────────────────────────────────────────
+    // The name array is indexed by (colour - 1): the host assigns each joining
+    // player a colour which is their slot in the array (a player who leaves can
+    // leave a stale entry at their index — handled by loadNameAtIndex).
+    //
+    // The live colour field corrupts to the local player's colour near endgame,
+    // so use the frozen colour captured at first sighting (poll/recruit). Fall
+    // back to the live/snapshot colour only if no frozen value exists. The
+    // frozen colour is also written back into the stat so the overlay's colour
+    // label is correct, not just the name.
     for (int i = 0; i < s_statCount; ++i) {
         s_stats[i].name[0] = 0;
-    }
 
-    int localStatIdx = -1;
+        int slot = s_stats[i].slot;
+        int color = 0;
 
-    for (int i = 0; i < s_statCount; ++i) {
-        uintptr_t playerPtr = table[s_stats[i].slot];
-
-        if (playerPtr && *(int *)(playerPtr + OFF_CASTLE) == 2) {
-            localStatIdx = i;
-            break;
-        }
-    }
-
-    if (localStatIdx >= 0 && nameCount > 0) {
-        memcpy(s_stats[localStatIdx].name, names[0], sizeof(names[0]));
-    }
-
-    int nextName = 1;
-
-    for (int i = 0; i < s_statCount; ++i) {
-        if (i == localStatIdx || nextName >= nameCount) {
-            continue;
+        if (slot >= 0 && slot < 32 && s_slotCache[slot].stableColor >= 1 &&
+            s_slotCache[slot].stableColor <= 10) {
+            color = s_slotCache[slot].stableColor;
+        } else if (s_stats[i].colorIdx >= 1 && s_stats[i].colorIdx <= 10) {
+            color = s_stats[i].colorIdx;
         }
 
-        memcpy(s_stats[i].name, names[nextName], sizeof(names[nextName]));
-        ++nextName;
+        if (color >= 1 && color <= 10) {
+            s_stats[i].colorIdx = color;
+            loadNameAtIndex(base, color - 1, s_stats[i].name);
+        }
     }
 }
 
@@ -837,12 +871,68 @@ static void dumpEndgameDebug(uintptr_t base) {
 
     uintptr_t *table = (uintptr_t *)(base + PLAYER_TABLE_RVA);
 
-    f << "=== Player name array ===\n";
-    wchar_t names[NAME_ARRAY_COUNT][MAX_NAME_CHARS];
-    int nameCount = loadPlayerNames(base, names);
+    const char *steamName = getSteamPersonaName();
+    f << "=== Steam persona name ===\n";
+    f << "  " << (steamName ? steamName : "(unavailable)") << "\n";
 
-    for (int i = 0; i < nameCount; ++i) {
-        f << "  name[" << i << "] = \"" << wideToUtf8(names[i]) << "\"\n";
+    // Local player identity: the slot-index global at base+0x6E8C5C and the
+    // pointer global at base+0x6E8C60. Resolve the pointer to its table slot.
+    int localSlotGlobal = *(int *)(base + 0x6E8C5C);
+    uintptr_t localPtr = *(uintptr_t *)(base + 0x6E8C60);
+    int localSlotResolved = -1;
+
+    for (int i = 0; i < 32; ++i) {
+        if (table[i] == localPtr) {
+            localSlotResolved = i;
+            break;
+        }
+    }
+
+    f << "=== Local player ===\n";
+    f << "  slotGlobal=" << localSlotGlobal << " ptr=0x" << std::hex << localPtr << std::dec
+      << " resolvedSlot=" << localSlotResolved << "\n";
+
+    f << "=== Player name array (raw) ===\n";
+    uintptr_t arr = base + NAME_ARRAY_RVA;
+
+    for (int i = 0; i < NAME_ARRAY_COUNT; ++i) {
+        uintptr_t recordBase = arr + (uintptr_t)i * NAME_ARRAY_STRIDE;
+        const uint8_t *rec = (const uint8_t *)recordBase;
+        uintptr_t ptr = *(uintptr_t *)(recordBase + NAME_ARRAY_PTR_OFF);
+
+        f << "  record[" << i << "]: bytes=";
+
+        for (int b = 0; b < (int)NAME_ARRAY_STRIDE; ++b) {
+            f << std::hex << std::setw(2) << std::setfill('0') << (int)rec[b] << " ";
+        }
+
+        f << std::dec;
+
+        if (ptr == 0) {
+            f << " (end of array)\n";
+            break;
+        }
+
+        MEMORY_BASIC_INFORMATION mbi;
+
+        if (VirtualQuery((LPCVOID)ptr, &mbi, sizeof(mbi)) && mbi.State == MEM_COMMIT &&
+            mbi.Protect != PAGE_NOACCESS && !(mbi.Protect & PAGE_GUARD)) {
+            wchar_t tmp[MAX_NAME_CHARS] = {};
+            const wchar_t *src = (const wchar_t *)ptr;
+            int len = 0;
+
+            while (len < MAX_NAME_CHARS - 1 && src[len] != 0) {
+                tmp[len] = src[len];
+                ++len;
+            }
+
+            tmp[len] = 0;
+            f << " name=\"" << wideToUtf8(tmp) << "\"";
+        } else {
+            f << " ptr=0x" << std::hex << ptr << std::dec << " (not readable)";
+        }
+
+        f << "\n";
     }
 
     f << "=== Endgame slot dump ===\n";
@@ -887,10 +977,29 @@ static void dumpEndgameDebug(uintptr_t base) {
     for (int p = 0; p < s_statCount; ++p) {
         uintptr_t playerPtr = table[s_stats[p].slot];
         int castle = playerPtr ? *(int *)(playerPtr + OFF_CASTLE) : -1;
+        bool isLocal = (s_stats[p].slot == localSlotResolved);
 
         f << "  stat[" << p << "]: slot=" << s_stats[p].slot << " color=" << s_stats[p].colorIdx
           << " castle=" << castle << " gold=" << s_stats[p].gold << " honor=" << s_stats[p].honor
-          << " name=\"" << wideToUtf8(s_stats[p].name) << "\"\n";
+          << " name=\"" << wideToUtf8(s_stats[p].name) << "\"" << (isLocal ? " <-- LOCAL" : "");
+
+        // Per-type unit counts, so ground-truth ("I made the monks") can be
+        // matched against the slot and the assigned name.
+        f << " units=[";
+        bool first = true;
+
+        for (int unitType = 0; unitType < 256; ++unitType) {
+            if (s_stats[p].unitsByType[unitType] && s_unitNames[unitType]) {
+                if (!first) {
+                    f << ", ";
+                }
+
+                f << s_unitNames[unitType] << ":" << s_stats[p].unitsByType[unitType];
+                first = false;
+            }
+        }
+
+        f << "]\n";
     }
 }
 #endif

@@ -58,48 +58,52 @@ been added.
 
 ## Player Name Mapping
 
-Since `colorIdx` cannot identify a player (see Known Issues), the overlay
-instead reads each player's real name from a static per-session name array at
-`base + 0xDB89B0` (see Data Offsets below).
+The overlay reads each player's real name from a static per-session name
+array at `base + 0xDB89B0` (see Data Offsets below).
 
-**Mapping rule**: `loadPlayerNames()` returns the array entries in order
-(`names[0]`, `names[1]`, ...). `name[0]` is always the local player's real
-name. `collectStats()` finds whichever `s_stats[]` entry is the local player
-— by checking `[player+0x10F8] == 2` on that entry's table slot — and pairs
-it with `names[0]` directly, regardless of where Pass 1-4 placed it in
-`s_stats[]`. The remaining `names[1..]` are paired with the remaining
-`s_stats[]` entries in order. If an `s_stats[]` entry has no corresponding
-name entry left — e.g. a vs-AI opponent that never appears in the array —
-`name[0]` stays `0` and the overlay falls back to the `colorIdx`-based colour
-label as before.
+**The array is indexed by (colour − 1).** The host assigns each joining
+player a colour (1–10), and that colour *is* the player's slot in the name
+array: record `[colour − 1]` holds that player's name. So the name for a
+player is `nameArray[player.colour - 1]`, read directly — no positional
+guessing, no local-player special case.
 
-**Evidence**: confirmed via two Task Manager minidumps plus a `#ifdef DEBUG`
-`endgame_debug.txt` from a live 3-player FFA. The minidumps (a lobby-screen
-capture with 3 players and a defeat-screen capture from a later 1v1) showed
-the array at the same RVA, stride, and field layout. In the 1v1 defeat dump,
-`names[0] = "NMaestro"` (the local player, `[+0x10F8] == 2`) and
-`names[1] = "[AoG] Soup"` (the remote, `[+0x10F8] == 1`) — here `s_stats[0]`
-*was* the local player, so the original positional pairing happened to work.
+**Mapping rule**: `collectStats()` determines each selected player's true
+colour (see "Colour corruption" below), then calls `loadNameAtIndex(base,
+colour - 1, ...)` to read that record directly. The frozen colour is also
+written back into the stat so the overlay's colour *label* (the fallback when
+no name is available) is correct too. If the record at `colour − 1` has no
+valid string pointer — e.g. a player who left, leaving a stale/freed entry —
+the name stays empty and the overlay falls back to the colour label.
 
-**3+ players (confirmed via `endgame_debug.txt`)**: in a 3-player FFA,
-`names[0] = "NMaestro"` again, but Pass 1 failed to find the local player
-(`base+0x6E8C60`'s color check or table match didn't hit), so the local
-player (table slot 8, `castle == 2`) was only added later by Pass 3 and
-landed at `s_stats[1]`, while a remote (slot 2, `castle == 1`) landed at
-`s_stats[0]`. With the old positional pairing, `names[0]="NMaestro"` (the
-local player's real name) was shown on the *remote's* column, and the local
-player's own column showed `names[1]`, which was a garbage/unreadable
-UTF-16 string (the "Chinese characters" reported after a multiplayer game).
-The fix above (matching on `castle == 2` rather than position) makes the
-local player's column always show `names[0]` correctly.
+**Colour corruption (why the frozen colour is needed)**: the live colour
+field at `[player+0x4]` is reliable mid-game but gets **overwritten near
+endgame**. When a player is eliminated, their castle becomes an estate of
+whoever conquered them, and the defeated player object's colour is rewritten
+to the conqueror's colour. In a game where the local player (colour 4)
+eliminated three opponents, all three of those slots read `colour == 4` at
+endgame — which is the real origin of the long-standing "colorIdx is not
+unique" bug. The fix: freeze each slot's colour at **first sighting** (the
+60 s poll or the first unit-recruit, both well before any eliminations),
+stored in `SlotCache::stableColor` and never overwritten. At endgame the
+frozen colour, not the live field, is used for the name index and label.
 
-**Still unverified for 3+ players**: `names[1..]` for *remote* players is
-still paired with the remaining `s_stats[]` entries positionally. In the FFA
-dump, the second name slot (`names[1]`, after skipping the local player's
-`names[0]`) was the garbage entry described above — so one remote's column
-would still show garbage instead of a real name. Whether `names[1..]`'s
-order matches the remaining `s_stats[]` order for remotes, and why one entry
-was garbage in that game, remains open — see Known Issues.
+**Stale records = players who left**: a colour index whose player has left
+the session can point at freed or stale memory (a previous occupant of that
+colour, or fill bytes). `loadNameAtIndex()` guards each read with
+`VirtualQuery()` and treats an unreadable/committed-but-freed page as "no
+name". In one 6-player FFA, record `[4]` (colour 5) decoded as garbage
+because the colour-5 player had left and a later joiner had reused nearby
+memory — exactly the leave/rejoin churn this guard handles.
+
+**Evidence**: a 6-player FFA where the local player (`[AoG] Halli`, colour 4,
+table slot 4) was **not** the host. A mid-game minidump showed the true,
+distinct colours (slots 1/2/6/4/8/5 → colours 1/2/3/4/6/7); by endgame the
+live colour field had collapsed to 4 for every slot the local player had
+consumed. The name array records were: `[0]` NuNuWaVe, `[1]` West Virginia,
+`[2]` Sparta, `[3]` `[AoG] Halli`, `[4]` garbage (colour-5 player left),
+`[5]` stale (colour-6 player), `[6]` Apophis. Indexing by frozen colour − 1
+maps slot 4 → record `[3]` → `[AoG] Halli` correctly, where the previous
+positional logic mislabelled the local player as NuNuWaVe.
 
 ## Periodic Player Cache
 
@@ -178,12 +182,12 @@ All offsets are relative to the player object pointer.
 
 | Field | Offset | Type | Evidence |
 | ----- | ------ | ---- | -------- |
-| Color index (1=Red…10=Gray) | `+0x4` | int | x32dbg dump |
+| Colour index (1=Red…10=Gray) | `+0x4` | int | x32dbg dump. Reliable mid-game; corrupts near endgame (see Player Name Mapping). Used frozen-early as the name-array index. |
 | Honour total | `+0x1C` | int | x32dbg dump |
 | Regular army count | `+0xD8C` | int | x32dbg dump |
 | Siege unit count | `+0xD90` | int | x32dbg dump |
 | Title index (0=Freeman…9=Duke) | `+0xF58` | int | x32dbg dump |
-| Active player flag | `+0x10F8` | int | 2 = local player, 1 = remote, 0 = unused |
+| Castle status | `+0x10F8` | int | 2 = castle standing, 1 = castle destroyed/eliminated, 0 = unused |
 | Gold (treasury balance) | `+0x1010` | float | x32dbg: `00 5C 40 46` = 12311.0f matched UI gold |
 | Popularity | `+0x1028` | float | x32dbg dump |
 | Trade income | `+0x1554` | int | x32dbg: value 7990 matched Trade Income panel |
@@ -199,103 +203,83 @@ All offsets are relative to the player object pointer.
 | Honour: Crime | `+0x1730` | int | x32dbg: value 95 ✓ |
 
 **Player table**: `base + 0x6E8BD8` (RVA). Array of 4-byte pointers, 32 active
-slots (indices 0–31). Slot 34 (`base + 0x6E8C60`) is the dedicated local player
+slots (indices 0–31). Slot 33 (`base + 0x6E8C5C`) is the local player's slot
+index (int32). Slot 34 (`base + 0x6E8C60`) is the dedicated local player
 pointer — always valid for the current human player regardless of castle state.
 
 **Army sub-object offset**: `ESI = player_base + 0x674` at the unit spawn hook
 site. Subtract `0x674` to recover `player_base`.
 
 **Player name array**: `base + 0xDB89B0` (RVA; VA `0x11B89B0` at ImageBase
-`0x400000`). Up to `NAME_ARRAY_COUNT = 8` records, stride `0x1C` (28 bytes).
-`+0x10` is a pointer to a heap-allocated, null-terminated UTF-16LE name
-string; the other fields in each record are unexplored. Unused trailing
-records are all-zero (`+0x10 == 0`), and the array is packed — the first
-zero pointer marks the end of the list. Evidence: identical layout found in a
-lobby-screen minidump (3 players, names `4H|TheSettler`, `NMaestro`,
-`[AoG] ¶Vengeance†`) and a later defeat-screen minidump from a 1v1 (names
-`NMaestro`, `[AoG] Soup`), the latter cross-referenced against the player
-table's `[+0x10F8]` flag — see Player Name Mapping above.
+`0x400000`). `NAME_ARRAY_COUNT = 8` records, stride `0x1C` (28 bytes). Each
+record is an MSVC `std::wstring`: `+0x10` is the 16-byte buffer union (heap
+pointer to the UTF-16LE string for names longer than the 7-wchar SSO limit),
+and `_Mysize`/`_Myres` (length and capacity) land at `+0x04`/`+0x08` of the
+*next* record because the wstring straddles the stride. **The array is indexed
+by (colour − 1)** — record `i` belongs to the player whose colour is `i + 1`,
+not to "the i-th player to join". A colour that no current player owns (nobody
+was ever assigned it, or its player left) holds a stale or freed pointer.
 
-**Record string pointers can dangle across matches**: on a second match in
-the same session, a `+0x10` record pointer can pass the `[0x10000,
-0x80000000)` range check yet point into memory the game has since freed
-(observed as a hard `0xc0000005` access violation reading the very first
-`wchar_t` of the string — crash address inside `loadPlayerNames()`, fault
-offset `0x1fdf` in `version.dll`). The array itself is apparently not
-cleared/repopulated for every record between matches, so a stale pointer
-from a previous match's per-match memory pool can survive into the next.
-`loadPlayerNames()` now calls `VirtualQuery()` on each `+0x10` pointer and
-stops (treats it as end-of-list) unless the page is `MEM_COMMIT` and
-readable (not `PAGE_NOACCESS`/`PAGE_GUARD`).
+`loadNameAtIndex(base, colour - 1, ...)` reads one record directly and guards
+the `+0x10` pointer with a range check plus `VirtualQuery()` — a pointer into
+freed memory (a left player's per-match pool, or a previous session) passes
+the range check but fails the `MEM_COMMIT`/readable check, and is treated as
+"no name" (overlay falls back to the colour label). An earlier crash
+(`0xc0000005`, fault offset `0x1fdf` in `version.dll`) came from dereferencing
+such a stale pointer without the VirtualQuery guard.
 
 ## Known Issues
 
-- **Color index at `[+0x4]` is not a unique player identifier (confirmed)**: a
-  `#ifdef DEBUG` dump (`endgame_debug.txt`) from a 6-player FFA showed all 6
-  distinct players — 6 different table slots, each with its own gold/honour/army
-  data and unit-recruit history — reporting the *same* `colorIdx == 1`. The field
-  is therefore not "this player's colour" in the 1:1 sense the rest of this doc
-  assumed; its real meaning (team? civilisation? something else?) is still
-  unknown. It also does not reliably match the player's visual castle colour in
-  the game UI.
+- **Colour index at `[+0x4]` corrupts near endgame (root cause understood)**:
+  the live colour field is a genuine, unique per-player colour mid-game, but
+  it is overwritten when a player is eliminated — the defeated player's castle
+  becomes an estate of the conqueror, and the defeated object's colour is
+  rewritten to the conqueror's colour. In a game where the local player
+  (colour 4) eliminated three opponents, all three slots read `colour == 4` at
+  endgame. Earlier dumps that showed "all players share `colorIdx == 1`" were
+  reading this post-corruption state, which led to the mistaken belief the
+  field was never a real colour. Fixed by freezing each slot's colour at first
+  sighting (`SlotCache::stableColor`) and using that, not the live field, for
+  both the name-array index and the colour label. This also resolves the old
+  cosmetic bug where every fallback label read the same colour.
 
-  **Consequence for this patch**: the overlay's per-player colour label
-  (`COLOR_NAMES[colorIdx]`, used as a fallback name when the name array has no
-  entry) can show the *same* name for multiple distinct players when they
-  share a `colorIdx`. This is cosmetic only — each player's data column is
-  still correct — but the fallback labels may all read e.g. "Red". Finding the
-  real per-player colour field is a separate investigation. (Player name,
-  title, and stat text are now rendered in a fixed white colour rather than
-  `COLOR_VALS[colorIdx]`, so this no longer affects readability — see
-  `CHANGELOG.md`.)
+  Player name, title, and stat text are still rendered in fixed white (not the
+  player colour) for readability — see `CHANGELOG.md`.
 
-  **Consequence that was a real bug (fixed)**: detection previously deduplicated
-  players via a `colorSeen[colorIdx]` array — once one player with a given
-  `colorIdx` was added, every other player sharing that `colorIdx` was skipped as
-  "already seen". Since `colorIdx` is not unique, this silently dropped real
-  players. In the 6-player FFA above (all `colorIdx == 1`), this reduced 6 real
-  players down to 1. In an earlier report with more varied `colorIdx` values
-  across players, it reduced 6 down to 3. Fixed by deduplicating on table slot
-  index (`slotAdded[]`) instead, which the debug dump confirms is unique per
-  player.
+- **Local player name mismatch when not host (fixed)**: the name array is
+  indexed by (colour − 1), not by join order or local-player-first. The old
+  code assumed `names[0]` was the local player and assigned the rest
+  positionally, which mislabelled everyone whenever the local player was not
+  the host. A Steam-API match was tried as an interim fix but failed — the
+  Steam display name (e.g. `BinaryVision`) differs from the in-game Firefly
+  Online name (e.g. `[AoG] Halli`). Fixed by reading each player's name
+  directly from `nameArray[frozenColour - 1]`; verified against a non-host
+  6-player FFA where the local player (slot 4, colour 4) correctly resolved to
+  record `[3]` = `[AoG] Halli`.
 
-- **Remote name ordering for 3+ players is unverified, and one entry can be
-  garbage**: `names[0]` ↔ local player is now matched explicitly via
-  `castle == 2` (see Player Name Mapping above) and confirmed correct in a
-  3-player FFA dump. The remaining `names[1..]` are still paired with the
-  remaining `s_stats[]` entries positionally. In that same FFA dump,
-  `names[1]` (after skipping the local player's `names[0]`) decoded as
-  unreadable UTF-16 — likely a stale or use-after-free pointer in that name
-  array record — so the remote player who would have received that slot got
-  garbage text instead of their real name. Whether `names[1..]`'s order
-  matches the remaining `s_stats[]` order, and why that record's pointer was
-  bad, remains open. `endgame_debug.txt` now logs `castle=` for each selected
-  player alongside `name=`, so the next FFA playtest can confirm the local
-  player's column is correct and help narrow down the remaining garbage-entry
-  case.
+- **A colour with no current owner has no name**: if nobody was assigned a
+  colour, or that player left, the record at `colour − 1` holds a stale/freed
+  pointer (or fill bytes from a prior session). `loadNameAtIndex()` rejects
+  these via `VirtualQuery()` and the overlay falls back to the colour label
+  for that player. Players who left mid-game therefore show a colour label
+  rather than their name — unavoidable, since the game frees the string.
 
-- **Crash: stale name-array pointer caused an access violation on a second
-  match (fixed)**: `loadPlayerNames()`'s `[0x10000, 0x80000000)` range check
-  alone was not sufficient — a record's `+0x10` pointer can be a stale
-  reference into a per-match memory pool the game has since freed by the time
-  a *second* match's endgame screen runs, even though the pointer value
-  itself still looks plausible. Dereferencing it crashed with `0xc0000005` at
-  fault offset `0x1fdf` in `version.dll` (the first `wchar_t` read in
-  `loadPlayerNames()`). Fixed by calling `VirtualQuery()` on each pointer and
-  stopping (as if it were the end of the packed array) unless the page is
-  `MEM_COMMIT` and readable. See Data Offsets above.
+- **Crash: stale name-array pointer caused an access violation (fixed)**: a
+  record's `+0x10` pointer can be a stale reference into a per-match memory
+  pool the game has since freed, even though the pointer value still looks
+  plausible (passes the `[0x10000, 0x80000000)` range check). Dereferencing it
+  crashed with `0xc0000005` at fault offset `0x1fdf` in `version.dll`. Fixed by
+  calling `VirtualQuery()` on the pointer in `loadNameAtIndex()` and treating
+  any non-`MEM_COMMIT`/non-readable page as "no name".
 
-- **Name array behaviour outside multiplayer is unverified**: both minidumps
-  used for Player Name Mapping were captured from multiplayer sessions. A
-  single-player skirmish or campaign win/lose screen has not yet been checked,
-  so it's unknown whether the array at `base + 0xDB89B0` is populated,
-  zero-filled, or holds stale/garbage pointers in that case.
-  `loadPlayerNames()` guards against the latter by stopping as soon as a
-  record's `+0x10` pointer is `0`, outside `[0x10000, 0x80000000)`, or no
-  longer backed by committed memory (see the crash fix above), so a garbage
-  entry should at worst suppress name lookup (falling back to the colour
-  label) rather than crash — but this fallback path itself needs a
-  singleplayer playtest to confirm.
+- **Name array behaviour outside multiplayer is unverified**: the minidumps
+  used for Player Name Mapping were all multiplayer. A single-player skirmish
+  or campaign win/lose screen has not been checked, so it's unknown whether
+  the array at `base + 0xDB89B0` is populated, zero-filled, or holds stale
+  pointers there. `loadNameAtIndex()` rejects a record whose `+0x10` pointer
+  is `0`, out of range, or no longer committed, so a garbage entry should at
+  worst suppress the name (colour-label fallback) rather than crash — but this
+  needs a singleplayer playtest to confirm.
 
 - **Opponent unit types missing if never purchased via barracks**: the spawn hook
   at `0x0EE3BE` covers barracks and siege workshop purchases. Units that enter play

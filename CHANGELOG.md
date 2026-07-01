@@ -16,8 +16,8 @@
 
 ### [Improvement] - Player Names on End-of-Game Stats Screen
 
-- **What the issue was:** The stats screen showed generic placeholders instead of the actual names of players in the match.
-- **What we changed:** Real player names are now displayed correctly on the end-of-game stats overlay.
+- **What the issue was:** The stats screen showed generic placeholders instead of real player names, and when you were not the host the names that did appear were often attached to the wrong player — sometimes shown as unreadable characters.
+- **What we changed:** Each player's real name is now matched to their own column reliably, whether or not you are the host. Players who left the match before it ended show a colour label instead of a name.
 
 ### [Improvement] - Readability of End-of-Game Stats
 
