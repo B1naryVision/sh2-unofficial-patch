@@ -1,0 +1,7 @@
+LIBRARY "d3d9.dll"
+EXPORTS
+    Direct3DCreate9 @1
+    Direct3DCreate9Ex @2
+    Direct3DShaderValidatorCreate9 @3
+    PSGPError @4
+    PSGPSampleTexture @5
