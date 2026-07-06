@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+---
+
+## [0.4.0]
+
 ### [Feature] - Keyboard Shortcut to Stop Selected Troops
 
 - **What the issue was:** Stopping a selected group of troops could only be done by clicking the Stop button on the command panel, with no keyboard shortcut.
