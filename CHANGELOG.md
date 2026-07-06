@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### [Feature] - Keyboard Shortcut to Stop Selected Troops
+
+- **What the issue was:** Stopping a selected group of troops could only be done by clicking the Stop button on the command panel, with no keyboard shortcut.
+- **What we changed:** Pressing the `H` key now stops whatever troops you currently have selected, the same as clicking Stop.
+
 ### [Fix] - Crash When Your Lord Dies in the Barracks Menu
 
 - **What the issue was:** If you had the barracks or recruitment screen open at the moment your Lord died, the game crashed to the desktop instead of showing the defeat screen.

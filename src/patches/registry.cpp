@@ -5,6 +5,7 @@
 #include "knightCatapultCrash.h"
 #include "mpAiEnable.h"
 #include "mpConnectCompleteCrash.h"
+#include "stopTroopsHotkey.h"
 
 void applyUnofficialPatches() {
     installKnightCatapultCrashFix();
@@ -13,4 +14,5 @@ void applyUnofficialPatches() {
     installMpConnectCompleteCrashFix();
     installEndgameStats();
     installBarracksCrashFix();
+    installStopTroopsHotkey();
 }

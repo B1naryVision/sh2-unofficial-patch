@@ -25,3 +25,7 @@ cmake_install.cmake
 
 # Claude Code
 .claude/
+
+# Large process dumps — never commit
+*.DMP
+*.dmp
