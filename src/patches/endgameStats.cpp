@@ -124,6 +124,11 @@ struct SlotCache {
                      // (the live colour field corrupts to the local player's
                      // colour near endgame). 0 = not yet captured. Used as the
                      // name-array index (colour-1) — see collectStats().
+    wchar_t stableName[MAX_NAME_CHARS]; // name resolved at first sighting, while
+                                        // the colour is still uncorrupted. Bound
+                                        // to the slot, not the colour, so two
+                                        // slots can never collapse onto one name.
+                                        // Empty until captured. See freezeIdentity().
 };
 
 static SlotCache s_slotCache[32] = {};
@@ -131,6 +136,27 @@ static HANDLE s_pollTimer = NULL;
 
 static const wchar_t OVERLAY_CLASS[] = L"SH2PatchStatsOverlay";
 static HWND s_overlayHwnd = NULL;
+
+// Defined further down; declared here so the freeze sites can resolve a name
+// while the colour is still trustworthy.
+static bool loadNameAtIndex(uintptr_t base, int idx, wchar_t *out);
+
+// Freezes a slot's identity (colour + resolved name) the first time it is seen
+// with a valid colour. This must happen at first sighting — the live colour
+// field is rewritten to the conqueror's colour when a player is eliminated, so
+// a later reading is unreliable. Binding the *name* to the slot here (not
+// deriving it from the colour at endgame) is what prevents two eliminated
+// slots from collapsing onto a single conqueror's name.
+static void freezeIdentity(int slot, uintptr_t base, int color) {
+    SlotCache &cache = s_slotCache[slot];
+
+    if (cache.stableColor != 0 || color < 1 || color > 10) {
+        return;
+    }
+
+    cache.stableColor = color;
+    loadNameAtIndex(base, color - 1, cache.stableName);
+}
 
 // ── Periodic poll helpers ─────────────────────────────────────────────────────
 
@@ -183,12 +209,10 @@ static VOID CALLBACK pollTimerCallback(PVOID, BOOLEAN) {
         uint64_t fingerprint = makeFingerprint(playerPtr);
         SlotCache &cache = s_slotCache[i];
 
-        // Freeze the true colour the first time we see a valid one. The live
-        // colour field gets overwritten (to the local player's colour) near
-        // endgame, so the earliest reading is the reliable one.
-        if (cache.stableColor == 0) {
-            cache.stableColor = color;
-        }
+        // Freeze the true colour and name the first time we see a valid colour.
+        // The live colour field gets overwritten (to the conqueror's colour)
+        // near endgame, so the earliest reading is the reliable one.
+        freezeIdentity(i, base, color);
 
         if (!cache.seen) {
             cache.seen = true;
@@ -254,13 +278,10 @@ extern "C" void unitSpawnLogic() {
             cache.valid = true;
             cache.everChanged = true;
 
-            // Freeze the true colour as early as possible (recruit can happen
-            // before the first 60 s poll) — see pollTimerCallback.
+            // Freeze the true colour and name as early as possible (recruit can
+            // happen before the first 60 s poll) — see pollTimerCallback.
             int color = *(int *)(playerBase + OFF_COLOR);
-
-            if (cache.stableColor == 0 && color >= 1 && color <= 10) {
-                cache.stableColor = color;
-            }
+            freezeIdentity(i, base, color);
 
             if (!cache.seen) {
                 cache.seen = true;
@@ -674,7 +695,14 @@ static void collectStats(uintptr_t base, bool won) {
         int color = *(int *)(localPtr + OFF_COLOR);
 
         if (color >= 1 && color <= 10) {
-            // Find this pointer's table slot for unit tracking (best effort).
+            // Resolve the local player's table slot. Prefer a direct pointer
+            // match; but when the local player has died the game cleans their
+            // object out of the table, so the scan fails. Fall back to the
+            // authoritative local-slot-index global at base+0x6E8C5C, which
+            // survives death — this recovers the correct s_unitsMade[] and the
+            // frozen colour/name for the local player. Without it the old code
+            // hijacked slot 0, attributing the local player's stats to slot 0's
+            // unit counts and name (looked like another player "ate" your stats).
             int localSlot = -1;
 
             for (int i = TABLE_SEARCH - 1; i >= 0; --i) {
@@ -684,16 +712,17 @@ static void collectStats(uintptr_t base, bool won) {
                 }
             }
 
+            if (localSlot < 0) {
+                int slotGlobal = *(int *)(base + 0x6E8C5C);
+
+                if (slotGlobal >= 0 && slotGlobal < 32 && !slotAdded[slotGlobal]) {
+                    localSlot = slotGlobal;
+                }
+            }
+
             if (localSlot >= 0) {
                 slotAdded[localSlot] = true;
                 fillStat(localSlot, localPtr);
-            } else {
-                // Not in the first TABLE_SEARCH slots — add without unit data.
-                // Use slot 0 as a sentinel; s_unitsMade[0] will be all-zero.
-                // Claim slot 0 so passes 2-4 don't also add its real occupant
-                // as a separate, misattributed entry.
-                slotAdded[0] = true;
-                fillStat(0, localPtr);
             }
         }
     }
@@ -816,15 +845,18 @@ static void collectStats(uintptr_t base, bool won) {
     }
 
     // ── Player names and colours ────────────────────────────────────────────
-    // The name array is indexed by (colour - 1): the host assigns each joining
-    // player a colour which is their slot in the array (a player who leaves can
-    // leave a stale entry at their index — handled by loadNameAtIndex).
+    // Identity is bound to the table slot, never re-derived from the colour at
+    // endgame. Two different slots can read the same live colour near endgame
+    // (an eliminated player's colour is rewritten to their conqueror's), so
+    // resolving the name from that colour here would print the conqueror's name
+    // once per player they defeated. Instead, use the name+colour frozen per
+    // slot at first sighting (freezeIdentity), while the colour was still true.
     //
-    // The live colour field corrupts to the local player's colour near endgame,
-    // so use the frozen colour captured at first sighting (poll/recruit). Fall
-    // back to the live/snapshot colour only if no frozen value exists. The
-    // frozen colour is also written back into the stat so the overlay's colour
-    // label is correct, not just the name.
+    // The name array is indexed by (colour - 1); loadNameAtIndex handles stale
+    // records for players who have since left. The endgame colour lookup below
+    // is only a last resort for a slot that was never frozen (never polled and
+    // never recruited) — and it deliberately does NOT fall back to the live
+    // colour field, which is the corruptible value that caused the duplicates.
     for (int i = 0; i < s_statCount; ++i) {
         s_stats[i].name[0] = 0;
 
@@ -834,12 +866,19 @@ static void collectStats(uintptr_t base, bool won) {
         if (slot >= 0 && slot < 32 && s_slotCache[slot].stableColor >= 1 &&
             s_slotCache[slot].stableColor <= 10) {
             color = s_slotCache[slot].stableColor;
-        } else if (s_stats[i].colorIdx >= 1 && s_stats[i].colorIdx <= 10) {
-            color = s_stats[i].colorIdx;
         }
 
         if (color >= 1 && color <= 10) {
             s_stats[i].colorIdx = color;
+        }
+
+        // Prefer the name frozen for this slot; it was resolved while the colour
+        // was still uncorrupted and is unique per slot. Only if no frozen name
+        // exists do we resolve from the (frozen) colour at endgame.
+        if (slot >= 0 && slot < 32 && s_slotCache[slot].stableName[0] != 0) {
+            wcsncpy(s_stats[i].name, s_slotCache[slot].stableName, MAX_NAME_CHARS - 1);
+            s_stats[i].name[MAX_NAME_CHARS - 1] = 0;
+        } else if (color >= 1 && color <= 10) {
             loadNameAtIndex(base, color - 1, s_stats[i].name);
         }
     }
