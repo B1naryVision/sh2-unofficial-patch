@@ -15,6 +15,7 @@ SRCS = src/dllmain.cpp \
        src/patches/mpConnectCompleteCrash.cpp \
        src/patches/endgameStats.cpp \
        src/patches/barracksCrash.cpp \
+       src/patches/mapEdgeCrash.cpp \
        src/patches/stopTroopsHotkey.cpp \
        src/patches/attackHotkey.cpp \
        src/patches/zoomSpeed.cpp

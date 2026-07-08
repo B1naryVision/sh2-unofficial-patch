@@ -4,6 +4,7 @@
 #include "endgameStats.h"
 #include "introSkip.h"
 #include "knightCatapultCrash.h"
+#include "mapEdgeCrash.h"
 #include "mpAiEnable.h"
 #include "mpConnectCompleteCrash.h"
 #include "stopTroopsHotkey.h"
@@ -16,6 +17,7 @@ void applyUnofficialPatches() {
     installMpConnectCompleteCrashFix();
     installEndgameStats();
     installBarracksCrashFix();
+    installMapEdgeCrashFix();
     installStopTroopsHotkey();
     installAttackHotkey();
     installZoomSpeed();

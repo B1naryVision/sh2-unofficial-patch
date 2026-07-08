@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### [Fix] - Crash When Troops Are Moved Off the Edge of the Map
+
+- **What the issue was:** Pushing a selected group of troops out of bounds — most easily by dragging their formation into a corner or off any edge of the map — could crash the game to desktop.
+- **What we changed:** Troops and their formations are now handled safely at and beyond the map edges, so this no longer crashes the game.
+
 ### [Improvement] - Faster Camera Zoom
 
 - **What the issue was:** Zooming the camera in and out with the mouse wheel was very slow, especially on high-resolution monitors, taking many turns of the wheel to move between close and far views.

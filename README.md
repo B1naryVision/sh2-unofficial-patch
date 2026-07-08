@@ -50,6 +50,7 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [Stop selected troops hotkey (`H`)](docs/features/stop-troops-hotkey.md) | `base+0xf3140` | Unreleased |
 | [Attack-move toggle hotkey (`Mouse4`)](docs/features/attack-move-hotkey.md) | `base+0x22e7d0`, `base+0x300e1` | Added in v0.4.0 |
 | [Faster camera zoom (3×)](docs/features/zoom-speed.md) | `base+0x3623D8` | Unreleased |
+| [Out-of-bounds troop formation crash](docs/bugs/map-edge-formation-crash.md) | `base+0x37dd6b` | Unreleased |
 
 ---
 
