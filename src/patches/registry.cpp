@@ -1,4 +1,5 @@
 #include "registry.h"
+#include "attackHotkey.h"
 #include "barracksCrash.h"
 #include "endgameStats.h"
 #include "introSkip.h"
@@ -15,4 +16,5 @@ void applyUnofficialPatches() {
     installEndgameStats();
     installBarracksCrashFix();
     installStopTroopsHotkey();
+    installAttackHotkey();
 }

@@ -15,7 +15,8 @@ SRCS = src/dllmain.cpp \
        src/patches/mpConnectCompleteCrash.cpp \
        src/patches/endgameStats.cpp \
        src/patches/barracksCrash.cpp \
-       src/patches/stopTroopsHotkey.cpp
+       src/patches/stopTroopsHotkey.cpp \
+       src/patches/attackHotkey.cpp
 
 DEPLOY_PATH = /mnt/c/Games/Steam/steamapps/common/Stronghold\ 2/
 

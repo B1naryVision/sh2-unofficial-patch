@@ -6,6 +6,7 @@ d3d9.dll
 
 # Debug artifacts
 patch_debug.txt
+attack_hotkey_dbg.txt
 
 # CMake build directories
 build/

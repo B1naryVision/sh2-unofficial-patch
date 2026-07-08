@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### [Feature] - Mouse Button Shortcut for Attack-Move
+
+- **What the issue was:** Turning on the "Attack" stance for selected troops — so a move order makes them engage enemies along the way — could only be done by clicking the Attack button on the command panel, with no shortcut.
+- **What we changed:** Pressing the fourth mouse button (`Mouse4`) now toggles the Attack stance on your selected troops, just like clicking the Attack button. Turn it on, then move your troops.
+
 ---
 
 ## [0.4.0]
