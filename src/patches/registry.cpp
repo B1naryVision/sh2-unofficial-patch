@@ -7,6 +7,7 @@
 #include "mpAiEnable.h"
 #include "mpConnectCompleteCrash.h"
 #include "stopTroopsHotkey.h"
+#include "zoomSpeed.h"
 
 void applyUnofficialPatches() {
     installKnightCatapultCrashFix();
@@ -17,4 +18,5 @@ void applyUnofficialPatches() {
     installBarracksCrashFix();
     installStopTroopsHotkey();
     installAttackHotkey();
+    installZoomSpeed();
 }

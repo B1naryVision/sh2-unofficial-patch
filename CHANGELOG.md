@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### [Improvement] - Faster Camera Zoom
+
+- **What the issue was:** Zooming the camera in and out with the mouse wheel was very slow, especially on high-resolution monitors, taking many turns of the wheel to move between close and far views.
+- **What we changed:** The zoom now moves three times as fast, so you can get from a close-up to a wide overview with far less effort. The closest and farthest zoom limits are unchanged.
+
 ### [Feature] - Mouse Button Shortcut for Attack-Move
 
 - **What the issue was:** Turning on the "Attack" stance for selected troops — so a move order makes them engage enemies along the way — could only be done by clicking the Attack button on the command panel, with no shortcut.
