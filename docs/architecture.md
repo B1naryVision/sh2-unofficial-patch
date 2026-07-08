@@ -6,11 +6,13 @@ This document covers the patch delivery mechanism, hook infrastructure, safe pat
 
 ## How the Patch Loads
 
-The patch exploits Windows' DLL search order. When Stronghold 2 starts, Windows resolves `version.dll` by searching the application directory before `System32`. Placing our `version.dll` in the game directory causes it to load in place of the system library.
+The patch exploits Windows' DLL search order. When Stronghold 2 starts, Windows resolves `d3d9.dll` by searching the application directory before `System32`. Placing our `d3d9.dll` in the game directory causes it to load in place of the system library.
+
+> **Note:** Earlier releases proxied `version.dll` instead. The project migrated to `d3d9.dll` because `version.dll` is sometimes ignored or rejected by Windows under stricter DLL-load policies, whereas `d3d9.dll` (which the game genuinely depends on) is not.
 
 The patch DLL:
 
-1. Forwards all legitimate `version.dll` exports to the real system `version.dll` (loaded from `System32` at runtime)
+1. Forwards all legitimate `d3d9.dll` exports to the real system `d3d9.dll` (loaded from `System32` at runtime)
 2. On `DLL_PROCESS_ATTACH`, installs detour hooks to fix bugs in the game binary
 
 No game files are ever modified on disk.
@@ -19,20 +21,19 @@ No game files are ever modified on disk.
 
 ## DLL Proxy Layer
 
-The proxy is defined in `version.def` (export ordinals) and implemented via naked `__declspec(naked)` functions that jump through a table of real function pointers (`g_realFunctions[]`).
+The proxy is defined in `d3d9.def` (export ordinals) and implemented via naked `__declspec(naked)` functions that jump through a table of real function pointers (`g_d3d9Functions[]`).
 
-`loadRealVersionDll()` must be called before any proxy exports can be used. It loads the system `version.dll` by absolute path from `GetSystemDirectoryA` and resolves each export via `GetProcAddress`.
+`loadRealD3d9Dll()` must be called before any proxy exports can be used. It loads the system `d3d9.dll` by absolute path from `GetSystemDirectoryA` and resolves each export via `GetProcAddress`.
 
 **Exports proxied:**
 
 | Function | Ordinal |
 | --- | --- |
-| `GetFileVersionInfoA` | 1 |
-| `GetFileVersionInfoW` | 2 |
-| `GetFileVersionInfoSizeA` | 3 |
-| `GetFileVersionInfoSizeW` | 4 |
-| `VerQueryValueA` | 5 |
-| `VerQueryValueW` | 6 |
+| `Direct3DCreate9` | 1 |
+| `Direct3DCreate9Ex` | 2 |
+| `Direct3DShaderValidatorCreate9` | 3 |
+| `PSGPError` | 4 |
+| `PSGPSampleTexture` | 5 |
 
 ---
 
@@ -109,8 +110,8 @@ sh2-unofficial-patch/
 │   │   ├── hook.h / hook.cpp           ← installHook
 │   │   └── log.h / log.cpp             ← ring-buffer logging (no-op in release)
 │   ├── proxy/
-│   │   ├── versionProxy.h
-│   │   └── versionProxy.cpp            ← loadRealVersionDll + all 6 naked exports
+│   │   ├── d3d9Proxy.h
+│   │   └── d3d9Proxy.cpp               ← loadRealD3d9Dll + all 5 naked exports
 │   └── patches/
 │       ├── registry.h / registry.cpp   ← applyUnofficialPatches() dispatcher
 │       └── knightCatapultCrash.cpp     ← one .cpp per fix
@@ -119,7 +120,7 @@ sh2-unofficial-patch/
 │   └── bugs/
 │       └── *.md                        ← one file per investigated bug
 ├── Makefile
-├── version.def
+├── d3d9.def
 ├── README.md
 ├── CHANGELOG.md
 └── LICENSE

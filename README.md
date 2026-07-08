@@ -8,7 +8,7 @@ An unofficial community patch for **Stronghold 2** (Firefly Studios, 2005) fixin
 
 ## Overview
 
-The patch is delivered as a `version.dll` that sits in the game directory. Windows loads it automatically via DLL search order before the system `version.dll`. It forwards all legitimate `version.dll` API calls to the real system library, then installs targeted detour hooks to fix specific bugs in the game binary.
+The patch is delivered as a `d3d9.dll` that sits in the game directory. Windows loads it automatically via DLL search order before the system `d3d9.dll`. It forwards all legitimate `d3d9.dll` API calls to the real system library, then installs targeted detour hooks to fix specific bugs in the game binary.
 
 No game files are modified. Removing the DLL restores the original behavior completely.
 
@@ -37,17 +37,17 @@ No game files are modified. Removing the DLL restores the original behavior comp
 
 ## Current Fixes and Features
 
-### v0.3.0
+### v0.4.0
 
 | Description | Offset | Status |
 | --- | --- | --- |
 | [Knight/catapult mount crash](docs/bugs/knight-catapult-crash.md) | `base+0x1048BB` | Fixed in v0.1.0 |
-| [Barracks UI crash on Lord death](docs/bugs/barracks-lord-death-crash.md) | `base+0x2207c6` | Fixed in Unreleased |
+| [Barracks UI crash on Lord death](docs/bugs/barracks-lord-death-crash.md) | `base+0x2207c6` | Fixed in v0.4.0 |
 | [AI opponents in multiplayer lobbies](docs/features/mp-ai-enable.md) | `base+0x2A0F69` | Added in v0.2.0 |
 | [Skip Firefly logo intro on launch](docs/features/intro-skip.md) | `base+0x4DA9F8`, `base+0x27BB0D` | Added in v0.2.0 |
 | [MP connect-complete crash](docs/bugs/mp-connect-complete-crash.md) | `base+0x3d85c6` | Added in v0.3.0 |
 | [End-of-game statistics overlay](docs/features/endgame-stats.md) | `base+0x297fa0`, `base+0x297700` | Added in v0.3.0 |
-| [Stop selected troops hotkey (`H`)](docs/features/stop-troops-hotkey.md) | `base+0xf3140` | Unreleased |
+| [Stop selected troops hotkey (`H`)](docs/features/stop-troops-hotkey.md) | `base+0xf3140` | Added in v0.4.0 |
 
 ---
 
@@ -86,8 +86,8 @@ Install [MinGW-w64](https://www.mingw-w64.org/) with i686 (32-bit) target suppor
 ## Building
 
 ```bash
-make          # release build → version.dll
-make debug    # debug build   → version.dll (with file logging enabled)
+make          # release build → d3d9.dll
+make debug    # debug build   → d3d9.dll (with file logging enabled)
 make clean    # remove build artifacts
 ```
 
@@ -95,11 +95,11 @@ make clean    # remove build artifacts
 
 ## Installation
 
-1. Build `version.dll` (see above)
+1. Build `d3d9.dll` (see above)
 2. Copy it into the Stronghold 2 game directory.
 3. Launch the game normally through Steam. The patch loads automatically.
 
-**To uninstall**: delete `version.dll` from the game directory.
+**To uninstall**: delete `d3d9.dll` from the game directory.
 
 ---
 
