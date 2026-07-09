@@ -1,0 +1,101 @@
+name: Release
+
+# Builds d3d9.dll with the same MinGW cross-toolchain the Makefile targets,
+# packages it as a zip with docs + install instructions, generates SHA-256
+# checksums, attests build provenance, and attaches everything to the
+# GitHub release that triggered the run.
+#
+# Trigger: publish a release (with a tag like v0.5.0) on GitHub.
+# workflow_dispatch is included for dry runs; those upload workflow
+# artifacts instead of touching a release.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write # upload assets to the release
+  id-token: write # sign build provenance attestation
+  attestations: write # store the attestation
+
+jobs:
+  build:
+    name: Build, package, and publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install MinGW-w64 (i686 cross-compiler)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends g++-mingw-w64-i686 zip
+
+      - name: Build release DLL
+        run: |
+          make clean
+          make
+
+      - name: Sanity-check the binary
+        run: |
+          file d3d9.dll | grep -q 'PE32 executable' || { echo '::error::not a PE32 DLL'; exit 1; }
+          i686-w64-mingw32-objdump -p d3d9.dll | grep -q 'Direct3DCreate9' || { echo '::error::Direct3DCreate9 export missing'; exit 1; }
+
+      - name: Package zip bundle
+        id: package
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          STAGE="sh2-unofficial-patch-${VERSION}"
+          mkdir "${STAGE}"
+          cp d3d9.dll README.md CHANGELOG.md LICENSE "${STAGE}/"
+          cat > "${STAGE}/INSTALL.txt" <<'EOF'
+          Stronghold 2 Unofficial Patch
+          =============================
+
+          Install:
+            1. Copy d3d9.dll into your Stronghold 2 game directory, e.g.
+               C:\Program Files (x86)\Steam\steamapps\common\Stronghold 2\
+            2. Launch the game normally through Steam. The patch loads
+               automatically.
+
+          Uninstall:
+            Delete d3d9.dll from the game directory. No game files are
+            modified.
+
+          Verify your download (optional):
+            Compare against SHA256SUMS.txt from the release page. On
+            Windows: certutil -hashfile d3d9.dll SHA256
+          EOF
+          zip -r "${STAGE}.zip" "${STAGE}"
+          sha256sum "${STAGE}.zip" "${STAGE}/d3d9.dll" > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          echo "zip=${STAGE}.zip" >> "$GITHUB_OUTPUT"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            ${{ steps.package.outputs.zip }}
+            d3d9.dll
+
+      - name: Upload assets to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${GITHUB_REF_NAME}" \
+            "${{ steps.package.outputs.zip }}" \
+            SHA256SUMS.txt \
+            --repo "${GITHUB_REPOSITORY}" \
+            --clobber
+
+      - name: Upload workflow artifacts (dry runs only)
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sh2-unofficial-patch-${{ github.ref_name }}
+          path: |
+            ${{ steps.package.outputs.zip }}
+            SHA256SUMS.txt
