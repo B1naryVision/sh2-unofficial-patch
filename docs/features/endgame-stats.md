@@ -243,10 +243,10 @@ hook existed.
 These never fire on normal screen exit (see above); they are kept for real
 teardown paths only.
 
-| Screen          | Hook site RVA |
+| Screen | Hook site RVA |
 | --- | --- |
-| WinScreen dtor  | `0x297f10`    |
-| LoseScreen dtor | `0x297670`    |
+| WinScreen dtor | `0x297f10` |
+| LoseScreen dtor | `0x297670` |
 
 ### Unit spawn hook
 
@@ -318,16 +318,19 @@ not to "the i-th player to join". A colour that no current player owns (nobody
 was ever assigned it, or its player left) holds a stale or freed pointer.
 
 `loadNameAtIndex(base, colour - 1, ...)` (in `session.cpp`) reads one record
-directly and guards the `+0x10` pointer with a range check plus
-`VirtualQuery()` — a pointer into freed memory (a left player's per-match
-pool, or a previous session) passes the range check but fails the
-`MEM_COMMIT`/readable check, and is treated as "no name" (overlay falls back
-to the colour label). An earlier crash (`0xc0000005`, fault offset `0x1fdf`
-in `version.dll`) came from dereferencing such a stale pointer without the
-VirtualQuery guard. The copy is additionally clamped to the committed region
-returned by `VirtualQuery` — a string allocated near the end of a heap region
-must not pull the read across the boundary into an uncommitted page (same
-crash class as above, one page later).
+directly, **discriminating on `_Myres` first**: capacity < 8 means the
+characters are inline in the union (small-string optimisation — read them in
+place, nothing to dereference); capacity ≥ 8 means the union holds a heap
+pointer. The heap pointer is guarded with a range check plus `VirtualQuery()`
+— a pointer into freed memory (a left player's per-match pool, or a previous
+session) passes the range check but fails the `MEM_COMMIT`/readable check,
+and is treated as "no name" (overlay falls back to the colour label). An
+earlier crash (`0xc0000005`, fault offset `0x1fdf` in `version.dll`) came
+from dereferencing such a stale pointer without the VirtualQuery guard. The
+copy is clamped to `_Mysize` (validated: `0 < _Mysize ≤ _Myres ≤ 4096`) and
+to the committed region returned by `VirtualQuery` — a string allocated near
+the end of a heap region must not pull the read across the boundary into an
+uncommitted page (same crash class as above, one page later).
 
 ## Known Issues
 
@@ -364,6 +367,20 @@ crash class as above, one page later).
   these via `VirtualQuery()` and the overlay falls back to the colour label
   for that player. Players who left mid-game therefore show a colour label
   rather than their name — unavoidable, since the game frees the string.
+
+- **Short names rendered as CJK/"Chinese" garbage (fixed)**: names of 7
+  characters or fewer are stored **inline** in the wstring's 16-byte union
+  (MSVC small-string optimisation) — there is no heap pointer. The old code
+  dereferenced the union unconditionally, turning the name's first two UTF-16
+  characters into an "address" (second character = high word, so any letter
+  there lands inside the always-mapped exe image), then read exe bytes as
+  UTF-16 — and random 16-bit values overwhelmingly fall in the CJK ideograph
+  block, which is why the garbage looked Chinese. Long names were unaffected
+  (their union really is a heap pointer). Confirmed live: `[AoG] Halli`
+  (11 chars) resolved correctly; after shortening to `Halli` (5 chars) the
+  name corrupted. Fixed by discriminating on `_Myres` (capacity < 8 = inline)
+  and validating `_Mysize` before copying; the size/capacity validation also
+  hardens the stale-record path below.
 
 - **Crash: stale name-array pointer caused an access violation (fixed)**: a
   record's `+0x10` pointer can be a stale reference into a per-match memory

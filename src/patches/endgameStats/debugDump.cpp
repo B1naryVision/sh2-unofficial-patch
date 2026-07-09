@@ -102,7 +102,9 @@ void dumpEndgameDebug(const EndgameSnapshot &snap) {
     for (int i = 0; i < NAME_ARRAY_COUNT; ++i) {
         uintptr_t recordBase = base + NAME_ARRAY_RVA + (uintptr_t)i * NAME_ARRAY_STRIDE;
         const uint8_t *rec = (const uint8_t *)recordBase;
-        uintptr_t ptr = *(uintptr_t *)(recordBase + NAME_ARRAY_PTR_OFF);
+        uintptr_t unionVal = *(uintptr_t *)(recordBase + NAME_ARRAY_UNION_OFF);
+        uint32_t size = *(uint32_t *)(recordBase + NAME_ARRAY_SIZE_OFF);
+        uint32_t capacity = *(uint32_t *)(recordBase + NAME_ARRAY_RES_OFF);
 
         f << "  record[" << i << "]: bytes=";
 
@@ -110,9 +112,10 @@ void dumpEndgameDebug(const EndgameSnapshot &snap) {
             f << std::hex << std::setw(2) << std::setfill('0') << (int)rec[b] << " ";
         }
 
-        f << std::dec;
+        f << std::dec << " size=" << size << " cap=" << capacity
+          << (capacity < NAME_SSO_CAPACITY ? " (inline)" : " (heap)");
 
-        if (ptr == 0) {
+        if (unionVal == 0 && size == 0) {
             f << " (end of array)\n";
             break;
         }
@@ -122,7 +125,7 @@ void dumpEndgameDebug(const EndgameSnapshot &snap) {
         if (sessionLoadName(i + 1, name)) {
             f << " name=\"" << wideToUtf8(name) << "\"";
         } else {
-            f << " ptr=0x" << std::hex << ptr << std::dec << " (not readable)";
+            f << " union=0x" << std::hex << unionVal << std::dec << " (rejected)";
         }
 
         f << "\n";

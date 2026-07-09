@@ -18,12 +18,19 @@ inline constexpr uintptr_t LOCAL_SLOT_RVA = 0x6E8C5C;
 inline constexpr uintptr_t LOCAL_PLAYER_RVA = 0x6E8C60;
 
 // Per-session player name array, indexed by (colour - 1): 8 records, stride
-// 0x1C, +0x10 = heap pointer to a UTF-16LE null-terminated name string. A
-// colour with no current owner holds a stale/freed pointer — see
-// docs/features/endgame-stats.md "Player Name Mapping".
+// 0x1C. Each record embeds an MSVC std::wstring starting at +0x10: a 16-byte
+// union (7-wchar inline SSO buffer OR heap pointer to the UTF-16LE string),
+// then _Mysize at +0x20 and _Myres (capacity) at +0x24 — these straddle into
+// the next record's stride. _Myres < 8 means the characters are inline;
+// _Myres >= 8 means the union holds a heap pointer. A colour with no current
+// owner holds a stale/freed record — see docs/features/endgame-stats.md
+// "Player Name Mapping".
 inline constexpr uintptr_t NAME_ARRAY_RVA = 0xDB89B0;
 inline constexpr uintptr_t NAME_ARRAY_STRIDE = 0x1C;
-inline constexpr uintptr_t NAME_ARRAY_PTR_OFF = 0x10;
+inline constexpr uintptr_t NAME_ARRAY_UNION_OFF = 0x10;
+inline constexpr uintptr_t NAME_ARRAY_SIZE_OFF = 0x20;
+inline constexpr uintptr_t NAME_ARRAY_RES_OFF = 0x24;
+inline constexpr uint32_t NAME_SSO_CAPACITY = 8;
 inline constexpr int NAME_ARRAY_COUNT = 8;
 
 // Offset from the army sub-object pointer (ESI at the spawn hook site) back

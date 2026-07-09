@@ -26,11 +26,20 @@ static bool s_inGame = false;
 static DWORD s_lastPoll = 0;
 static EndgameCounters s_counters = {};
 
-// Reads one name-array record (index = colour - 1). The +0x10 pointer can be
-// stale/freed for a colour with no current owner, so it is guarded by a range
-// check plus VirtualQuery, and the copy never reads past the committed region
-// (a name string allocated near the end of a heap region must not pull us
-// into the uncommitted page after it).
+// Reads one name-array record (index = colour - 1). Each record is an MSVC
+// std::wstring: a 16-byte union at +0x10, then _Mysize at +0x20 and _Myres
+// (capacity) at +0x24. _Myres is the small-string-optimisation discriminator:
+// capacity < 8 means the characters live INLINE in the union; only capacity
+// >= 8 means the union holds a heap pointer. Dereferencing the union
+// unconditionally (the old behaviour) turned a short name's first two UTF-16
+// characters into an "address" — usually mapped, so the garbage read there
+// rendered as CJK ideographs ("Chinese names"). Confirmed live: "[AoG]
+// Halli" (11 chars, heap) resolved fine; "Halli" (5 chars, inline) broke.
+//
+// The heap path guards the pointer with a range check plus VirtualQuery, and
+// never reads past the committed region. Both paths trust _Mysize only after
+// validating it against _Myres, which also rejects most stale records whose
+// memory was recycled (a coherent size/capacity pair rarely survives reuse).
 static bool loadNameAtIndex(uintptr_t base, int idx, wchar_t *out) {
     out[0] = 0;
 
@@ -39,27 +48,49 @@ static bool loadNameAtIndex(uintptr_t base, int idx, wchar_t *out) {
     }
 
     uintptr_t recordBase = base + NAME_ARRAY_RVA + (uintptr_t)idx * NAME_ARRAY_STRIDE;
-    uintptr_t ptr = *(uintptr_t *)(recordBase + NAME_ARRAY_PTR_OFF);
+    uintptr_t unionAddr = recordBase + NAME_ARRAY_UNION_OFF;
+    uint32_t size = *(uint32_t *)(recordBase + NAME_ARRAY_SIZE_OFF);
+    uint32_t capacity = *(uint32_t *)(recordBase + NAME_ARRAY_RES_OFF);
 
-    if (ptr < 0x10000 || ptr >= 0x80000000) {
+    if (size == 0 || size > capacity || capacity > 4096) {
         return false;
     }
 
-    MEMORY_BASIC_INFORMATION mbi;
+    const wchar_t *src;
+    int maxChars = kMaxNameChars - 1;
 
-    if (!VirtualQuery((LPCVOID)ptr, &mbi, sizeof(mbi)) || mbi.State != MEM_COMMIT ||
-        mbi.Protect == PAGE_NOACCESS || (mbi.Protect & PAGE_GUARD)) {
-        return false;
+    if (capacity < NAME_SSO_CAPACITY) {
+        // Short string: characters are inline in the union (exe .data —
+        // always readable). At most 7 chars fit.
+        src = (const wchar_t *)unionAddr;
+    } else {
+        uintptr_t ptr = *(uintptr_t *)unionAddr;
+
+        if (ptr < 0x10000 || ptr >= 0x80000000) {
+            return false;
+        }
+
+        MEMORY_BASIC_INFORMATION mbi;
+
+        if (!VirtualQuery((LPCVOID)ptr, &mbi, sizeof(mbi)) || mbi.State != MEM_COMMIT ||
+            mbi.Protect == PAGE_NOACCESS || (mbi.Protect & PAGE_GUARD)) {
+            return false;
+        }
+
+        uintptr_t regionEnd = (uintptr_t)mbi.BaseAddress + mbi.RegionSize;
+        int regionChars = (int)((regionEnd - ptr) / sizeof(wchar_t));
+
+        if (regionChars < maxChars) {
+            maxChars = regionChars;
+        }
+
+        src = (const wchar_t *)ptr;
     }
 
-    uintptr_t regionEnd = (uintptr_t)mbi.BaseAddress + mbi.RegionSize;
-    int maxChars = (int)((regionEnd - ptr) / sizeof(wchar_t));
-
-    if (maxChars > kMaxNameChars - 1) {
-        maxChars = kMaxNameChars - 1;
+    if ((int)size < maxChars) {
+        maxChars = (int)size;
     }
 
-    const wchar_t *src = (const wchar_t *)ptr;
     int len = 0;
 
     while (len < maxChars && src[len] != 0) {

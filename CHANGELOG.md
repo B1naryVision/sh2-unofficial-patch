@@ -9,6 +9,11 @@
 - **What the issue was:** The end-of-game statistics could occasionally show wrong names or numbers for some players, because information kept being gathered even while you were in the menus between games and leftovers from a finished match could bleed into the next one.
 - **What we changed:** Statistics are now only gathered while a match is actually being played, and everything is fully cleared as soon as you return to the main menu — including when you quit a match early. Each match starts with a completely clean slate.
 
+### [Fix] - Short Player Names Shown as Chinese Characters
+
+- **What the issue was:** Players with short names (7 characters or fewer) could show up on the end-of-game statistics as a jumble of Chinese-looking characters instead of their actual name.
+- **What we changed:** Short names are now read correctly, so every player's real name appears regardless of its length.
+
 ### [Fix] - End-of-Game Statistics Panel Now Goes Away
 
 - **What the issue was:** The statistics panel stayed on screen after leaving the victory or defeat screen, with no way to dismiss it.
