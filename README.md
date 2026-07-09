@@ -42,13 +42,13 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | Description | Offset | Status |
 | --- | --- | --- |
 | [Knight/catapult mount crash](docs/bugs/knight-catapult-crash.md) | `base+0x1048BB` | Fixed in v0.1.0 |
-| [Barracks UI crash on Lord death](docs/bugs/barracks-lord-death-crash.md) | `base+0x2207c6` | Fixed in v0.4.0 |
 | [AI opponents in multiplayer lobbies](docs/features/mp-ai-enable.md) | `base+0x2A0F69` | Added in v0.2.0 |
 | [Skip Firefly logo intro on launch](docs/features/intro-skip.md) | `base+0x4DA9F8`, `base+0x27BB0D` | Added in v0.2.0 |
 | [MP connect-complete crash](docs/bugs/mp-connect-complete-crash.md) | `base+0x3d85c6` | Added in v0.3.0 |
 | [End-of-game statistics overlay](docs/features/endgame-stats.md) | `base+0x297fa0`, `base+0x297700` | Added in v0.3.0 |
-| [Stop selected troops hotkey (`H`)](docs/features/stop-troops-hotkey.md) | `base+0xf3140` | Unreleased |
-| [Attack-move toggle hotkey (`Mouse4`)](docs/features/attack-move-hotkey.md) | `base+0x22e7d0`, `base+0x300e1` | Added in v0.4.0 |
+| [Stop selected troops hotkey (`H`)](docs/features/stop-troops-hotkey.md) | `base+0xf3140` | Added in v0.4.0 |
+| [Barracks UI crash on Lord death](docs/bugs/barracks-lord-death-crash.md) | `base+0x2207c6` | Fixed in v0.4.0 |
+| [Attack-move toggle hotkey (`Mouse4`)](docs/features/attack-move-hotkey.md) | `base+0x22e7d0`, `base+0x300e1` | Unreleased |
 | [Faster camera zoom (3×)](docs/features/zoom-speed.md) | `base+0x3623D8` | Unreleased |
 | [Out-of-bounds troop formation crash](docs/bugs/map-edge-formation-crash.md) | `base+0x37dd6b` | Unreleased |
 
