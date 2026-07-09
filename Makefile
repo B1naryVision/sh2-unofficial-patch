@@ -9,6 +9,7 @@ DEF      = d3d9.def
 SRCS = src/dllmain.cpp \
        src/core/hook.cpp \
        src/core/log.cpp \
+       src/core/frameTick.cpp \
        src/proxy/d3d9Proxy.cpp \
        src/patches/registry.cpp \
        src/patches/knightCatapultCrash.cpp \
@@ -16,13 +17,18 @@ SRCS = src/dllmain.cpp \
        src/patches/introSkip.cpp \
        src/patches/mpConnectCompleteCrash.cpp \
        src/patches/endgameStats.cpp \
+       src/patches/endgameStats/unitTracker.cpp \
+       src/patches/endgameStats/session.cpp \
+       src/patches/endgameStats/collect.cpp \
+       src/patches/endgameStats/overlay.cpp \
+       src/patches/endgameStats/debugDump.cpp \
        src/patches/barracksCrash.cpp \
        src/patches/mapEdgeCrash.cpp \
        src/patches/stopTroopsHotkey.cpp \
        src/patches/attackHotkey.cpp \
        src/patches/zoomSpeed.cpp
 
-HDRS = $(wildcard src/*.h src/core/*.h src/proxy/*.h src/patches/*.h)
+HDRS = $(wildcard src/*.h src/core/*.h src/proxy/*.h src/patches/*.h src/patches/endgameStats/*.h)
 
 DEPLOY_PATH = /mnt/c/Games/Steam/steamapps/common/Stronghold\ 2/
 

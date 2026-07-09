@@ -4,6 +4,21 @@
 
 ## [Unreleased]
 
+### [Improvement] - More Reliable End-of-Game Statistics
+
+- **What the issue was:** The end-of-game statistics could occasionally show wrong names or numbers for some players, because information kept being gathered even while you were in the menus between games and leftovers from a finished match could bleed into the next one.
+- **What we changed:** Statistics are now only gathered while a match is actually being played, and everything is fully cleared as soon as you return to the main menu — including when you quit a match early. Each match starts with a completely clean slate.
+
+### [Fix] - End-of-Game Statistics Panel Now Goes Away
+
+- **What the issue was:** The statistics panel stayed on screen after leaving the victory or defeat screen, with no way to dismiss it.
+- **What we changed:** The panel now disappears automatically when you return to the main menu.
+
+### [Improvement] - End-of-Game Statistics Screen Polish
+
+- **What the issue was:** Switching to another window (for example alt-tabbing to chat) while the stats were showing made them disappear for good, numbers were hard to compare because they weren't lined up, and the panel used a dated system font.
+- **What we changed:** The stats now hide while you're in another window and come right back when you return to the game. Numbers are neatly right-aligned in their columns, a popularity row was added, the text uses a cleaner font, and the panel sizes itself to fit its contents and your game window.
+
 ### [Fix] - Crash When Troops Are Moved Off the Edge of the Map
 
 - **What the issue was:** Pushing a selected group of troops out of bounds — most easily by dragging their formation into a corner or off any edge of the map — could crash the game to desktop.

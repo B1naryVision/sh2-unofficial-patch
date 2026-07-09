@@ -32,6 +32,11 @@ trampoline hooked into the main-loop body:
   the tick. This function is the sim thread — the same thread that services the
   command queue at `base + 0xd781d0` — so a command submitted here is on the
   correct thread at a safe point, right after events are processed.
+- The trampoline at this site is now owned by the **shared frame-tick
+  dispatcher** (`src/core/frameTick.cpp`), which runs any number of registered
+  per-frame callbacks; this hotkey registers its tick via `registerFrameTick()`
+  and the endgame-stats session poll shares the same site. Dispatcher callbacks
+  must be float-free (the site is mid-function, so live x87 state is possible).
 - Each frame the tick does rising-edge detection on `GetAsyncKeyState('H')` (one
   press → one command), guards on `GetForegroundWindow()` belonging to the game
   process, and calls the game's own stop routine.
