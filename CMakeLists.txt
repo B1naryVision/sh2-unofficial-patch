@@ -15,7 +15,7 @@ add_library(S2_UnofficialPatch SHARED
     src/dllmain.cpp
     src/core/hook.cpp
     src/core/log.cpp
-    src/proxy/versionProxy.cpp
+    src/proxy/d3d9Proxy.cpp
     src/patches/registry.cpp
     src/patches/knightCatapultCrash.cpp
 )

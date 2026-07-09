@@ -1,6 +1,8 @@
 CXX      = i686-w64-mingw32-g++
-CXXFLAGS = -m32 -O2 -std=c++17 -Wall -Isrc
-LDFLAGS  = -shared -Wl,--enable-stdcall-fixup -static-libgcc -static-libstdc++ -lkernel32 -luser32 -lgdi32
+CXXFLAGS = -m32 -O2 -std=c++17 -Wall -Wextra -Isrc
+# --no-insert-timestamp zeroes the PE header timestamp so identical source
+# and toolchain produce a bit-identical DLL (reproducible builds).
+LDFLAGS  = -shared -Wl,--enable-stdcall-fixup -Wl,--no-insert-timestamp -static-libgcc -static-libstdc++ -lkernel32 -luser32 -lgdi32
 TARGET   = d3d9.dll
 DEF      = d3d9.def
 
@@ -20,11 +22,13 @@ SRCS = src/dllmain.cpp \
        src/patches/attackHotkey.cpp \
        src/patches/zoomSpeed.cpp
 
+HDRS = $(wildcard src/*.h src/core/*.h src/proxy/*.h src/patches/*.h)
+
 DEPLOY_PATH = /mnt/c/Games/Steam/steamapps/common/Stronghold\ 2/
 
 all: $(TARGET)
 
-$(TARGET): $(SRCS) $(DEF)
+$(TARGET): $(SRCS) $(HDRS) $(DEF)
 	$(CXX) $(CXXFLAGS) -o $@ $(SRCS) $(DEF) $(LDFLAGS)
 
 debug: CXXFLAGS += -DDEBUG -g

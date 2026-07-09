@@ -1063,7 +1063,7 @@ static void showOverlay(bool won) {
     memset(s_unitsMade, 0, sizeof(s_unitsMade));
     memset(s_slotCache, 0, sizeof(s_slotCache));
 
-    HINSTANCE hInst = (HINSTANCE)GetModuleHandleA("version.dll");
+    HINSTANCE hInst = (HINSTANCE)g_patchModule;
     WNDCLASSW wndClass = {};
     wndClass.lpfnWndProc = OverlayWndProc;
     wndClass.hInstance = hInst;

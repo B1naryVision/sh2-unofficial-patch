@@ -34,6 +34,18 @@ The proxy is defined in `d3d9.def` (export ordinals) and implemented via naked `
 | `Direct3DShaderValidatorCreate9` | 3 |
 | `PSGPError` | 4 |
 | `PSGPSampleTexture` | 5 |
+| `D3DPERF_BeginEvent` | 6 |
+| `D3DPERF_EndEvent` | 7 |
+| `D3DPERF_GetStatus` | 8 |
+| `D3DPERF_QueryRepeatFrame` | 9 |
+| `D3DPERF_SetMarker` | 10 |
+| `D3DPERF_SetOptions` | 11 |
+| `D3DPERF_SetRegion` | 12 |
+| `DebugSetMute` | 13 |
+
+The set covers every export present in all `d3d9.dll` implementations the game can run against (Windows 7+, WineD3D, DXVK). The `D3DPERF_*` family is included because injected tooling (capture tools, overlays) resolves those names against whatever module is called `d3d9.dll` — this proxy. Win10-only exports (`Direct3DCreate9On12`, `Direct3DCreate9On12Ex`) are deliberately not proxied so the proxy never exports a name the underlying DLL might lack.
+
+If the system `d3d9.dll` cannot be loaded, `loadRealD3d9Dll()` shows an error message box and leaves the forwarding table null — the game cannot run without Direct3D 9 in any case.
 
 ---
 
@@ -43,10 +55,11 @@ The proxy is defined in `d3d9.def` (export ordinals) and implemented via naked `
 
 `installHook(targetAddress, detourFunction, instructionLength)`:
 
-1. Calls `VirtualProtect` to make the target page writable
+1. Calls `VirtualProtect` to make the target page writable — if this fails, the hook is skipped (the site is left untouched rather than partially written)
 2. Writes `0xE9` (near JMP) + 4-byte relative offset at `targetAddress`
 3. NOPs any bytes between offset 5 and `instructionLength` (for instructions larger than 5 bytes)
 4. Restores the original page protection
+5. Calls `FlushInstructionCache` over the patched range
 
 The detour function must be a `__declspec(naked)` assembly function that:
 

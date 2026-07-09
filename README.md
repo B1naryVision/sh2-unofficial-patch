@@ -68,6 +68,7 @@ The following are implemented but excluded from the build until the patch has br
 | Priority | Type | Description | Requested by |
 | --- | --- | --- | --- |
 | Medium | Bug fix | Wheat Farmers and Candle Makers should not be eligible to become criminals — they get permanently stuck inside buildings | TheSettler |
+| Medium | Feature | Patch configuration, possibly via an `.ini` file in the game directory — toggle individual fixes/features on or off and rebind hotkeys | BinaryVision |
 | Low | Feature | Checkbox to disable market placement in No Market multiplayer games | Ignite |
 
 ---
