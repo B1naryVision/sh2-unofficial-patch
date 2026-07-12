@@ -12,6 +12,11 @@ The in-game "Stop" command for a selected group of troops is only reachable by
 clicking the Stop button on the command panel. There is no keyboard shortcut.
 This feature binds `H` to that same command.
 
+The key can be changed (or the feature disabled with `None`) via
+`[hotkeys] StopTroops` in `sh2-unofficial-patch.ini` — see
+[configuration.md](configuration.md). When disabled, the tick is never
+registered with the frame-tick dispatcher.
+
 ---
 
 ## How input is captured

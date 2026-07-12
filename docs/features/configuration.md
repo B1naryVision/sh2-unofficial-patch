@@ -1,0 +1,76 @@
+# Patch Configuration (`sh2-unofficial-patch.ini`)
+
+**Status:** Implemented
+**Affected version:** Stronghold 2 Steam v1.5.0
+**Patch type:** No game-code change — a config layer (`src/core/config.cpp`) read by the individual patches at install time
+
+---
+
+## Motivation
+
+Some quality-of-life features are a matter of taste: the hotkeys may collide
+with a player's habits, and the faster camera zoom is too fast for some
+players (requested by BinaryVision). This adds an optional `.ini` file so
+players can rebind or disable those features without a custom build.
+
+---
+
+## File location and lifecycle
+
+The file is `sh2-unofficial-patch.ini`, placed **next to `d3d9.dll`** in the
+game directory. The path is derived from the patch DLL's own module path
+(`GetModuleFileNameA(g_patchModule)`), not the working directory, so it works
+regardless of how the game is launched.
+
+The file is entirely optional:
+
+- No file → all defaults apply.
+- Missing key → that key's default applies.
+- Unparseable value → that key's default applies (a typo never disables a
+  feature the user tried to configure; `None` must be explicit).
+
+Everything is read once, in `DllMain` before the game's entry point runs
+(`loadConfig()` is the first call in `applyUnofficialPatches()`). Only
+kernel32 calls are used (`GetModuleFileNameA`, `GetPrivateProfileStringA`),
+which are safe under the loader lock like every other install step. There is
+no runtime re-read; changes take effect on the next game launch.
+
+## Settings
+
+| Section | Key | Default | Meaning |
+| --- | --- | --- | --- |
+| `[hotkeys]` | `StopTroops` | `H` | Stop selected troops ([stop-troops-hotkey.md](stop-troops-hotkey.md)) |
+| `[hotkeys]` | `AttackToggle` | `Mouse4` | Toggle attack-move stance ([attack-move-hotkey.md](attack-move-hotkey.md)) |
+| `[camera]` | `ZoomSpeedMultiplier` | `1.0` | Camera zoom speed factor ([zoom-speed.md](zoom-speed.md)); `1.0` leaves the game code untouched |
+
+### Hotkey value format
+
+Parsed case-insensitively by `configHotkey()`:
+
+- Single letter or digit (`H`, `K`, `5`) — the VK code is the ASCII uppercase
+  character
+- `F1`–`F24`
+- Named keys: `Space`, `Tab`, `Enter`, `Backspace`, `Insert`, `Delete`,
+  `Home`, `End`, `PageUp`, `PageDown`
+- Extra mouse buttons: `Mouse3` (middle), `Mouse4` (`VK_XBUTTON1`), `Mouse5`
+  (`VK_XBUTTON2`)
+- Raw hex virtual-key code (`0x48`) for anything not named above
+- `None` / `Off` / `Disabled` — returns 0 and the patch skips its install
+  entirely (no frame-tick registration, no hooks)
+
+There is deliberately **no validation against the game's own key bindings** —
+the stock game reads its bindings from its own config, and the patch cannot
+reliably enumerate them. The template file documents that responsibility.
+
+### ZoomSpeedMultiplier
+
+Accepted range `0.1`–`10.0`. Out-of-range values, `NaN`, and the default
+`1.0` all leave the zoom code untouched — the feature is strictly opt-in.
+See [zoom-speed.md](zoom-speed.md) for how the multiplier reaches the game
+code (an `fmul` against a float in the DLL's data section).
+
+## Distribution
+
+A commented template `sh2-unofficial-patch.ini` lives in the repo root and is
+included in the release zip by the GitHub release workflow. The DLL never
+writes the file itself.

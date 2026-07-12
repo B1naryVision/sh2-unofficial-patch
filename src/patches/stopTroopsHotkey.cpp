@@ -1,4 +1,5 @@
 #include "stopTroopsHotkey.h"
+#include "../core/config.h"
 #include "../core/frameTick.h"
 #include <cstdint>
 #include <windows.h>
@@ -8,7 +9,8 @@ static const uintptr_t STOP_FUNCTION_RVA = 0xf3140; // S2ActorHandler::StopSelec
 static const uintptr_t ACTOR_HANDLER_RVA = 0xdb8cb8; // S2ActorHandler static global (the `this`)
 static const uintptr_t LOCAL_SLOT_RVA = 0x6e8c5c; // int: local player table slot
 
-static const int HOTKEY_VK = 'H';
+// Configurable via [hotkeys] StopTroops in sh2-unofficial-patch.ini; 0 = disabled.
+static int s_hotkeyVk = 'H';
 
 typedef void(__attribute__((thiscall)) * StopSelectedTroopsFn)(void *handler, int playerSlot);
 
@@ -44,7 +46,7 @@ static void triggerStopSelectedTroops() {
 // services the command queue — exactly as a real Stop button click would be.
 static void stopHotkeyTick() {
     static bool prevDown = false;
-    bool down = (GetAsyncKeyState(HOTKEY_VK) & 0x8000) != 0;
+    bool down = (GetAsyncKeyState(s_hotkeyVk) & 0x8000) != 0;
 
     if (down && !prevDown && gameWindowFocused()) {
         triggerStopSelectedTroops();
@@ -53,4 +55,12 @@ static void stopHotkeyTick() {
     prevDown = down;
 }
 
-void installStopTroopsHotkey() { registerFrameTick(stopHotkeyTick); }
+void installStopTroopsHotkey() {
+    s_hotkeyVk = configHotkey("StopTroops", 'H');
+
+    if (s_hotkeyVk == 0) {
+        return;
+    }
+
+    registerFrameTick(stopHotkeyTick);
+}

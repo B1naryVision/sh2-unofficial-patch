@@ -120,6 +120,7 @@ sh2-unofficial-patch/
 ├── src/
 │   ├── dllmain.cpp                     ← DllMain only; calls proxy init + apply patches
 │   ├── core/
+│   │   ├── config.h / config.cpp       ← sh2-unofficial-patch.ini reader
 │   │   ├── hook.h / hook.cpp           ← installHook
 │   │   └── log.h / log.cpp             ← ring-buffer logging (no-op in release)
 │   ├── proxy/
@@ -173,17 +174,17 @@ And `registry.cpp` calls each `install*Fix()` in sequence.
 
 ---
 
-## Compile-Time Feature Flags
+## Feature Toggles
 
-For optional fixes or quality-of-life changes that some players may not want, use compile-time flags rather than runtime toggles:
+For optional quality-of-life changes that some players may not want, prefer a **user-facing setting** in `sh2-unofficial-patch.ini` (read via `src/core/config.cpp` at install time — see [features/configuration.md](features/configuration.md)). The decision is made once in the `install*()` function before any hook is placed, so a disabled feature has literally zero runtime footprint: no hook, no frame-tick registration, no branching in game code.
+
+Compile-time flags remain appropriate for **developer-only** variants (e.g. `-DDEBUG` logging) or features excluded from release builds for compatibility reasons:
 
 ```makefile
 # In Makefile, add per-feature flags:
 CXXFLAGS += -DPATCH_KNIGHT_CRASH
 # CXXFLAGS += -DFIX_AI_PATHFINDING   # uncomment to enable
 ```
-
-This keeps the release binary minimal and avoids runtime branching overhead.
 
 ---
 

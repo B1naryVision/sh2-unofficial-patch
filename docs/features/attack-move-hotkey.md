@@ -18,6 +18,11 @@ firecarts — enable it, then just move them around to burn things without click
 
 `Mouse4` is unbound by the stock game and collides with no existing binding.
 
+The button can be changed (or the feature disabled with `None`) via
+`[hotkeys] AttackToggle` in `sh2-unofficial-patch.ini` — see
+[configuration.md](configuration.md). When disabled, neither of the two hooks
+is installed.
+
 ---
 
 ## What "attack-move on" actually is

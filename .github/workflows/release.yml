@@ -49,7 +49,7 @@ jobs:
           VERSION="${GITHUB_REF_NAME}"
           STAGE="sh2-unofficial-patch-${VERSION}"
           mkdir "${STAGE}"
-          cp d3d9.dll README.md CHANGELOG.md LICENSE "${STAGE}/"
+          cp d3d9.dll sh2-unofficial-patch.ini README.md CHANGELOG.md LICENSE "${STAGE}/"
           cat > "${STAGE}/INSTALL.txt" <<'EOF'
           Stronghold 2 Unofficial Patch
           =============================
@@ -59,6 +59,13 @@ jobs:
                C:\Program Files (x86)\Steam\steamapps\common\Stronghold 2\
             2. Launch the game normally through Steam. The patch loads
                automatically.
+
+          Configure (optional):
+            Copy sh2-unofficial-patch.ini next to d3d9.dll to rebind the
+            hotkeys or change the camera zoom speed. Edit it with any text
+            editor; every setting is explained inside. Without the file the
+            defaults apply (Stop troops: H, Attack-move toggle: Mouse4,
+            stock zoom speed).
 
           Uninstall:
             Delete d3d9.dll from the game directory. No game files are

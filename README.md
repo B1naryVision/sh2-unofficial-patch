@@ -49,8 +49,9 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [Stop selected troops hotkey (`H`)](docs/features/stop-troops-hotkey.md) | `base+0xf3140` | Added in v0.4.0 |
 | [Barracks UI crash on Lord death](docs/bugs/barracks-lord-death-crash.md) | `base+0x2207c6` | Fixed in v0.4.0 |
 | [Attack-move toggle hotkey (`Mouse4`)](docs/features/attack-move-hotkey.md) | `base+0x22e7d0`, `base+0x300e1` | Unreleased |
-| [Faster camera zoom (3×)](docs/features/zoom-speed.md) | `base+0x3623D8` | Unreleased |
+| [Configurable camera zoom speed (opt-in)](docs/features/zoom-speed.md) | `base+0x3623D8` | Unreleased |
 | [Out-of-bounds troop formation crash](docs/bugs/map-edge-formation-crash.md) | `base+0x37dd6b` | Unreleased |
+| [Configuration file (`sh2-unofficial-patch.ini`)](docs/features/configuration.md) | — | Unreleased |
 
 ---
 
@@ -68,7 +69,6 @@ The following are implemented but excluded from the build until the patch has br
 | Priority | Type | Description | Requested by |
 | --- | --- | --- | --- |
 | Medium | Bug fix | Wheat Farmers and Candle Makers should not be eligible to become criminals — they get permanently stuck inside buildings | TheSettler |
-| Medium | Feature | Patch configuration, possibly via an `.ini` file in the game directory — toggle individual fixes/features on or off and rebind hotkeys | BinaryVision |
 | Low | Feature | Checkbox to disable market placement in No Market multiplayer games | Ignite |
 
 ---
@@ -104,6 +104,17 @@ make clean    # remove build artifacts
 3. Launch the game normally through Steam. The patch loads automatically.
 
 **To uninstall**: delete `d3d9.dll` from the game directory.
+
+---
+
+## Configuration (optional)
+
+Copy [sh2-unofficial-patch.ini](sh2-unofficial-patch.ini) next to `d3d9.dll`
+in the game directory to rebind or disable the hotkeys and to opt into a
+faster camera zoom. Every setting is documented inside the file; without it
+the defaults apply (Stop troops: `H`, attack-move toggle: `Mouse4`, stock
+zoom speed). See [docs/features/configuration.md](docs/features/configuration.md)
+for details.
 
 ---
 

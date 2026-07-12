@@ -7,6 +7,7 @@ TARGET   = d3d9.dll
 DEF      = d3d9.def
 
 SRCS = src/dllmain.cpp \
+       src/core/config.cpp \
        src/core/hook.cpp \
        src/core/log.cpp \
        src/core/frameTick.cpp \

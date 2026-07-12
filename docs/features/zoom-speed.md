@@ -1,6 +1,6 @@
-# Camera Zoom Speed (3×)
+# Camera Zoom Speed (configurable multiplier)
 
-**Status:** Implemented (offsets confirmed from two process dumps + static analysis)
+**Status:** Implemented (offsets confirmed from two process dumps + static analysis); opt-in via `sh2-unofficial-patch.ini`
 **Affected version:** Stronghold 2 Steam v1.5.0
 **Patch type:** In-place byte rewrite (RVA `0x3623D8`, 15 bytes) — no trampoline
 
@@ -17,9 +17,15 @@ XML config files contain no zoom/scroll entry).
 
 ## Fix
 
-Triple the per-frame zoom **delta** just before it is applied to the camera
-distance. This makes every zoom trigger (mouse wheel, keyboard, and edge zoom)
-move three times as fast, while all existing min/max clamps still apply.
+Multiply the per-frame zoom **delta** just before it is applied to the camera
+distance. This scales every zoom trigger (mouse wheel, keyboard, and edge zoom)
+by the same factor, while all existing min/max clamps still apply.
+
+The factor comes from `[camera] ZoomSpeedMultiplier` in
+`sh2-unofficial-patch.ini` (see [configuration.md](configuration.md)),
+accepted range 0.1–10.0. The default is **1.0, which leaves the game code
+completely untouched** — an earlier hardcoded 3× version shipped enabled and
+was judged too fast, so the feature is now strictly opt-in.
 
 ---
 
@@ -63,41 +69,40 @@ d9 51 20        fst   [ecx+0x20]     ; distance = delta + distance
 
 ## Patch bytes
 
-The redundant `fstp [ebp+8]; fld [ebp+8]` round-trip frees enough room to build
-`3*delta` by repeated addition, with no code cave and no data constant. Because
-the original store-back to `[ebp+8]` is removed, `[ebp+8]` still holds the
-untouched `delta` and can be added a second time:
+The redundant `fstp [ebp+8]; fld [ebp+8]` round-trip frees enough room for an
+`fmul` against a `float` in the patch DLL's data section — still an in-place
+15-byte rewrite, no code cave and no trampoline:
 
 ```asm
 ; RVA 0x3623d8, patched 15 bytes:
-d9 45 08        fld   [ebp+8]        ; st0 = delta
-d8 c0           fadd  st, st(0)      ; st0 = 2*delta
-d8 45 08        fadd  [ebp+8]        ; st0 = 3*delta
-d8 41 20        fadd  [ecx+0x20]     ; st0 = 3*delta + distance
-d9 51 20        fst   [ecx+0x20]     ; distance = 3*delta + distance
-90              nop                  ; pad to 15 bytes
+d9 45 08        fld   [ebp+8]           ; st0 = delta
+d8 0d xx xx xx xx  fmul dword [g_zoomMultiplier]  ; st0 = mult*delta
+d8 41 20        fadd  [ecx+0x20]        ; st0 = mult*delta + distance
+d9 51 20        fst   [ecx+0x20]        ; distance = mult*delta + distance
 ```
 
 | | Bytes |
 | --- | --- |
 | Before | `d9 45 08 d8 41 20 d9 5d 08 d9 45 08 d9 51 20` |
-| After  | `d9 45 08 d8 c0 d8 45 08 d8 41 20 d9 51 20 90` |
+| After  | `d9 45 08 d8 0d <abs32> d8 41 20 d9 51 20` |
+
+The `fmul` operand is the **absolute address** of `g_zoomMultiplier`, a static
+`float` in the patch DLL, written into the patch bytes at install time. The
+DLL is never unloaded (it is the game's `d3d9.dll`), so the address stays
+valid for the process lifetime. The multiplier is written once before the
+patch is applied and never changes afterwards, so there is no tearing risk.
+
+An earlier version of this patch built a fixed 3× by repeated `fadd`
+(`fadd st,st(0)` + `fadd [ebp+8]`); the `fmul` form replaced it to allow
+arbitrary user-configured factors.
 
 Stack contract is preserved: on entry the x87 stack is empty; on exit `st0` holds
 the new distance (as the original `fst` left it) for the subsequent min/max clamp
-code at RVA `0x3623e7`. `[ebp+8]` is read twice here and not again after this
-block. No branch inside the function targets the middle of the rewritten range.
-The installer verifies the 15 stock bytes are present before patching, so a
-future game build that relocates this code is left untouched rather than
-corrupted.
-
-### Tuning the factor
-
-The multiplier is built from x87 `fadd`s (`×2` = `fadd st,st(0)`; `×3` = a further
-`fadd [ebp+8]`), so any small integer factor is a self-contained edit needing no
-data constant. A **non-integer** factor (e.g. ×2.5) would require multiplying by a
-`float` stored somewhere the exe can reach (a data cave or the DLL) via `fmul`,
-i.e. a trampoline rather than this in-place edit.
+code at RVA `0x3623e7`. The original store-back to `[ebp+8]` is dropped —
+`[ebp+8]` is not read again after this block. No branch inside the function
+targets the middle of the rewritten range. The installer verifies the 15 stock
+bytes are present before patching, so a future game build that relocates this
+code is left untouched rather than corrupted.
 
 ---
 

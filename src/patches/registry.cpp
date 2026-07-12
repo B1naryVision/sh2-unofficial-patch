@@ -1,4 +1,5 @@
 #include "registry.h"
+#include "../core/config.h"
 #include "attackHotkey.h"
 #include "barracksCrash.h"
 #include "endgameStats.h"
@@ -11,6 +12,8 @@
 #include "zoomSpeed.h"
 
 void applyUnofficialPatches() {
+    loadConfig();
+
     installKnightCatapultCrashFix();
     installMpAiEnable();
     installIntroSkip();

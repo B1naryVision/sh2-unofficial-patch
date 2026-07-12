@@ -1,4 +1,5 @@
 #include "attackHotkey.h"
+#include "../core/config.h"
 #include "../core/hook.h"
 #include <cstdint>
 #include <windows.h>
@@ -12,7 +13,8 @@ static const uint16_t SET_STATE_OPCODE = 0x68; // message opcode: set toggle-but
 static const uint16_t ATTACK_STANCE_SUBID = 0x1dbd; // the "Attack" stance toggle button
 static const uintptr_t ATTACK_FLAG_OFF = 0x8be0; // panel byte: attack stance on/off
 
-static const int HOTKEY_VK = VK_XBUTTON1; // Mouse4
+// Configurable via [hotkeys] AttackToggle in sh2-unofficial-patch.ini; 0 = disabled.
+static int s_hotkeyVk = VK_XBUTTON1; // Mouse4
 
 typedef void(__attribute__((thiscall)) * DispatchFn)(void *panel, void *msg);
 
@@ -68,7 +70,7 @@ static void triggerAttackToggle() {
 // is applied on the same thread that owns the panel — exactly as a real click would be.
 extern "C" void attackHotkeyTick() {
     static bool prevDown = false;
-    bool down = (GetAsyncKeyState(HOTKEY_VK) & 0x8000) != 0;
+    bool down = (GetAsyncKeyState(s_hotkeyVk) & 0x8000) != 0;
 
     if (down && !prevDown && gameWindowFocused()) {
         triggerAttackToggle();
@@ -103,6 +105,12 @@ __declspec(naked) static void frameHook() {
 }
 
 void installAttackHotkey() {
+    s_hotkeyVk = configHotkey("AttackToggle", VK_XBUTTON1);
+
+    if (s_hotkeyVk == 0) {
+        return;
+    }
+
     uintptr_t base = (uintptr_t)GetModuleHandleA(NULL);
 
     uintptr_t site = base + FRAME_SITE_RVA;

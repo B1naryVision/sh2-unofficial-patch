@@ -29,10 +29,15 @@
 - **What the issue was:** Pushing a selected group of troops out of bounds — most easily by dragging their formation into a corner or off any edge of the map — could crash the game to desktop.
 - **What we changed:** Troops and their formations are now handled safely at and beyond the map edges, so this no longer crashes the game.
 
-### [Improvement] - Faster Camera Zoom
+### [Feature] - Optional Configuration File
+
+- **What the issue was:** The patch's hotkeys were fixed (`H` to stop troops, `Mouse4` for attack-move), with no way to change them if they clashed with your habits or your mouse had no extra buttons, and no way to turn individual conveniences off.
+- **What we changed:** You can now place an optional `sh2-unofficial-patch.ini` file (included in the download) next to `d3d9.dll` to pick your own keys for both shortcuts — or disable them — and to speed up the camera zoom. Every option is explained inside the file. Without the file, everything behaves exactly as before.
+
+### [Improvement] - Faster Camera Zoom (Opt-In)
 
 - **What the issue was:** Zooming the camera in and out with the mouse wheel was very slow, especially on high-resolution monitors, taking many turns of the wheel to move between close and far views.
-- **What we changed:** The zoom now moves three times as fast, so you can get from a close-up to a wide overview with far less effort. The closest and farthest zoom limits are unchanged.
+- **What we changed:** You can now make the zoom faster (or slower) by setting a zoom speed multiplier in the configuration file — for example `2.5` for two-and-a-half times the speed. The zoom is unchanged unless you set it. The closest and farthest zoom limits always stay the same.
 
 ### [Feature] - Mouse Button Shortcut for Attack-Move
 
