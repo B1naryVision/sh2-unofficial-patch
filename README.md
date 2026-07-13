@@ -66,6 +66,12 @@ The following are implemented but excluded from the build until the patch has br
 | [Field ballista auto-fire restore](docs/features/ballista-auto-fire.md) | Modifies unit health state each tick |
 | [Unit cap raise (550 in all lobby sizes)](docs/features/unit-cap-raise.md) | Per-player cap enforced locally; patched vs unpatched clients diverge |
 
+The following is on hold, excluded from the build pending further work in a future release:
+
+| Description | Notes |
+| --- | --- |
+| [Multiplayer recovery saves](docs/features/mp-save-recovery.md) | Save engine works, but calling it live kicks a networked match to the lobby; being redesigned to save at session-end (graceful drops only). See the doc's verification log |
+
 | Priority | Type | Description | Requested by |
 | --- | --- | --- | --- |
 | Medium | Bug fix | Wheat Farmers and Candle Makers should not be eligible to become criminals — they get permanently stuck inside buildings | TheSettler |
