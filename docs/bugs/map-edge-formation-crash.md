@@ -1,6 +1,6 @@
 # Out-of-Bounds Troop Formation Crash
 
-**Status**: Fixed in [Unreleased]
+**Status**: Fixed in v0.5.0
 **Severity**: High — reproducible crash to desktop, player-triggerable
 **Game version**: Steam build v1.5.0 (PE timestamp `0x5EA311C0`)
 

@@ -2,7 +2,7 @@
 
 ---
 
-## [Unreleased]
+## [0.5.0]
 
 ### [Improvement] - More Reliable End-of-Game Statistics
 

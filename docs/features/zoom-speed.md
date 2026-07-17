@@ -1,6 +1,6 @@
 # Camera Zoom Speed (configurable multiplier)
 
-**Status:** Implemented (offsets confirmed from two process dumps + static analysis); opt-in via `sh2-unofficial-patch.ini`
+**Status:** Added in v0.5.0 (offsets confirmed from two process dumps + static analysis); opt-in via `sh2-unofficial-patch.ini`
 **Affected version:** Stronghold 2 Steam v1.5.0
 **Patch type:** In-place byte rewrite (RVA `0x3623D8`, 15 bytes) — no trampoline
 

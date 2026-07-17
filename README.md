@@ -37,7 +37,7 @@ No game files are modified. Removing the DLL restores the original behavior comp
 
 ## Current Fixes and Features
 
-### v0.4.0
+### v0.5.0
 
 | Description | Offset | Status |
 | --- | --- | --- |
@@ -48,10 +48,10 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [End-of-game statistics overlay](docs/features/endgame-stats.md) | `base+0x297fa0`, `base+0x297700` | Added in v0.3.0 |
 | [Stop selected troops hotkey (`H`)](docs/features/stop-troops-hotkey.md) | `base+0xf3140` | Added in v0.4.0 |
 | [Barracks UI crash on Lord death](docs/bugs/barracks-lord-death-crash.md) | `base+0x2207c6` | Fixed in v0.4.0 |
-| [Attack-move toggle hotkey (`Mouse4`)](docs/features/attack-move-hotkey.md) | `base+0x22e7d0`, `base+0x300e1` | Unreleased |
-| [Configurable camera zoom speed (opt-in)](docs/features/zoom-speed.md) | `base+0x3623D8` | Unreleased |
-| [Out-of-bounds troop formation crash](docs/bugs/map-edge-formation-crash.md) | `base+0x37dd6b` | Unreleased |
-| [Configuration file (`sh2-unofficial-patch.ini`)](docs/features/configuration.md) | — | Unreleased |
+| [Attack-move toggle hotkey (`Mouse4`)](docs/features/attack-move-hotkey.md) | `base+0x22e7d0`, `base+0x300e1` | Added in v0.5.0 |
+| [Configurable camera zoom speed (opt-in)](docs/features/zoom-speed.md) | `base+0x3623D8` | Added in v0.5.0 |
+| [Out-of-bounds troop formation crash](docs/bugs/map-edge-formation-crash.md) | `base+0x37dd6b` | Fixed in v0.5.0 |
+| [Configuration file (`sh2-unofficial-patch.ini`)](docs/features/configuration.md) | — | Added in v0.5.0 |
 
 ---
 

@@ -1,6 +1,6 @@
 # Attack-Move Toggle Hotkey (`Mouse4` / XButton1)
 
-**Status:** Implemented and confirmed in-game (firecarts attack-move on move orders)
+**Status:** Added in v0.5.0 — confirmed in-game (firecarts attack-move on move orders)
 **Affected version:** Stronghold 2 Steam v1.5.0
 **Patch type:** Two hooks — a per-frame main-loop trampoline (RVA `0x300e1`) that polls
 XButton1 on the sim thread, and a caching hook on the troop-panel command dispatcher

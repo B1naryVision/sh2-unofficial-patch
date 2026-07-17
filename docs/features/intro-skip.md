@@ -1,6 +1,6 @@
 # Intro Skip
 
-**Status:** Added in v0.3.0  
+**Status:** Added in v0.2.0  
 **Affected version:** Stronghold 2 Steam v1.5.0  
 **Patch type:** In-memory write (2 sites)
 

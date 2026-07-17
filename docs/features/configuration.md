@@ -1,6 +1,6 @@
 # Patch Configuration (`sh2-unofficial-patch.ini`)
 
-**Status:** Implemented
+**Status:** Added in v0.5.0
 **Affected version:** Stronghold 2 Steam v1.5.0
 **Patch type:** No game-code change — a config layer (`src/core/config.cpp`) read by the individual patches at install time
 
