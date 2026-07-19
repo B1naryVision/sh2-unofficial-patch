@@ -42,6 +42,7 @@ no runtime re-read; changes take effect on the next game launch.
 | `[hotkeys]` | `StopTroops` | `H` | Stop selected troops ([stop-troops-hotkey.md](stop-troops-hotkey.md)) |
 | `[hotkeys]` | `AttackToggle` | `Mouse4` | Toggle attack-move stance ([attack-move-hotkey.md](attack-move-hotkey.md)) |
 | `[camera]` | `ZoomSpeedMultiplier` | `1.0` | Camera zoom speed factor ([zoom-speed.md](zoom-speed.md)); `1.0` leaves the game code untouched |
+| `[recruitment]` | `RecruitmentShiftMultiplier` | `20` | Units queued per shift-click in barracks/mercenary post/monastery/engineers guild/siege camp ([shift-click-recruitment.md](shift-click-recruitment.md)); `0` or `1` disables (no hooks installed) |
 
 ### Hotkey value format
 
@@ -68,6 +69,14 @@ Accepted range `0.1`–`10.0`. Out-of-range values, `NaN`, and the default
 `1.0` all leave the zoom code untouched — the feature is strictly opt-in.
 See [zoom-speed.md](zoom-speed.md) for how the multiplier reaches the game
 code (an `fmul` against a float in the DLL's data section).
+
+### RecruitmentShiftMultiplier
+
+Accepted range `2`–`100`. `0` and `1` disable the feature (vanilla single
+recruit, no code patched); a missing or invalid value falls back to the
+default `20`, following the "a typo never disables a configured feature"
+rule above. See
+[shift-click-recruitment.md](shift-click-recruitment.md).
 
 ## Distribution
 

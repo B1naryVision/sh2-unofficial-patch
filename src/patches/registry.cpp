@@ -8,6 +8,7 @@
 #include "mapEdgeCrash.h"
 #include "mpAiEnable.h"
 #include "mpConnectCompleteCrash.h"
+#include "shiftRecruit.h"
 #include "stopTroopsHotkey.h"
 #include "zoomSpeed.h"
 
@@ -24,4 +25,5 @@ void applyUnofficialPatches() {
     installStopTroopsHotkey();
     installAttackHotkey();
     installZoomSpeed();
+    installShiftRecruit();
 }

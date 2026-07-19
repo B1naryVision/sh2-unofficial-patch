@@ -2,6 +2,15 @@
 
 ---
 
+## [Unreleased]
+
+### [Feature] - Shift-Click to Recruit Several Units at Once
+
+- **What the issue was:** Recruiting an army meant clicking the same unit icon over and over — once per unit — in the barracks, mercenary post, monastery, engineers guild and siege camp.
+- **What we changed:** Holding **Shift** while clicking a unit icon now queues up to 20 units in one click (configurable in `sh2-unofficial-patch.ini` via `RecruitmentShiftMultiplier`, or set it to `0` to turn the feature off). This covers regular troops, monks, mercenaries, engineers, laddermen and all siege equipment. The game still checks gold, weapons and peasants for every single unit, so the batch simply stops when you run out — you can never be overcharged. Works in multiplayer and behaves exactly like clicking quickly by hand, so it stays compatible with unpatched players.
+
+---
+
 ## [0.5.0]
 
 ### [Improvement] - More Reliable End-of-Game Statistics

@@ -27,7 +27,8 @@ SRCS = src/dllmain.cpp \
        src/patches/mapEdgeCrash.cpp \
        src/patches/stopTroopsHotkey.cpp \
        src/patches/attackHotkey.cpp \
-       src/patches/zoomSpeed.cpp
+       src/patches/zoomSpeed.cpp \
+       src/patches/shiftRecruit.cpp
 
 HDRS = $(wildcard src/*.h src/core/*.h src/proxy/*.h src/patches/*.h src/patches/endgameStats/*.h)
 

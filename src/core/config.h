@@ -13,3 +13,5 @@ void loadConfig();
 int configHotkey(const char *key, int defaultVk);
 
 float configFloat(const char *section, const char *key, float defaultValue);
+
+int configInt(const char *section, const char *key, int defaultValue);

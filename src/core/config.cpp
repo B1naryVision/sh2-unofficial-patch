@@ -52,10 +52,9 @@ struct NamedKey {
 };
 
 static const NamedKey NAMED_KEYS[] = {
-    {"mouse3", VK_MBUTTON},  {"mouse4", VK_XBUTTON1}, {"mouse5", VK_XBUTTON2},
-    {"space", VK_SPACE},     {"tab", VK_TAB},         {"enter", VK_RETURN},
-    {"backspace", VK_BACK},  {"insert", VK_INSERT},   {"delete", VK_DELETE},
-    {"home", VK_HOME},       {"end", VK_END},         {"pageup", VK_PRIOR},
+    {"mouse3", VK_MBUTTON}, {"mouse4", VK_XBUTTON1}, {"mouse5", VK_XBUTTON2}, {"space", VK_SPACE},
+    {"tab", VK_TAB},        {"enter", VK_RETURN},    {"backspace", VK_BACK},  {"insert", VK_INSERT},
+    {"delete", VK_DELETE},  {"home", VK_HOME},       {"end", VK_END},         {"pageup", VK_PRIOR},
     {"pagedown", VK_NEXT},
 };
 
@@ -114,6 +113,23 @@ int configHotkey(const char *key, int defaultVk) {
     }
 
     return defaultVk;
+}
+
+int configInt(const char *section, const char *key, int defaultValue) {
+    char raw[64];
+
+    if (!readValue(section, key, raw, sizeof(raw))) {
+        return defaultValue;
+    }
+
+    char *end = nullptr;
+    long value = strtol(raw, &end, 10);
+
+    if (end == raw) {
+        return defaultValue;
+    }
+
+    return (int)value;
 }
 
 float configFloat(const char *section, const char *key, float defaultValue) {

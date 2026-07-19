@@ -52,6 +52,7 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [Configurable camera zoom speed (opt-in)](docs/features/zoom-speed.md) | `base+0x3623D8` | Added in v0.5.0 |
 | [Out-of-bounds troop formation crash](docs/bugs/map-edge-formation-crash.md) | `base+0x37dd6b` | Fixed in v0.5.0 |
 | [Configuration file (`sh2-unofficial-patch.ini`)](docs/features/configuration.md) | — | Added in v0.5.0 |
+| [Shift-click batch recruitment](docs/features/shift-click-recruitment.md) | `base+0x22083a`, `base+0x223ca9`, `base+0x223dc9`, `base+0x225622`, `base+0x228539`, `base+0x5ccba4` | Unreleased, awaiting playtest |
 
 ---
 
