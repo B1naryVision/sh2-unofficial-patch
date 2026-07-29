@@ -1,5 +1,6 @@
 #include "endgameStats.h"
 #include "../core/hook.h"
+#include "autoMarket/autoMarket.h"
 #include "endgameStats/collect.h"
 #include "endgameStats/debugDump.h"
 #include "endgameStats/overlay.h"
@@ -57,6 +58,8 @@ extern "C" void endgameStatsReset() {
     closeStatsOverlay();
     sessionReset();
     resetUnitCounts();
+    // Auto-market thresholds are per-game; clear them on every return to menu.
+    autoMarketResetThresholds();
 }
 
 __declspec(naked) static void winScreenHook() {

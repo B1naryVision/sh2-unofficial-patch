@@ -1,6 +1,7 @@
 #include "registry.h"
 #include "../core/config.h"
 #include "attackHotkey.h"
+#include "autoMarket/autoMarket.h"
 #include "barracksCrash.h"
 #include "endgameStats.h"
 #include "introSkip.h"
@@ -26,4 +27,5 @@ void applyUnofficialPatches() {
     installAttackHotkey();
     installZoomSpeed();
     installShiftRecruit();
+    installAutoMarket();
 }

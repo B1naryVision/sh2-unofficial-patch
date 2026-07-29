@@ -1,3 +1,4 @@
+#include "../core/d3dHook.h"
 #include <windows.h>
 
 // Index order must match the naked stubs below and d3d9.def. The set is
@@ -50,8 +51,28 @@ void loadRealD3d9Dll() {
 }
 
 extern "C" {
-__declspec(naked) void WINAPI Direct3DCreate9(void) {
-    __asm__("jmp *%0" : : "m"(g_d3d9Functions[0]));
+// Direct3DCreate9 is the one export we do more than forward: we call the real
+// implementation, then hand the IDirect3D9 to the device hook so it can detour
+// EndScene/Reset for the overlay. Everything else is a plain jmp forwarder.
+IDirect3D9 *WINAPI Direct3DCreate9(UINT SDKVersion) {
+    typedef IDirect3D9 *(WINAPI * Direct3DCreate9Fn)(UINT);
+
+    // memcpy rather than a cast: FARPROC and the real signature are incompatible
+    // function-pointer types, and a direct cast trips -Wcast-function-type.
+    Direct3DCreate9Fn real;
+    memcpy(&real, &g_d3d9Functions[0], sizeof(real));
+
+    if (!real) {
+        return nullptr;
+    }
+
+    IDirect3D9 *d3d = real(SDKVersion);
+
+    if (d3d) {
+        installD3DHook(d3d);
+    }
+
+    return d3d;
 }
 __declspec(naked) void WINAPI Direct3DCreate9Ex(void) {
     __asm__("jmp *%0" : : "m"(g_d3d9Functions[1]));

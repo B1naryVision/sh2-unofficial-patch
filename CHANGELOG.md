@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### [Feature] - Auto-Market (Automatic Buying and Selling)
+
+- **What the issue was:** Keeping your stockpile stocked meant constantly opening the market to buy what was running low and sell off surpluses by hand, all match long.
+- **What we changed:** A new in-game panel (open it with the **`` ` ``** key, next to the `1` key) lets you set a **Min** and **Max** for each good — grouped into categories, editable with mouse or keyboard. The game then automatically buys a good up to its Min and sells it down to its Max, at the normal market price, only when you can afford it. It behaves exactly like clicking Buy/Sell yourself, works in multiplayer, and your settings reset at the start of each game. Set the hotkey to `None` in `sh2-unofficial-patch.ini` to turn the feature off entirely.
+
 ### [Feature] - Shift-Click to Recruit Several Units at Once
 
 - **What the issue was:** Recruiting an army meant clicking the same unit icon over and over — once per unit — in the barracks, mercenary post, monastery, engineers guild and siege camp.

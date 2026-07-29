@@ -41,6 +41,7 @@ no runtime re-read; changes take effect on the next game launch.
 | --- | --- | --- | --- |
 | `[hotkeys]` | `StopTroops` | `H` | Stop selected troops ([stop-troops-hotkey.md](stop-troops-hotkey.md)) |
 | `[hotkeys]` | `AttackToggle` | `Mouse4` | Toggle attack-move stance ([attack-move-hotkey.md](attack-move-hotkey.md)) |
+| `[hotkeys]` | `AutoMarketPanel` | `` ` `` | Toggle the auto-market editor overlay ([auto-market.md](auto-market.md)); `None` disables the whole feature |
 | `[camera]` | `ZoomSpeedMultiplier` | `1.0` | Camera zoom speed factor ([zoom-speed.md](zoom-speed.md)); `1.0` leaves the game code untouched |
 | `[recruitment]` | `RecruitmentShiftMultiplier` | `20` | Units queued per shift-click in barracks/mercenary post/monastery/engineers guild/siege camp ([shift-click-recruitment.md](shift-click-recruitment.md)); `0` or `1` disables (no hooks installed) |
 
@@ -77,6 +78,22 @@ recruit, no code patched); a missing or invalid value falls back to the
 default `20`, following the "a typo never disables a configured feature"
 rule above. See
 [shift-click-recruitment.md](shift-click-recruitment.md).
+
+### Auto-market editor
+
+Auto-market keeps each good's stock inside a `[min, max]` band using real Market
+buy/sell commands at the good's true market price. It has **no per-good ini
+config** — thresholds are set at runtime in the in-game editor (see below) and
+reset every game, because what needs buying/selling changes during a match. Its
+only setting is the toggle hotkey `[hotkeys] AutoMarketPanel` (default `` ` ``);
+set that to `None` to disable the whole feature (no D3D render hook, no engine).
+
+Open the editor with the hotkey, then per good set **Min** (auto-buy below it)
+and/or **Max** (auto-sell above it); `0` in a field ignores that direction.
+Select a cell with the mouse or arrow keys and type a value; Backspace/Delete
+edit, Esc closes. Trades use the good's real price and go through the game's own
+networked command layer, so it is multiplayer-safe and behaves exactly like
+clicking Buy/Sell by hand. See [auto-market.md](auto-market.md).
 
 ## Distribution
 

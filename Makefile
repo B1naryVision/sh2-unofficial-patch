@@ -11,6 +11,7 @@ SRCS = src/dllmain.cpp \
        src/core/hook.cpp \
        src/core/log.cpp \
        src/core/frameTick.cpp \
+       src/core/d3dHook.cpp \
        src/proxy/d3d9Proxy.cpp \
        src/patches/registry.cpp \
        src/patches/knightCatapultCrash.cpp \
@@ -28,9 +29,11 @@ SRCS = src/dllmain.cpp \
        src/patches/stopTroopsHotkey.cpp \
        src/patches/attackHotkey.cpp \
        src/patches/zoomSpeed.cpp \
-       src/patches/shiftRecruit.cpp
+       src/patches/shiftRecruit.cpp \
+       src/patches/autoMarket/autoMarket.cpp \
+       src/patches/autoMarket/overlay.cpp
 
-HDRS = $(wildcard src/*.h src/core/*.h src/proxy/*.h src/patches/*.h src/patches/endgameStats/*.h)
+HDRS = $(wildcard src/*.h src/core/*.h src/proxy/*.h src/patches/*.h src/patches/endgameStats/*.h src/patches/autoMarket/*.h)
 
 DEPLOY_PATH = /mnt/c/Games/Steam/steamapps/common/Stronghold\ 2/
 
