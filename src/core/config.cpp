@@ -55,7 +55,7 @@ static const NamedKey NAMED_KEYS[] = {
     {"mouse3", VK_MBUTTON}, {"mouse4", VK_XBUTTON1}, {"mouse5", VK_XBUTTON2}, {"space", VK_SPACE},
     {"tab", VK_TAB},        {"enter", VK_RETURN},    {"backspace", VK_BACK},  {"insert", VK_INSERT},
     {"delete", VK_DELETE},  {"home", VK_HOME},       {"end", VK_END},         {"pageup", VK_PRIOR},
-    {"pagedown", VK_NEXT},
+    {"pagedown", VK_NEXT},  {"backtick", VK_OEM_3},  {"grave", VK_OEM_3},     {"tilde", VK_OEM_3},
 };
 
 int configHotkey(const char *key, int defaultVk) {

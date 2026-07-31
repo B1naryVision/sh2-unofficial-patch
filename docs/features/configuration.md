@@ -53,7 +53,8 @@ Parsed case-insensitively by `configHotkey()`:
   character
 - `F1`–`F24`
 - Named keys: `Space`, `Tab`, `Enter`, `Backspace`, `Insert`, `Delete`,
-  `Home`, `End`, `PageUp`, `PageDown`
+  `Home`, `End`, `PageUp`, `PageDown`, `Backtick` (`Grave`/`Tilde`, the
+  `` ` `` / `~` key)
 - Extra mouse buttons: `Mouse3` (middle), `Mouse4` (`VK_XBUTTON1`), `Mouse5`
   (`VK_XBUTTON2`)
 - Raw hex virtual-key code (`0x48`) for anything not named above
