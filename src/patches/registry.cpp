@@ -10,6 +10,7 @@
 #include "mpAiEnable.h"
 #include "mpConnectCompleteCrash.h"
 #include "shiftRecruit.h"
+#include "siegeCampHotkey.h"
 #include "stopTroopsHotkey.h"
 #include "zoomSpeed.h"
 
@@ -28,4 +29,5 @@ void applyUnofficialPatches() {
     installZoomSpeed();
     installShiftRecruit();
     installAutoMarket();
+    installSiegeCampHotkey();
 }

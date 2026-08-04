@@ -54,6 +54,7 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [Configuration file (`sh2-unofficial-patch.ini`)](docs/features/configuration.md) | — | Added in v0.5.0 |
 | [Shift-click batch recruitment](docs/features/shift-click-recruitment.md) | `base+0x22083a`, `base+0x223ca9`, `base+0x223dc9`, `base+0x225622`, `base+0x228539`, `base+0x5ccba4` | Unreleased, awaiting playtest |
 | [Auto-market with in-game editor (`` ` ``)](docs/features/auto-market.md) | `base+0x21da50`, `base+0x1e1160`, `base+0x37efb0`, `base+0x6bcfd8` | Unreleased, awaiting playtest |
+| [Siege camp hotkey (`J`) opens the panel before moving the camera](docs/features/siege-camp-hotkey.md) | `base+0x1f2c65`, `base+0x1f2c99` | Unreleased, confirmed in-game |
 
 ---
 

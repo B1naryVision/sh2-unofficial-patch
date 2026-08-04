@@ -30,6 +30,7 @@ SRCS = src/dllmain.cpp \
        src/patches/attackHotkey.cpp \
        src/patches/zoomSpeed.cpp \
        src/patches/shiftRecruit.cpp \
+       src/patches/siegeCampHotkey.cpp \
        src/patches/autoMarket/autoMarket.cpp \
        src/patches/autoMarket/overlay.cpp
 

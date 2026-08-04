@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### [Improvement] - Siege Camp Shortcut No Longer Yanks the Camera Away
+
+- **What the issue was:** Pressing the siege camp shortcut (`J`) opened the siege camp panel and immediately threw the camera across the map to your siege camp, so you lost sight of whatever you were watching just to queue up some equipment.
+- **What we changed:** The first press now only opens the siege camp panel and leaves your view where it is; press it again while the panel is open to travel to the siege camp. This matches how the barracks and granary shortcuts already work. Set `SiegeCampJumpOnSecondPress=0` in `sh2-unofficial-patch.ini` to go back to the old one-press behaviour.
+
 ### [Feature] - Auto-Market (Automatic Buying and Selling)
 
 - **What the issue was:** Keeping your stockpile stocked meant constantly opening the market to buy what was running low and sell off surpluses by hand, all match long.

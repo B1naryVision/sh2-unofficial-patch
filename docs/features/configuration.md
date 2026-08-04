@@ -43,6 +43,7 @@ no runtime re-read; changes take effect on the next game launch.
 | `[hotkeys]` | `AttackToggle` | `Mouse4` | Toggle attack-move stance ([attack-move-hotkey.md](attack-move-hotkey.md)) |
 | `[hotkeys]` | `AutoMarketPanel` | `` ` `` | Toggle the auto-market editor overlay ([auto-market.md](auto-market.md)); `None` disables the whole feature |
 | `[camera]` | `ZoomSpeedMultiplier` | `1.0` | Camera zoom speed factor ([zoom-speed.md](zoom-speed.md)); `1.0` leaves the game code untouched |
+| `[interface]` | `SiegeCampJumpOnSecondPress` | `1` | The siege camp hotkey (`J`) opens its panel on the first press and only moves the camera on a second press ([siege-camp-hotkey.md](siege-camp-hotkey.md)); `0` restores the stock one-press behaviour (no hooks installed) |
 | `[recruitment]` | `RecruitmentShiftMultiplier` | `20` | Units queued per shift-click in barracks/mercenary post/monastery/engineers guild/siege camp ([shift-click-recruitment.md](shift-click-recruitment.md)); `0` or `1` disables (no hooks installed) |
 
 ### Hotkey value format
@@ -79,6 +80,15 @@ recruit, no code patched); a missing or invalid value falls back to the
 default `20`, following the "a typo never disables a configured feature"
 rule above. See
 [shift-click-recruitment.md](shift-click-recruitment.md).
+
+### SiegeCampJumpOnSecondPress
+
+`1` (default) splits the stock siege camp hotkey (`J`) into two steps: the first
+press opens the siege camp panel on your first siege camp without moving the
+camera, and a press while the panel is up travels there. `0` leaves the game
+code untouched (no hooks installed). Any other value is treated as `1`, per the
+"a typo never disables a configured feature" rule above. See
+[siege-camp-hotkey.md](siege-camp-hotkey.md).
 
 ### Auto-market editor
 
