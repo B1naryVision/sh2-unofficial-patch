@@ -29,3 +29,9 @@ int autoMarketGetMin(int goodId);
 int autoMarketGetMax(int goodId);
 void autoMarketSetMin(int goodId, int value);
 void autoMarketSetMax(int goodId, int value);
+
+// Presets: named threshold sets loaded from [preset:NAME] ini sections. Applying
+// one is replace-all — goods not listed are cleared to 0/0.
+int autoMarketPresetCount();
+const char *autoMarketPresetName(int index);
+void autoMarketApplyPreset(int index);

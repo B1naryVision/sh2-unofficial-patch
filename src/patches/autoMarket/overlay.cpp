@@ -18,11 +18,12 @@
 static const int PANEL_X = 24;
 static const int PANEL_Y = 18;
 static const int PANEL_W = 354;
-static const int PANEL_H = 750; // sized for 28 goods across 5 categories
+static const int PANEL_H = 782; // sized for 28 goods across 5 categories + preset bar
 
 static const int TITLE_Y = 10;
-static const int COLHDR_Y = 36;
-static const int LIST_TOP = 56;
+static const int PRESET_Y = 40;
+static const int COLHDR_Y = 68;
+static const int LIST_TOP = 88;
 static const int ROW_H = 19;
 static const int CAT_H = 23;
 
@@ -31,6 +32,16 @@ static const int FIELD_W = 66;
 static const int MIN_X = 196;
 static const int MAX_X = 270;
 
+// Preset bar hit regions (panel-local x); the bar spans PRESET_Y-2 .. PRESET_Y+18.
+static const int PRESET_PREV_L = 76;
+static const int PRESET_PREV_R = 96;
+static const int PRESET_NAME_L = 100;
+static const int PRESET_NAME_R = 234;
+static const int PRESET_NEXT_L = 236;
+static const int PRESET_NEXT_R = 256;
+static const int PRESET_APPLY_L = 262;
+static const int PRESET_APPLY_R = 346;
+
 // ── state ──────────────────────────────────────────────────────────────────────
 static int s_hotkeyVk = 0;
 static bool s_visible = false;
@@ -38,6 +49,7 @@ static bool s_dirty = true;
 static int s_selRow = 0; // selected good row
 static int s_selField = 0; // 0 = Min, 1 = Max
 static bool s_freshEntry = true; // next digit replaces (set on any selection change)
+static int s_presetSel = 0; // highlighted preset in the picklist
 
 // Per-good panel-local Y of each row (constant layout, computed once).
 static int s_goodY[64] = {};
@@ -188,6 +200,54 @@ static void drawFieldCell(int x, int y, int value, bool selected) {
     TextOutW(s_memDC, x + FIELD_W - 6 - sz.cx, y, w, k);
 }
 
+static void drawTextCentered(int l, int r, int y, const char *s, COLORREF color) {
+    wchar_t w[48];
+    int k = 0;
+
+    for (const char *p = s; *p && k < 47; ++p) {
+        w[k++] = (wchar_t)(unsigned char)*p;
+    }
+
+    w[k] = 0;
+    SIZE sz = {0, 0};
+    GetTextExtentPoint32W(s_memDC, w, k, &sz);
+    SetTextColor(s_memDC, color);
+    TextOutW(s_memDC, l + (r - l - sz.cx) / 2, y, w, k);
+}
+
+// Draws the preset picklist: "Preset:  < name >  [Apply]".
+static void drawPresetBar() {
+    int t = PRESET_Y - 2;
+    int b = PRESET_Y + 18;
+    int count = autoMarketPresetCount();
+
+    if (count > 0 && s_presetSel >= count) {
+        s_presetSel = 0;
+    }
+
+    drawTextA(COL_NAME, PRESET_Y, "Preset:", RGB(180, 180, 195));
+
+    frameRect(PRESET_PREV_L, t, PRESET_PREV_R, b, RGB(90, 90, 110));
+    drawTextCentered(PRESET_PREV_L, PRESET_PREV_R, PRESET_Y, "<", RGB(220, 220, 230));
+    frameRect(PRESET_NEXT_L, t, PRESET_NEXT_R, b, RGB(90, 90, 110));
+    drawTextCentered(PRESET_NEXT_L, PRESET_NEXT_R, PRESET_Y, ">", RGB(220, 220, 230));
+
+    frameRect(PRESET_NAME_L, t, PRESET_NAME_R, b, RGB(58, 58, 74));
+    const char *name = count > 0 ? autoMarketPresetName(s_presetSel) : "(no presets)";
+    drawTextCentered(
+        PRESET_NAME_L, PRESET_NAME_R, PRESET_Y, name,
+        count > 0 ? RGB(255, 235, 150) : RGB(120, 120, 130)
+    );
+
+    bool enabled = count > 0;
+    fillRect(PRESET_APPLY_L, t, PRESET_APPLY_R, b, enabled ? RGB(48, 70, 48) : RGB(40, 40, 50));
+    frameRect(PRESET_APPLY_L, t, PRESET_APPLY_R, b, enabled ? RGB(120, 200, 120) : RGB(70, 70, 84));
+    drawTextCentered(
+        PRESET_APPLY_L, PRESET_APPLY_R, PRESET_Y, "Apply",
+        enabled ? RGB(220, 255, 220) : RGB(110, 110, 120)
+    );
+}
+
 static void renderPanelBitmap() {
     ensureGdi();
     ensureLayout();
@@ -204,6 +264,7 @@ static void renderPanelBitmap() {
     drawTextA(COL_NAME, TITLE_Y, "Auto-Market", RGB(255, 255, 255));
 
     SelectObject(s_memDC, s_font);
+    drawPresetBar();
     drawTextA(MIN_X + 4, COLHDR_Y, "Min", RGB(150, 150, 165));
     drawTextA(MAX_X + 4, COLHDR_Y, "Max", RGB(150, 150, 165));
 
@@ -234,8 +295,12 @@ static void renderPanelBitmap() {
         drawFieldCell(MAX_X, y, autoMarketGetMax(id), i == s_selRow && s_selField == 1);
     }
 
-    drawTextA(COL_NAME, PANEL_H - 32, "Click or arrows to select", RGB(140, 140, 150));
-    drawTextA(COL_NAME, PANEL_H - 18, "type to set - Del clear - Esc close", RGB(140, 140, 150));
+    drawTextA(
+        COL_NAME, PANEL_H - 32, "Click/arrows select - type set - Del clear", RGB(140, 140, 150)
+    );
+    drawTextA(
+        COL_NAME, PANEL_H - 18, "PgUp/PgDn preset - Enter apply - Esc close", RGB(140, 140, 150)
+    );
 
     // GDI leaves the alpha byte at 0; make the whole panel opaque.
     uint32_t *px = (uint32_t *)s_dibBits;
@@ -368,12 +433,38 @@ static void typeDigit(int digit) {
     setCurrentField(id, base * 10 + digit);
 }
 
+static void cyclePreset(int dir) {
+    int count = autoMarketPresetCount();
+
+    if (count <= 0) {
+        return;
+    }
+
+    s_presetSel = ((s_presetSel + dir) % count + count) % count;
+    s_dirty = true;
+}
+
+static void applyCurrentPreset() {
+    if (autoMarketPresetCount() <= 0) {
+        return;
+    }
+
+    autoMarketApplyPreset(s_presetSel);
+    s_dirty = true;
+}
+
 static bool handleEditKey(int vk) {
     int id = autoMarketGoodId(s_selRow);
 
     if (vk == VK_ESCAPE) {
         s_visible = false;
         s_dirty = true;
+    } else if (vk == VK_PRIOR) {
+        cyclePreset(-1);
+    } else if (vk == VK_NEXT) {
+        cyclePreset(1);
+    } else if (vk == VK_RETURN) {
+        applyCurrentPreset();
     } else if (vk == VK_UP) {
         selectCell(s_selRow - 1, s_selField);
     } else if (vk == VK_DOWN) {
@@ -399,8 +490,9 @@ static bool handleEditKey(int vk) {
     return true; // all keys swallowed while the editor is open
 }
 
-// Maps a window-client click to a panel cell. Returns true if inside the panel.
-static bool handleClick(int clientX, int clientY, HWND hwnd) {
+// Maps a window-client point to panel-local coords. Returns true if inside the
+// panel (side-effect-free, so it can gate swallowing without acting).
+static bool mapToPanel(int clientX, int clientY, HWND hwnd, int &lx, int &ly) {
     if (s_renderW <= 0 || s_renderH <= 0) {
         return false;
     }
@@ -412,13 +504,31 @@ static bool handleClick(int clientX, int clientY, HWND hwnd) {
     }
 
     // Client -> backbuffer coords (handles windowed scaling), then panel-local.
-    int rx = clientX * s_renderW / cr.right;
-    int ry = clientY * s_renderH / cr.bottom;
-    int lx = rx - PANEL_X;
-    int ly = ry - PANEL_Y;
+    lx = clientX * s_renderW / cr.right - PANEL_X;
+    ly = clientY * s_renderH / cr.bottom - PANEL_Y;
+    return lx >= 0 && ly >= 0 && lx < PANEL_W && ly < PANEL_H;
+}
 
-    if (lx < 0 || ly < 0 || lx >= PANEL_W || ly >= PANEL_H) {
+// Performs the click action (button-DOWN only). Returns true if inside the panel.
+static bool handleClick(int clientX, int clientY, HWND hwnd) {
+    int lx = 0;
+    int ly = 0;
+
+    if (!mapToPanel(clientX, clientY, hwnd, lx, ly)) {
         return false; // outside the panel — let the game have the click
+    }
+
+    // Preset bar: prev / next / name / apply.
+    if (ly >= PRESET_Y - 2 && ly < PRESET_Y + 18) {
+        if (lx >= PRESET_PREV_L && lx < PRESET_PREV_R) {
+            cyclePreset(-1);
+        } else if (lx >= PRESET_NEXT_L && lx < PRESET_NEXT_R) {
+            cyclePreset(1);
+        } else if (lx >= PRESET_NAME_L && lx < PRESET_APPLY_R) {
+            applyCurrentPreset(); // clicking the name or the Apply button applies
+        }
+
+        return true;
     }
 
     ensureLayout();
@@ -462,15 +572,20 @@ static LRESULT CALLBACK overlayWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARA
             int x = (short)LOWORD(lparam);
             int y = (short)HIWORD(lparam);
 
-            // Only act on / swallow clicks inside the panel; let the rest reach
-            // the game.
+            // Act only on left-button-DOWN; swallow the other button events when
+            // they fall inside the panel (no action) so the game never sees a
+            // click meant for the editor — and so a button-up never re-triggers.
             if (msg == WM_LBUTTONDOWN) {
                 if (handleClick(x, y, hwnd)) {
                     return 0;
                 }
-            } else if (handleClick(x, y, hwnd)) {
-                // Non-down button events inside the panel: swallow, no action.
-                return 0;
+            } else {
+                int lx = 0;
+                int ly = 0;
+
+                if (mapToPanel(x, y, hwnd, lx, ly)) {
+                    return 0;
+                }
             }
         } else if (
             msg == WM_CHAR || msg == WM_SYSCHAR || msg == WM_DEADCHAR || msg == WM_KEYUP ||

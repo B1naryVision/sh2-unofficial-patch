@@ -115,6 +115,34 @@ int configHotkey(const char *key, int defaultVk) {
     return defaultVk;
 }
 
+int configSectionNames(char *buf, int bufLen) {
+    if (bufLen <= 0) {
+        return 0;
+    }
+
+    buf[0] = 0;
+
+    if (!s_iniPath[0]) {
+        return 0;
+    }
+
+    return (int)GetPrivateProfileSectionNamesA(buf, (DWORD)bufLen, s_iniPath);
+}
+
+int configSection(const char *section, char *buf, int bufLen) {
+    if (bufLen <= 0) {
+        return 0;
+    }
+
+    buf[0] = 0;
+
+    if (!s_iniPath[0]) {
+        return 0;
+    }
+
+    return (int)GetPrivateProfileSectionA(section, buf, (DWORD)bufLen, s_iniPath);
+}
+
 int configInt(const char *section, const char *key, int defaultValue) {
     char raw[64];
 

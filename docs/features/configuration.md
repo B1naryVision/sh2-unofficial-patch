@@ -96,6 +96,24 @@ edit, Esc closes. Trades use the good's real price and go through the game's own
 networked command layer, so it is multiplayer-safe and behaves exactly like
 clicking Buy/Sell by hand. See [auto-market.md](auto-market.md).
 
+**Presets.** Named threshold sets can be defined as `[preset:NAME]` sections and
+loaded from the editor's picklist (PageUp/PageDown to choose, Enter or the Apply
+button to load). Each line is `Good = min:X, max:Y` (either part optional) using
+the same good names the editor shows; applying a preset is **replace-all** (goods
+not listed are cleared to `0`). Example:
+
+```ini
+[preset:War]
+Bread = max:10
+Ale   = min:5
+Swords = min:5
+Armour = min:5
+Wood  = min:200
+```
+
+The template ships with a few example presets (Start Game, Mid Game, Late Game,
+War, No Estate); add, edit or remove sections freely.
+
 ## Distribution
 
 A commented template `sh2-unofficial-patch.ini` lives in the repo root and is

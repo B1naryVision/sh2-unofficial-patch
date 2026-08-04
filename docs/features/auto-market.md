@@ -72,10 +72,18 @@ unaffordable, so overshooting a threshold is safe — the same graceful-degradat
 model as shift-click recruitment.
 
 The threshold engine runs on `registerFrameTick` (sim thread), throttled to a
-fixed 60 frames (~1s; not user-configurable — too small a value spams the command
-queue with drops when a target is unaffordable): for each active good it reads
-stock, posts a buy toward `min` when below and a sell toward `max` when above.
-Float-free on the tick path.
+fixed 30 frames (not user-configurable): for each active good it reads stock and
+posts a buy toward `min` when below or a sell toward `max` when above. Float-free
+on the tick path.
+
+**Posting is closed-loop.** After posting for a good, it waits for that good's
+stock to *move* (the command landed) before posting again, with only a long
+frame timeout as a fallback retry. This matters under lag: when the game stalls
+("Waiting for Players") the frame tick keeps firing but the simulation is frozen,
+so stock never moves and commands don't execute. Open-loop posting would re-post
+the same deficit every tick and then execute all of them at once when sync
+resumed — badly overbuying (e.g. a min-5 target buying 35). The stock-move gate
+posts at most one command per good across the whole stall.
 
 ## Per-player goods stock
 
@@ -134,6 +142,13 @@ backbuffer size so it works windowed) to the editor and **swallows** them so the
 game never sees them. Selecting a cell (click or arrow) starts "fresh entry" so
 the next digit replaces the value. Thresholds are cleared and the panel hidden on
 `MainMenuScreen::OnActivate` (reusing the endgame-stats return-to-menu hook).
+
+**Presets.** `[preset:NAME]` ini sections define named threshold sets, loaded at
+install into a fixed table (good names matched case-insensitively to the good
+list). The editor shows a picklist bar (`‹ name ›  [Apply]`, cycled with
+PageUp/PageDown or the arrows, loaded with Enter/click); applying is replace-all
+— every threshold is cleared, then the preset's entries set. Presets are static
+config and persist across games; only the live thresholds reset on return to menu.
 
 ## Multiplayer compatibility
 

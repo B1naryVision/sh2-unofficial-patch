@@ -1,7 +1,10 @@
 #include "autoMarket.h"
+#include "../../core/config.h"
 #include "../../core/frameTick.h"
 #include "overlay.h"
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <windows.h>
 
 // Auto-Market QoL: keeps each good's stock inside a [min, max] band by posting
@@ -37,6 +40,7 @@ static const size_t EVT_SIZE = 0x1c;
 // Player object layout.
 static const uintptr_t PLAYER_ID_OFF = 0x08; // dword: player id
 static const uintptr_t GOODS_STOCK_BASE_OFF = 0xf5c; // stock array base; stock = [base + id*4]
+static const uintptr_t PLAYER_GOLD_OFF = 0x1010; // float (read as raw bits)
 
 // Market good-definition / price table (static .data). Entries are NOT in
 // good-id order, so it is searched by entry[0] == good id. Each entry carries
@@ -60,11 +64,19 @@ typedef void *(__attribute__((thiscall)) * GetPlayerFn)(void *world);
 
 // ── Config / state ────────────────────────────────────────────────────────────
 static const int MAX_GOOD_ID = 47; // highest good id addressed
-// Frames between threshold evaluations. Fixed (not user-configurable): too small
-// a value would spam the command queue with drops when a target is unaffordable;
-// ~1s is responsive for gradual stock changes and cheap.
-static const int TICK_INTERVAL = 60;
+// Frames between threshold evaluations. Fixed (not user-configurable). The main
+// loop is frame-rate-capped (lower in multiplayer), so this is a modest, cheap
+// cadence; posting is closed-loop (below), so a small interval cannot pile up
+// commands.
+static const int TICK_INTERVAL = 30;
 static const int MAX_BATCH = 1000; // clamp on units posted per command
+// After posting for a good, wait up to this many *simulation-advancing* ticks for
+// its stock to move (command executed) before posting again. Counted only while
+// the sim advances, so a lag stall (sim frozen) never advances it — a stall posts
+// at most one command per good instead of piling up buys that all execute when
+// sync resumes. In a running game a dropped/unaffordable command retries after a
+// few ticks.
+static const int AWAIT_RESOLVE = 4;
 
 struct Threshold {
     int min; // buy up to this when stock is below it; 0 = no auto-buy
@@ -74,6 +86,12 @@ struct Threshold {
 static Threshold s_thresh[MAX_GOOD_ID + 1] = {};
 static bool s_active[MAX_GOOD_ID + 1] = {};
 static uintptr_t s_priceEntryRva[MAX_GOOD_ID + 1] = {}; // 0 = good not tradeable
+
+// Closed-loop posting state: after posting for a good, await its stock moving
+// (the command landed) before posting again — see AWAIT_RESOLVE.
+static int s_lastStock[MAX_GOOD_ID + 1] = {};
+static int s_await[MAX_GOOD_ID + 1] = {}; // >0 = awaiting a posted command to land
+static uint32_t s_simSig = 0; // sim-state signature; unchanged == frozen
 
 // Good id → display name + category, shown as the editor's rows (grouped by
 // category, in this order). Ids confirmed against a live session; a few slots
@@ -202,34 +220,64 @@ static void autoMarketTick() {
         return;
     }
 
-    // At most one command per good per interval; the simulation re-validates
-    // gold/stock and drops what cannot execute, so any overshoot simply retries
-    // next interval (the shift-recruit graceful-degradation model).
+    // Sim heartbeat: sum the player's gold and every good's stock (raw bits, no
+    // float math). When it is unchanged since last tick the simulation is frozen
+    // (a "Waiting for Players" lag stall) — do nothing at all, so nothing piles
+    // up and the per-good resolve counters below advance only while the sim runs.
+    uint32_t sig = *(uint32_t *)((uintptr_t)player + PLAYER_GOLD_OFF);
+
+    for (int gid = 0; gid <= MAX_GOOD_ID; ++gid) {
+        sig += (uint32_t)readStock(player, gid);
+    }
+
+    bool simAdvanced = sig != s_simSig;
+    s_simSig = sig;
+
+    if (!simAdvanced) {
+        return;
+    }
+
     for (int gid = 0; gid <= MAX_GOOD_ID; ++gid) {
         if (!s_active[gid]) {
             continue;
         }
 
         int stock = readStock(player, gid);
+        bool moved = stock != s_lastStock[gid];
+        s_lastStock[gid] = stock;
+
+        // Wait for the previously posted command to land (stock to move) before
+        // posting again. The resolve counter is only reached on sim-advancing
+        // ticks, so a lag stall (handled above) can never pile up commands, while
+        // a dropped command still retries after AWAIT_RESOLVE running ticks.
+        if (s_await[gid] > 0) {
+            if (moved) {
+                s_await[gid] = 0;
+            } else if (--s_await[gid] > 0) {
+                continue;
+            }
+        }
+
         const Threshold &t = s_thresh[gid];
+        int amount = 0;
+        bool buy = false;
 
         if (t.min > 0 && stock < t.min) {
-            int amount = t.min - stock;
-
-            if (amount > MAX_BATCH) {
-                amount = MAX_BATCH;
-            }
-
-            postTrade(base, world, player, gid, amount, true);
+            amount = t.min - stock;
+            buy = true;
         } else if (t.max > 0 && stock > t.max) {
-            int amount = stock - t.max;
-
-            if (amount > MAX_BATCH) {
-                amount = MAX_BATCH;
-            }
-
-            postTrade(base, world, player, gid, amount, false);
+            amount = stock - t.max;
+            buy = false;
+        } else {
+            continue; // already within band
         }
+
+        if (amount > MAX_BATCH) {
+            amount = MAX_BATCH;
+        }
+
+        postTrade(base, world, player, gid, amount, buy);
+        s_await[gid] = AWAIT_RESOLVE;
     }
 }
 
@@ -305,6 +353,7 @@ int autoMarketGetMax(int goodId) {
 
 static void refreshActive(int goodId) {
     s_active[goodId] = (s_thresh[goodId].min > 0 || s_thresh[goodId].max > 0);
+    s_await[goodId] = 0; // a threshold change re-enables immediate evaluation
 }
 
 void autoMarketSetMin(int goodId, int value) {
@@ -325,28 +374,194 @@ void autoMarketSetMax(int goodId, int value) {
     refreshActive(goodId);
 }
 
-// Clears every threshold and hides the editor. Called when the main menu
-// activates (return to menu / quit a game), so thresholds never carry across
-// games — trading needs change through a match, so each game starts clean.
-void autoMarketResetThresholds() {
+static void clearAllThresholds() {
     for (int gid = 0; gid <= MAX_GOOD_ID; ++gid) {
         s_thresh[gid].min = 0;
         s_thresh[gid].max = 0;
         s_active[gid] = false;
+        s_lastStock[gid] = 0;
+        s_await[gid] = 0;
     }
 
+    s_simSig = 0;
+}
+
+// Clears every threshold and hides the editor. Called when the main menu
+// activates (return to menu / quit a game), so thresholds never carry across
+// games — trading needs change through a match, so each game starts clean.
+void autoMarketResetThresholds() {
+    clearAllThresholds();
     autoMarketOverlayReset();
+}
+
+// ── Presets ─────────────────────────────────────────────────────────────────────
+// Named threshold sets from [preset:NAME] ini sections; applying one is
+// replace-all (goods not listed are cleared). See docs/features/auto-market.md.
+static const int MAX_PRESETS = 24;
+static const int MAX_PRESET_ENTRIES = 48;
+
+struct PresetEntry {
+    int goodId;
+    int min;
+    int max;
+};
+
+struct Preset {
+    char name[32];
+    PresetEntry entries[MAX_PRESET_ENTRIES];
+    int count;
+};
+
+static Preset s_presets[MAX_PRESETS];
+static int s_presetCount = 0;
+
+static int goodIdByName(const char *name) {
+    for (const GoodName &g : GOOD_NAMES) {
+        if (_stricmp(g.name, name) == 0) {
+            return g.id;
+        }
+    }
+
+    return -1;
+}
+
+// Parses a "min:X, max:Y" value (either part optional) into out min/max.
+static void parseThresholdValue(const char *raw, int &outMin, int &outMax) {
+    outMin = 0;
+    outMax = 0;
+
+    for (const char *p = raw; *p;) {
+        while (*p == ' ' || *p == ',' || *p == '\t') {
+            p++;
+        }
+
+        if (!*p) {
+            break;
+        }
+
+        bool isMin = _strnicmp(p, "min", 3) == 0;
+        bool isMax = _strnicmp(p, "max", 3) == 0;
+        const char *colon = strchr(p, ':');
+
+        if ((!isMin && !isMax) || !colon) {
+            p += 1;
+            continue;
+        }
+
+        int value = atoi(colon + 1);
+
+        if (isMin && value > 0) {
+            outMin = value;
+        } else if (isMax && value > 0) {
+            outMax = value;
+        }
+
+        p = colon + 1;
+    }
+}
+
+static void loadPresets() {
+    char names[4096];
+
+    if (configSectionNames(names, sizeof(names)) <= 0) {
+        return;
+    }
+
+    for (const char *sec = names; *sec && s_presetCount < MAX_PRESETS; sec += strlen(sec) + 1) {
+        if (_strnicmp(sec, "preset:", 7) != 0) {
+            continue;
+        }
+
+        char body[8192];
+
+        if (configSection(sec, body, sizeof(body)) <= 0) {
+            continue;
+        }
+
+        Preset &preset = s_presets[s_presetCount];
+        strncpy(preset.name, sec + 7, sizeof(preset.name) - 1);
+        preset.name[sizeof(preset.name) - 1] = 0;
+        preset.count = 0;
+
+        for (const char *kv = body; *kv; kv += strlen(kv) + 1) {
+            const char *eq = strchr(kv, '=');
+
+            if (!eq) {
+                continue;
+            }
+
+            char goodName[32];
+            int len = (int)(eq - kv);
+
+            while (len > 0 && kv[len - 1] == ' ') {
+                len--;
+            }
+
+            if (len <= 0 || len >= (int)sizeof(goodName)) {
+                continue;
+            }
+
+            memcpy(goodName, kv, len);
+            goodName[len] = 0;
+
+            int id = goodIdByName(goodName);
+
+            if (id < 0) {
+                continue;
+            }
+
+            int mn, mx;
+            parseThresholdValue(eq + 1, mn, mx);
+
+            if (preset.count < MAX_PRESET_ENTRIES) {
+                preset.entries[preset.count].goodId = id;
+                preset.entries[preset.count].min = mn;
+                preset.entries[preset.count].max = mx;
+                preset.count++;
+            }
+        }
+
+        s_presetCount++;
+    }
+}
+
+int autoMarketPresetCount() { return s_presetCount; }
+
+const char *autoMarketPresetName(int index) {
+    if (index < 0 || index >= s_presetCount) {
+        return "";
+    }
+
+    return s_presets[index].name;
+}
+
+// Replace-all: clears every threshold, then applies the preset's entries.
+void autoMarketApplyPreset(int index) {
+    if (index < 0 || index >= s_presetCount) {
+        return;
+    }
+
+    clearAllThresholds();
+    const Preset &preset = s_presets[index];
+
+    for (int i = 0; i < preset.count; ++i) {
+        int gid = preset.entries[i].goodId;
+        s_thresh[gid].min = preset.entries[i].min;
+        s_thresh[gid].max = preset.entries[i].max;
+        refreshActive(gid);
+    }
 }
 
 void installAutoMarket() {
     // Thresholds are set at runtime through the in-game editor (the ini no longer
-    // configures per-good values — they reset every game). If the editor is
-    // disabled (its hotkey set to None), the whole feature is off — zero
-    // footprint, no hooks.
+    // configures per-good values — they reset every game), optionally loaded from
+    // named presets. If the editor is disabled (its hotkey set to None), the
+    // whole feature is off — zero footprint, no hooks.
     if (!installAutoMarketOverlay()) {
         return;
     }
 
+    loadPresets();
     buildPriceMap((uintptr_t)GetModuleHandleA(NULL));
 
     registerFrameTick(autoMarketTick);
