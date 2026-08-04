@@ -62,12 +62,13 @@ No game files are modified. Removing the DLL restores the original behavior comp
 
 Items under active investigation or queued for a future release.
 
-The following are implemented but excluded from the build until the patch has broader adoption — both require **all players to run the same patch version** to avoid multiplayer desyncs:
+The following are implemented but excluded from the build until the patch has broader adoption — all of them require **all players to run the same patch version** to avoid multiplayer desyncs:
 
 | Description | Notes |
 | --- | --- |
 | [Field ballista auto-fire restore](docs/features/ballista-auto-fire.md) | Modifies unit health state each tick |
 | [Unit cap raise (550 in all lobby sizes)](docs/features/unit-cap-raise.md) | Per-player cap enforced locally; patched vs unpatched clients diverge |
+| [Disband peasant duplication fix](docs/bugs/disband-peasant-duplication.md) | Rapid-clicking Disband refunds a peasant per click instead of per unit; the fix changes how many peasants the campfire gets back, so patched vs unpatched clients diverge |
 
 The following is on hold, excluded from the build pending further work in a future release:
 
