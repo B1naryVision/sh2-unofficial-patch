@@ -1,6 +1,7 @@
 #include "stopTroopsHotkey.h"
-#include "../core/config.h"
 #include "../core/frameTick.h"
+#include "../core/hotkey.h"
+#include "../core/keybindWidget.h"
 #include <cstdint>
 #include <windows.h>
 
@@ -9,23 +10,12 @@ static const uintptr_t STOP_FUNCTION_RVA = 0xf3140; // S2ActorHandler::StopSelec
 static const uintptr_t ACTOR_HANDLER_RVA = 0xdb8cb8; // S2ActorHandler static global (the `this`)
 static const uintptr_t LOCAL_SLOT_RVA = 0x6e8c5c; // int: local player table slot
 
-// Configurable via [hotkeys] StopTroops in sh2-unofficial-patch.ini; 0 = disabled.
-static int s_hotkeyVk = 'H';
+// Configurable via [hotkeys] StopTroops in sh2-unofficial-patch.ini; None = disabled.
+// Rebindable at runtime from the settings overlay (docs/features/settings-overlay.md).
+static Hotkey s_hotkey = {'H', 0};
+static bool s_installed = false;
 
 typedef void(__attribute__((thiscall)) * StopSelectedTroopsFn)(void *handler, int playerSlot);
-
-static bool gameWindowFocused() {
-    HWND foreground = GetForegroundWindow();
-
-    if (!foreground) {
-        return false;
-    }
-
-    DWORD pid = 0;
-    GetWindowThreadProcessId(foreground, &pid);
-
-    return pid == GetCurrentProcessId();
-}
 
 static void triggerStopSelectedTroops() {
     uintptr_t base = (uintptr_t)GetModuleHandleA(NULL);
@@ -46,9 +36,11 @@ static void triggerStopSelectedTroops() {
 // services the command queue — exactly as a real Stop button click would be.
 static void stopHotkeyTick() {
     static bool prevDown = false;
-    bool down = (GetAsyncKeyState(s_hotkeyVk) & 0x8000) != 0;
+    bool down = hotkeyHeld(s_hotkey);
 
-    if (down && !prevDown && gameWindowFocused()) {
+    // Polling bypasses the window procedure, so a rebind prompt cannot swallow
+    // this key the way it swallows the game's own input — check it explicitly.
+    if (down && !prevDown && !keybindCaptureActive() && gameWindowFocused()) {
         triggerStopSelectedTroops();
     }
 
@@ -56,11 +48,18 @@ static void stopHotkeyTick() {
 }
 
 void installStopTroopsHotkey() {
-    s_hotkeyVk = configHotkey("StopTroops", 'H');
+    s_hotkey = hotkeyLoad("hotkeys", "StopTroops", s_hotkey);
 
-    if (s_hotkeyVk == 0) {
+    if (!hotkeyIsBound(s_hotkey)) {
         return;
     }
 
     registerFrameTick(stopHotkeyTick);
+    s_installed = true;
 }
+
+Hotkey stopTroopsBinding() { return s_hotkey; }
+
+void stopTroopsSetBinding(const Hotkey &hk) { s_hotkey = hk; }
+
+bool stopTroopsInstalled() { return s_installed; }

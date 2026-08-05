@@ -15,6 +15,10 @@ players can rebind or disable those features without a custom build.
 
 ---
 
+Hotkeys can also be rebound **in game** with `Ctrl+Shift+O`, which writes the
+new values back into this file — see
+[settings-overlay.md](settings-overlay.md). Everything else is edited by hand.
+
 ## File location and lifecycle
 
 The file is `sh2-unofficial-patch.ini`, placed **next to `d3d9.dll`** in the
@@ -33,12 +37,15 @@ Everything is read once, in `DllMain` before the game's entry point runs
 (`loadConfig()` is the first call in `applyUnofficialPatches()`). Only
 kernel32 calls are used (`GetModuleFileNameA`, `GetPrivateProfileStringA`),
 which are safe under the loader lock like every other install step. There is
-no runtime re-read; changes take effect on the next game launch.
+no runtime re-read: edits made to the file while the game is running take
+effect on the next launch. (The settings overlay is the one writer — it changes
+the live binding and the file together, so it needs no re-read.)
 
 ## Settings
 
 | Section | Key | Default | Meaning |
 | --- | --- | --- | --- |
+| `[hotkeys]` | `SettingsPanel` | `Ctrl+Shift+O` | Open the in-game settings panel, which rebinds the keys below and writes them back here ([settings-overlay.md](settings-overlay.md)); `None` removes the panel |
 | `[hotkeys]` | `StopTroops` | `H` | Stop selected troops ([stop-troops-hotkey.md](stop-troops-hotkey.md)) |
 | `[hotkeys]` | `AttackToggle` | `Mouse4` | Toggle attack-move stance ([attack-move-hotkey.md](attack-move-hotkey.md)) |
 | `[hotkeys]` | `AutoMarketPanel` | `` ` `` | Toggle the auto-market editor overlay ([auto-market.md](auto-market.md)); `None` disables the whole feature |
@@ -48,19 +55,28 @@ no runtime re-read; changes take effect on the next game launch.
 
 ### Hotkey value format
 
-Parsed case-insensitively by `configHotkey()`:
+Parsed case-insensitively by `hotkeyParse()` in `src/core/hotkey.cpp`, which
+also ignores whitespace (`Ctrl + Shift + F5` = `ctrl+shift+f5`). Full list and
+rules in [keybinding.md](keybinding.md):
 
+- Optional `Ctrl` / `Shift` / `Alt` prefixes, joined with `+`
+  (`Ctrl+Shift+F5`, `Alt+Mouse4`). The match is **exact**: a plain `H` does not
+  fire while Ctrl is held
 - Single letter or digit (`H`, `K`, `5`) — the VK code is the ASCII uppercase
   character
-- `F1`–`F24`
+- `F1`–`F24`, `Numpad0`–`Numpad9`
 - Named keys: `Space`, `Tab`, `Enter`, `Backspace`, `Insert`, `Delete`,
-  `Home`, `End`, `PageUp`, `PageDown`, `Backtick` (`Grave`/`Tilde`, the
-  `` ` `` / `~` key)
+  `Home`, `End`, `PageUp`, `PageDown`, `Escape`, the arrow keys,
+  `Backtick` (`Grave`/`Tilde`, the `` ` `` / `~` key), the punctuation and
+  numpad-operator keys, and the lock keys
 - Extra mouse buttons: `Mouse3` (middle), `Mouse4` (`VK_XBUTTON1`), `Mouse5`
   (`VK_XBUTTON2`)
 - Raw hex virtual-key code (`0x48`) for anything not named above
-- `None` / `Off` / `Disabled` — returns 0 and the patch skips its install
-  entirely (no frame-tick registration, no hooks)
+- `None` / `Off` / `Disabled` — leaves the hotkey unbound and the patch skips
+  its install entirely (no frame-tick registration, no hooks)
+
+A value the parser does not understand falls back to the default, per the rule
+above — `Ctrl+` and a bare `Ctrl` are both rejected as incomplete.
 
 There is deliberately **no validation against the game's own key bindings** —
 the stock game reads its bindings from its own config, and the patch cannot

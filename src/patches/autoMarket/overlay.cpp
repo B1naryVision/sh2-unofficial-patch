@@ -1,19 +1,19 @@
 #include "overlay.h"
-#include "../../core/config.h"
 #include "../../core/d3dHook.h"
+#include "../../core/hotkey.h"
+#include "../../core/overlayPanel.h"
 #include "autoMarket.h"
-#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <d3d9.h>
 #include <windows.h>
 
-// Panel drawn over the game from inside the EndScene hook: a GDI bitmap (text
-// rendered with GDI, like the endgame-stats overlay) uploaded to a D3D texture
-// and drawn as one alpha-blended quad. Goods are grouped under category headers;
-// Min/Max are editable cells selectable by keyboard or mouse click. Position and
-// size are compile-time constants so the render path does no runtime x87 float
-// arithmetic — safe to call from the mid-function EndScene detour without fxsave.
+// Panel drawn over the game from inside the EndScene hook, on the shared
+// OverlayPanel plumbing (GDI bitmap -> managed texture -> one alpha-blended
+// quad; see src/core/overlayPanel.cpp). Goods are grouped under category
+// headers; Min/Max are editable cells selectable by keyboard or mouse click.
+// Everything here is integer arithmetic — the render path must stay float-free
+// for the mid-function EndScene detour.
 
 static const int PANEL_X = 24;
 static const int PANEL_Y = 18;
@@ -43,9 +43,9 @@ static const int PRESET_APPLY_L = 262;
 static const int PRESET_APPLY_R = 346;
 
 // ── state ──────────────────────────────────────────────────────────────────────
-static int s_hotkeyVk = 0;
+static Hotkey s_hotkey = {0, 0};
+static bool s_installed = false;
 static bool s_visible = false;
-static bool s_dirty = true;
 static int s_selRow = 0; // selected good row
 static int s_selField = 0; // 0 = Min, 1 = Max
 static bool s_freshEntry = true; // next digit replaces (set on any selection change)
@@ -55,32 +55,10 @@ static int s_presetSel = 0; // highlighted preset in the picklist
 static int s_goodY[64] = {};
 static bool s_layoutDone = false;
 
-// Backbuffer size, captured each frame, to map window-client click coords.
-static int s_renderW = 0;
-static int s_renderH = 0;
-
-// GDI
-static HDC s_memDC = nullptr;
-static HBITMAP s_dib = nullptr;
-static void *s_dibBits = nullptr;
-static HFONT s_font = nullptr;
-static HFONT s_fontBold = nullptr;
-static HFONT s_fontTitle = nullptr;
-
-// D3D
-static IDirect3DTexture9 *s_tex = nullptr;
-static IDirect3DDevice9 *s_texDevice = nullptr;
+static OverlayPanel s_panel;
 
 // Input (window subclass)
 static WNDPROC s_origWndProc = nullptr;
-
-struct PanelVtx {
-    float x, y, z, rhw;
-    DWORD color;
-    float u, v;
-};
-
-static const DWORD PANEL_FVF = D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_TEX1;
 
 // ── layout ──────────────────────────────────────────────────────────────────────
 static void ensureLayout() {
@@ -107,116 +85,28 @@ static void ensureLayout() {
     s_layoutDone = true;
 }
 
-// ── GDI panel bitmap ────────────────────────────────────────────────────────────
-static void ensureGdi() {
-    if (s_memDC) {
-        return;
-    }
-
-    HDC screen = GetDC(nullptr);
-
-    BITMAPINFO bmi = {};
-    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-    bmi.bmiHeader.biWidth = PANEL_W;
-    bmi.bmiHeader.biHeight = -PANEL_H; // top-down
-    bmi.bmiHeader.biPlanes = 1;
-    bmi.bmiHeader.biBitCount = 32;
-    bmi.bmiHeader.biCompression = BI_RGB;
-
-    s_memDC = CreateCompatibleDC(screen);
-    s_dib = CreateDIBSection(screen, &bmi, DIB_RGB_COLORS, &s_dibBits, nullptr, 0);
-    SelectObject(s_memDC, s_dib);
-
-    int dpi = GetDeviceCaps(screen, LOGPIXELSY);
-    s_font = CreateFontW(
-        -MulDiv(12, dpi, 72), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-        L"Segoe UI"
-    );
-    s_fontBold = CreateFontW(
-        -MulDiv(12, dpi, 72), 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-        L"Segoe UI"
-    );
-    s_fontTitle = CreateFontW(
-        -MulDiv(16, dpi, 72), 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-        L"Segoe UI"
-    );
-
-    ReleaseDC(nullptr, screen);
-}
-
-static void drawTextA(int x, int y, const char *s, COLORREF color) {
-    wchar_t w[48];
-    int k = 0;
-
-    for (const char *p = s; *p && k < 47; ++p) {
-        w[k++] = (wchar_t)(unsigned char)*p;
-    }
-
-    w[k] = 0;
-    SetTextColor(s_memDC, color);
-    TextOutW(s_memDC, x, y, w, k);
-}
-
-static void fillRect(int l, int t, int r, int b, COLORREF color) {
-    RECT rc = {l, t, r, b};
-    HBRUSH br = CreateSolidBrush(color);
-    FillRect(s_memDC, &rc, br);
-    DeleteObject(br);
-}
-
-static void frameRect(int l, int t, int r, int b, COLORREF color) {
-    RECT rc = {l, t, r, b};
-    HBRUSH br = CreateSolidBrush(color);
-    FrameRect(s_memDC, &rc, br);
-    DeleteObject(br);
-}
-
+// ── panel bitmap ────────────────────────────────────────────────────────────────
 // Draws one editable value cell; the selected cell gets a bright fill + border.
-static void drawFieldCell(int x, int y, int value, bool selected) {
+static void drawFieldCell(HDC dc, int x, int y, int value, bool selected) {
     int t = y - 1;
     int b = y + ROW_H - 2;
+    COLORREF ink = RGB(200, 200, 210);
 
     if (selected) {
-        fillRect(x, t, x + FIELD_W, b, RGB(64, 78, 116));
-        frameRect(x, t, x + FIELD_W, b, RGB(255, 205, 70));
+        overlayPanelFill(dc, x, t, x + FIELD_W, b, RGB(64, 78, 116));
+        overlayPanelFrame(dc, x, t, x + FIELD_W, b, RGB(255, 205, 70));
+        ink = RGB(255, 255, 255);
     } else {
-        frameRect(x, t, x + FIELD_W, b, RGB(58, 58, 74));
+        overlayPanelFrame(dc, x, t, x + FIELD_W, b, RGB(58, 58, 74));
     }
 
-    wchar_t w[16];
-    int k = _snwprintf(w, 16, L"%d", value);
-
-    if (k < 0) {
-        k = 0;
-    }
-
-    SetTextColor(s_memDC, selected ? RGB(255, 255, 255) : RGB(200, 200, 210));
-    // Right-align inside the cell.
-    SIZE sz = {0, 0};
-    GetTextExtentPoint32W(s_memDC, w, k, &sz);
-    TextOutW(s_memDC, x + FIELD_W - 6 - sz.cx, y, w, k);
-}
-
-static void drawTextCentered(int l, int r, int y, const char *s, COLORREF color) {
-    wchar_t w[48];
-    int k = 0;
-
-    for (const char *p = s; *p && k < 47; ++p) {
-        w[k++] = (wchar_t)(unsigned char)*p;
-    }
-
-    w[k] = 0;
-    SIZE sz = {0, 0};
-    GetTextExtentPoint32W(s_memDC, w, k, &sz);
-    SetTextColor(s_memDC, color);
-    TextOutW(s_memDC, l + (r - l - sz.cx) / 2, y, w, k);
+    char text[16];
+    snprintf(text, sizeof(text), "%d", value);
+    overlayPanelTextRight(dc, x + FIELD_W - 6, y, text, ink);
 }
 
 // Draws the preset picklist: "Preset:  < name >  [Apply]".
-static void drawPresetBar() {
+static void drawPresetBar(HDC dc) {
     int t = PRESET_Y - 2;
     int b = PRESET_Y + 18;
     int count = autoMarketPresetCount();
@@ -225,48 +115,56 @@ static void drawPresetBar() {
         s_presetSel = 0;
     }
 
-    drawTextA(COL_NAME, PRESET_Y, "Preset:", RGB(180, 180, 195));
+    overlayPanelText(dc, COL_NAME, PRESET_Y, "Preset:", RGB(180, 180, 195));
 
-    frameRect(PRESET_PREV_L, t, PRESET_PREV_R, b, RGB(90, 90, 110));
-    drawTextCentered(PRESET_PREV_L, PRESET_PREV_R, PRESET_Y, "<", RGB(220, 220, 230));
-    frameRect(PRESET_NEXT_L, t, PRESET_NEXT_R, b, RGB(90, 90, 110));
-    drawTextCentered(PRESET_NEXT_L, PRESET_NEXT_R, PRESET_Y, ">", RGB(220, 220, 230));
+    overlayPanelFrame(dc, PRESET_PREV_L, t, PRESET_PREV_R, b, RGB(90, 90, 110));
+    overlayPanelTextCentered(dc, PRESET_PREV_L, PRESET_PREV_R, PRESET_Y, "<", RGB(220, 220, 230));
+    overlayPanelFrame(dc, PRESET_NEXT_L, t, PRESET_NEXT_R, b, RGB(90, 90, 110));
+    overlayPanelTextCentered(dc, PRESET_NEXT_L, PRESET_NEXT_R, PRESET_Y, ">", RGB(220, 220, 230));
 
-    frameRect(PRESET_NAME_L, t, PRESET_NAME_R, b, RGB(58, 58, 74));
-    const char *name = count > 0 ? autoMarketPresetName(s_presetSel) : "(no presets)";
-    drawTextCentered(
-        PRESET_NAME_L, PRESET_NAME_R, PRESET_Y, name,
-        count > 0 ? RGB(255, 235, 150) : RGB(120, 120, 130)
-    );
+    overlayPanelFrame(dc, PRESET_NAME_L, t, PRESET_NAME_R, b, RGB(58, 58, 74));
 
-    bool enabled = count > 0;
-    fillRect(PRESET_APPLY_L, t, PRESET_APPLY_R, b, enabled ? RGB(48, 70, 48) : RGB(40, 40, 50));
-    frameRect(PRESET_APPLY_L, t, PRESET_APPLY_R, b, enabled ? RGB(120, 200, 120) : RGB(70, 70, 84));
-    drawTextCentered(
-        PRESET_APPLY_L, PRESET_APPLY_R, PRESET_Y, "Apply",
-        enabled ? RGB(220, 255, 220) : RGB(110, 110, 120)
-    );
+    const char *name = "(no presets)";
+    COLORREF nameInk = RGB(120, 120, 130);
+
+    if (count > 0) {
+        name = autoMarketPresetName(s_presetSel);
+        nameInk = RGB(255, 235, 150);
+    }
+
+    overlayPanelTextCentered(dc, PRESET_NAME_L, PRESET_NAME_R, PRESET_Y, name, nameInk);
+
+    COLORREF applyFill = RGB(40, 40, 50);
+    COLORREF applyEdge = RGB(70, 70, 84);
+    COLORREF applyInk = RGB(110, 110, 120);
+
+    if (count > 0) {
+        applyFill = RGB(48, 70, 48);
+        applyEdge = RGB(120, 200, 120);
+        applyInk = RGB(220, 255, 220);
+    }
+
+    overlayPanelFill(dc, PRESET_APPLY_L, t, PRESET_APPLY_R, b, applyFill);
+    overlayPanelFrame(dc, PRESET_APPLY_L, t, PRESET_APPLY_R, b, applyEdge);
+    overlayPanelTextCentered(dc, PRESET_APPLY_L, PRESET_APPLY_R, PRESET_Y, "Apply", applyInk);
 }
 
-static void renderPanelBitmap() {
-    ensureGdi();
+static void paintPanel(HDC dc) {
     ensureLayout();
 
-    RECT full = {0, 0, PANEL_W, PANEL_H};
-    HBRUSH bg = CreateSolidBrush(RGB(26, 26, 34));
-    FillRect(s_memDC, &full, bg);
-    DeleteObject(bg);
-    frameRect(0, 0, PANEL_W, PANEL_H, RGB(90, 90, 110));
+    overlayPanelFill(dc, 0, 0, PANEL_W, PANEL_H, RGB(26, 26, 34));
+    overlayPanelFrame(dc, 0, 0, PANEL_W, PANEL_H, RGB(90, 90, 110));
 
-    SetBkMode(s_memDC, TRANSPARENT);
+    HFONT font = overlayPanelFont(12, false);
+    HFONT fontBold = overlayPanelFont(12, true);
 
-    SelectObject(s_memDC, s_fontTitle);
-    drawTextA(COL_NAME, TITLE_Y, "Auto-Market", RGB(255, 255, 255));
+    SelectObject(dc, overlayPanelFont(16, true));
+    overlayPanelText(dc, COL_NAME, TITLE_Y, "Auto-Market", RGB(255, 255, 255));
 
-    SelectObject(s_memDC, s_font);
-    drawPresetBar();
-    drawTextA(MIN_X + 4, COLHDR_Y, "Min", RGB(150, 150, 165));
-    drawTextA(MAX_X + 4, COLHDR_Y, "Max", RGB(150, 150, 165));
+    SelectObject(dc, font);
+    drawPresetBar(dc);
+    overlayPanelText(dc, MIN_X + 4, COLHDR_Y, "Min", RGB(150, 150, 165));
+    overlayPanelText(dc, MAX_X + 4, COLHDR_Y, "Max", RGB(150, 150, 165));
 
     int count = autoMarketGoodCount();
     const char *lastCat = nullptr;
@@ -279,117 +177,28 @@ static void renderPanelBitmap() {
         // Category header above the first good of each category.
         if (!lastCat || strcmp(cat, lastCat) != 0) {
             int cy = y - CAT_H;
-            fillRect(4, cy + 2, PANEL_W - 4, cy + CAT_H - 1, RGB(40, 44, 58));
-            SelectObject(s_memDC, s_fontBold);
-            drawTextA(COL_NAME, cy + 3, cat, RGB(150, 200, 255));
-            SelectObject(s_memDC, s_font);
+            overlayPanelFill(dc, 4, cy + 2, PANEL_W - 4, cy + CAT_H - 1, RGB(40, 44, 58));
+            SelectObject(dc, fontBold);
+            overlayPanelText(dc, COL_NAME, cy + 3, cat, RGB(150, 200, 255));
+            SelectObject(dc, font);
             lastCat = cat;
         }
 
         if (i == s_selRow) {
-            fillRect(4, y - 1, PANEL_W - 4, y + ROW_H - 2, RGB(44, 50, 68));
+            overlayPanelFill(dc, 4, y - 1, PANEL_W - 4, y + ROW_H - 2, RGB(44, 50, 68));
         }
 
-        drawTextA(COL_NAME, y, autoMarketGoodName(i), RGB(225, 225, 230));
-        drawFieldCell(MIN_X, y, autoMarketGetMin(id), i == s_selRow && s_selField == 0);
-        drawFieldCell(MAX_X, y, autoMarketGetMax(id), i == s_selRow && s_selField == 1);
+        overlayPanelText(dc, COL_NAME, y, autoMarketGoodName(i), RGB(225, 225, 230));
+        drawFieldCell(dc, MIN_X, y, autoMarketGetMin(id), i == s_selRow && s_selField == 0);
+        drawFieldCell(dc, MAX_X, y, autoMarketGetMax(id), i == s_selRow && s_selField == 1);
     }
 
-    drawTextA(
-        COL_NAME, PANEL_H - 32, "Click/arrows select - type set - Del clear", RGB(140, 140, 150)
+    overlayPanelText(
+        dc, COL_NAME, PANEL_H - 32, "Click/arrows select - type set - Del clear", RGB(140, 140, 150)
     );
-    drawTextA(
-        COL_NAME, PANEL_H - 18, "PgUp/PgDn preset - Enter apply - Esc close", RGB(140, 140, 150)
+    overlayPanelText(
+        dc, COL_NAME, PANEL_H - 18, "PgUp/PgDn preset - Enter apply - Esc close", RGB(140, 140, 150)
     );
-
-    // GDI leaves the alpha byte at 0; make the whole panel opaque.
-    uint32_t *px = (uint32_t *)s_dibBits;
-
-    for (int i = 0; i < PANEL_W * PANEL_H; ++i) {
-        px[i] |= 0xFF000000u;
-    }
-
-    s_dirty = false;
-}
-
-// ── D3D texture + draw ──────────────────────────────────────────────────────────
-static void ensureTexture(IDirect3DDevice9 *device) {
-    if (s_tex && s_texDevice == device) {
-        return;
-    }
-
-    if (s_tex) {
-        s_tex->Release();
-        s_tex = nullptr;
-    }
-
-    if (SUCCEEDED(device->CreateTexture(
-            PANEL_W, PANEL_H, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &s_tex, nullptr
-        ))) {
-        s_texDevice = device;
-        s_dirty = true;
-    }
-}
-
-static void uploadTexture() {
-    if (!s_tex) {
-        return;
-    }
-
-    D3DLOCKED_RECT lr;
-
-    if (FAILED(s_tex->LockRect(0, &lr, nullptr, 0))) {
-        return;
-    }
-
-    for (int row = 0; row < PANEL_H; ++row) {
-        memcpy(
-            (BYTE *)lr.pBits + row * lr.Pitch, (BYTE *)s_dibBits + row * PANEL_W * 4, PANEL_W * 4
-        );
-    }
-
-    s_tex->UnlockRect(0);
-}
-
-static void drawPanel(IDirect3DDevice9 *device) {
-    static const float X0 = (float)PANEL_X - 0.5f;
-    static const float Y0 = (float)PANEL_Y - 0.5f;
-    static const float X1 = (float)(PANEL_X + PANEL_W) - 0.5f;
-    static const float Y1 = (float)(PANEL_Y + PANEL_H) - 0.5f;
-
-    PanelVtx quad[4] = {
-        {X0, Y0, 0.0f, 1.0f, 0xFFFFFFFF, 0.0f, 0.0f},
-        {X1, Y0, 0.0f, 1.0f, 0xFFFFFFFF, 1.0f, 0.0f},
-        {X0, Y1, 0.0f, 1.0f, 0xFFFFFFFF, 0.0f, 1.0f},
-        {X1, Y1, 0.0f, 1.0f, 0xFFFFFFFF, 1.0f, 1.0f},
-    };
-
-    IDirect3DStateBlock9 *saved = nullptr;
-
-    if (FAILED(device->CreateStateBlock(D3DSBT_ALL, &saved))) {
-        return;
-    }
-
-    device->SetPixelShader(nullptr);
-    device->SetVertexShader(nullptr);
-    device->SetRenderState(D3DRS_LIGHTING, FALSE);
-    device->SetRenderState(D3DRS_ZENABLE, FALSE);
-    device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
-    device->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
-    device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
-    device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
-    device->SetTexture(0, s_tex);
-    device->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
-    device->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
-    device->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
-    device->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-    device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_POINT);
-    device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
-    device->SetFVF(PANEL_FVF);
-    device->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, quad, sizeof(PanelVtx));
-
-    saved->Apply();
-    saved->Release();
 }
 
 // ── editing ─────────────────────────────────────────────────────────────────────
@@ -414,7 +223,7 @@ static void setCurrentField(int goodId, int value) {
         autoMarketSetMax(goodId, value);
     }
 
-    s_dirty = true;
+    overlayPanelMarkDirty(s_panel);
 }
 
 // Moves selection; a fresh selection means the next digit types from scratch.
@@ -423,7 +232,7 @@ static void selectCell(int row, int field) {
     s_selRow = (row % count + count) % count;
     s_selField = field & 1;
     s_freshEntry = true;
-    s_dirty = true;
+    overlayPanelMarkDirty(s_panel);
 }
 
 static void typeDigit(int digit) {
@@ -441,7 +250,7 @@ static void cyclePreset(int dir) {
     }
 
     s_presetSel = ((s_presetSel + dir) % count + count) % count;
-    s_dirty = true;
+    overlayPanelMarkDirty(s_panel);
 }
 
 static void applyCurrentPreset() {
@@ -450,7 +259,7 @@ static void applyCurrentPreset() {
     }
 
     autoMarketApplyPreset(s_presetSel);
-    s_dirty = true;
+    overlayPanelMarkDirty(s_panel);
 }
 
 static bool handleEditKey(int vk) {
@@ -458,7 +267,7 @@ static bool handleEditKey(int vk) {
 
     if (vk == VK_ESCAPE) {
         s_visible = false;
-        s_dirty = true;
+        overlayPanelMarkDirty(s_panel);
     } else if (vk == VK_PRIOR) {
         cyclePreset(-1);
     } else if (vk == VK_NEXT) {
@@ -490,31 +299,12 @@ static bool handleEditKey(int vk) {
     return true; // all keys swallowed while the editor is open
 }
 
-// Maps a window-client point to panel-local coords. Returns true if inside the
-// panel (side-effect-free, so it can gate swallowing without acting).
-static bool mapToPanel(int clientX, int clientY, HWND hwnd, int &lx, int &ly) {
-    if (s_renderW <= 0 || s_renderH <= 0) {
-        return false;
-    }
-
-    RECT cr;
-
-    if (!GetClientRect(hwnd, &cr) || cr.right <= 0 || cr.bottom <= 0) {
-        return false;
-    }
-
-    // Client -> backbuffer coords (handles windowed scaling), then panel-local.
-    lx = clientX * s_renderW / cr.right - PANEL_X;
-    ly = clientY * s_renderH / cr.bottom - PANEL_Y;
-    return lx >= 0 && ly >= 0 && lx < PANEL_W && ly < PANEL_H;
-}
-
 // Performs the click action (button-DOWN only). Returns true if inside the panel.
 static bool handleClick(int clientX, int clientY, HWND hwnd) {
     int lx = 0;
     int ly = 0;
 
-    if (!mapToPanel(clientX, clientY, hwnd, lx, ly)) {
+    if (!overlayPanelMapPoint(s_panel, hwnd, clientX, clientY, lx, ly)) {
         return false; // outside the panel — let the game have the click
     }
 
@@ -556,9 +346,9 @@ static LRESULT CALLBACK overlayWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARA
     if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) {
         int vk = (int)wparam;
 
-        if (vk == s_hotkeyVk) {
+        if (hotkeyMatchesKeyDown(s_hotkey, vk)) {
             s_visible = !s_visible;
-            s_dirty = true;
+            overlayPanelMarkDirty(s_panel);
             return 0;
         }
 
@@ -583,7 +373,7 @@ static LRESULT CALLBACK overlayWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARA
                 int lx = 0;
                 int ly = 0;
 
-                if (mapToPanel(x, y, hwnd, lx, ly)) {
+                if (overlayPanelMapPoint(s_panel, hwnd, x, y, lx, ly)) {
                     return 0;
                 }
             }
@@ -620,21 +410,18 @@ static void overlayRender(IDirect3DDevice9 *device) {
         return;
     }
 
-    D3DVIEWPORT9 vp;
+    overlayPanelEnsureDevice(s_panel, device);
 
-    if (SUCCEEDED(device->GetViewport(&vp))) {
-        s_renderW = (int)vp.Width;
-        s_renderH = (int)vp.Height;
+    if (s_panel.dirty) {
+        HDC dc = overlayPanelBeginPaint(s_panel);
+
+        if (dc) {
+            paintPanel(dc);
+            overlayPanelEndPaint(s_panel);
+        }
     }
 
-    ensureTexture(device);
-
-    if (s_dirty) {
-        renderPanelBitmap();
-        uploadTexture();
-    }
-
-    drawPanel(device);
+    overlayPanelDraw(s_panel, device);
 }
 
 void autoMarketOverlayReset() {
@@ -642,18 +429,30 @@ void autoMarketOverlayReset() {
     s_selRow = 0;
     s_selField = 0;
     s_freshEntry = true;
-    s_dirty = true;
+    overlayPanelMarkDirty(s_panel);
 }
 
 bool installAutoMarketOverlay() {
     // Default toggle: the ` / ~ key (VK_OEM_3), which Stronghold 2 does not use
     // (F1–F12 are taunts). Configurable via [hotkeys] AutoMarketPanel.
-    s_hotkeyVk = configHotkey("AutoMarketPanel", VK_OEM_3);
+    Hotkey def = {VK_OEM_3, 0};
+    s_hotkey = hotkeyLoad("hotkeys", "AutoMarketPanel", def);
 
-    if (s_hotkeyVk == 0) {
+    if (!hotkeyIsBound(s_hotkey)) {
         return false;
     }
 
+    // Install time, not render time: this is where the quad's floats are built.
+    overlayPanelInit(s_panel, PANEL_X, PANEL_Y, PANEL_W, PANEL_H);
     registerD3DRender(&overlayRender);
+    s_installed = true;
     return true;
 }
+
+bool autoMarketOverlayVisible() { return s_visible; }
+
+Hotkey autoMarketOverlayBinding() { return s_hotkey; }
+
+void autoMarketOverlaySetBinding(const Hotkey &hk) { s_hotkey = hk; }
+
+bool autoMarketOverlayInstalled() { return s_installed; }

@@ -8,6 +8,9 @@ DEF      = d3d9.def
 
 SRCS = src/dllmain.cpp \
        src/core/config.cpp \
+       src/core/hotkey.cpp \
+       src/core/keybindWidget.cpp \
+       src/core/overlayPanel.cpp \
        src/core/hook.cpp \
        src/core/log.cpp \
        src/core/frameTick.cpp \
@@ -32,7 +35,8 @@ SRCS = src/dllmain.cpp \
        src/patches/shiftRecruit.cpp \
        src/patches/siegeCampHotkey.cpp \
        src/patches/autoMarket/autoMarket.cpp \
-       src/patches/autoMarket/overlay.cpp
+       src/patches/autoMarket/overlay.cpp \
+       src/patches/settingsOverlay.cpp
 
 HDRS = $(wildcard src/*.h src/core/*.h src/proxy/*.h src/patches/*.h src/patches/endgameStats/*.h src/patches/autoMarket/*.h)
 

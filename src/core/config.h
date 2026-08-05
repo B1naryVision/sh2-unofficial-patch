@@ -8,9 +8,17 @@
 // calls it first).
 void loadConfig();
 
-// Virtual-key code for a [hotkeys] entry. Returns 0 when the user disabled
-// the key ("None"), the default when the key is missing or unparseable.
-int configHotkey(const char *key, int defaultVk);
+// The resolved ini path, "" until loadConfig() has run or if it could not be
+// derived. Needed by writers (see hotkeySave in hotkey.h); readers should use
+// the accessors here instead.
+const char *configIniPath();
+
+// Raw string value. Returns false when the ini or the key is absent, leaving
+// buf untouched-but-terminated.
+bool configString(const char *section, const char *key, char *buf, int bufLen);
+
+// [hotkeys] entries are read through hotkeyLoad() in hotkey.h, which parses
+// the key name and its Ctrl/Shift/Alt modifiers.
 
 float configFloat(const char *section, const char *key, float defaultValue);
 

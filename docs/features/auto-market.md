@@ -135,6 +135,12 @@ drawn as one alpha-blended pre-transformed quad. It is re-rendered only when a
 dirty flag is set (toggle, selection or value change). Goods are grouped under
 category headers; each Min/Max is a cell.
 
+That plumbing now lives in `src/core/overlayPanel.cpp`, shared with the settings
+overlay — this file keeps only the layout and the editing logic. The quad's
+vertices are built at install time by `overlayPanelInit`, which is what keeps the
+render path free of float arithmetic; see
+[settings-overlay.md](settings-overlay.md).
+
 **Input.** The overlay subclasses the game window's `WndProc`. The toggle hotkey
 shows/hides it; while open it routes keys (arrows/Tab to move, digits to type,
 Backspace/Delete, Esc) and mouse clicks (hit-tested to a cell, mapped through the

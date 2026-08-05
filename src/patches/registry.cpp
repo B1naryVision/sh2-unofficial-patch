@@ -9,6 +9,7 @@
 #include "mapEdgeCrash.h"
 #include "mpAiEnable.h"
 #include "mpConnectCompleteCrash.h"
+#include "settingsOverlay.h"
 #include "shiftRecruit.h"
 #include "siegeCampHotkey.h"
 #include "stopTroopsHotkey.h"
@@ -30,4 +31,8 @@ void applyUnofficialPatches() {
     installShiftRecruit();
     installAutoMarket();
     installSiegeCampHotkey();
+
+    // Last: it reads every other feature's loaded binding, and its window
+    // subclass must sit outside the auto-market editor's so it sees input first.
+    installSettingsOverlay();
 }

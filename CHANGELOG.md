@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+### [Feature] - In-Game Settings Panel for Shortcuts
+
+- **What the issue was:** Changing any of the patch's shortcuts meant quitting the game, opening `sh2-unofficial-patch.ini` in a text editor and typing the right key name — awkward for anyone who would rather not edit config files.
+- **What we changed:** Press **`Ctrl+Shift+O`** in game to open a settings panel listing every patch shortcut. Click one, press the key (or key combination) you want, and it is changed straight away and saved for next time. `[x]` clears a shortcut, `Esc` closes the panel, and shortcuts set to the same key are highlighted so you can spot a clash.
+
+### [Improvement] - Key Combinations and More Keys for the Patch Shortcuts
+
+- **What the issue was:** The patch's shortcuts could only be set to a single key, chosen from a short list of names, so there was no way to put one on something like `Ctrl+Shift+H` and keep the plain key free for the game.
+- **What we changed:** Shortcut settings in `sh2-unofficial-patch.ini` now accept `Ctrl`, `Shift` and `Alt` combinations (for example `StopTroops=Ctrl+Shift+H`), along with many more key names including the arrow keys, the numpad and the punctuation keys. Combinations match exactly: a shortcut set to plain `H` no longer fires while you are holding `Ctrl`. Existing settings keep working unchanged.
+
 ### [Improvement] - Siege Camp Shortcut No Longer Yanks the Camera Away
 
 - **What the issue was:** Pressing the siege camp shortcut (`J`) opened the siege camp panel and immediately threw the camera across the map to your siege camp, so you lost sight of whatever you were watching just to queue up some equipment.

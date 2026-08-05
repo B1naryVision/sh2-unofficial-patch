@@ -1,0 +1,74 @@
+#pragma once
+#include <windows.h>
+
+struct IDirect3DDevice9;
+struct IDirect3DTexture9;
+
+// The plumbing behind a panel drawn over the game: a GDI bitmap the caller
+// paints with ordinary GDI calls, uploaded to a D3D texture and drawn as one
+// alpha-blended pre-transformed quad from inside the EndScene hook.
+//
+// The render path must stay float-free (the EndScene detour is a mid-function
+// hook that may have live x87 state), so the quad's vertices are built **once**
+// by overlayPanelInit and only copied afterwards. Call overlayPanelInit from an
+// install function, never from the render callback.
+//
+// See docs/features/keybinding.md and docs/features/auto-market.md.
+
+struct OverlayPanelVtx {
+    float x, y, z, rhw;
+    DWORD color;
+    float u, v;
+};
+
+struct OverlayPanel {
+    int x, y, w, h;
+    OverlayPanelVtx quad[4]; // prebuilt; the draw path never computes a float
+
+    HDC dc; // GDI memory DC, created on the first paint
+    HBITMAP dib;
+    void *bits;
+
+    IDirect3DTexture9 *tex;
+    IDirect3DDevice9 *texDevice;
+
+    bool dirty; // repaint needed
+    int renderW; // backbuffer size, captured each present, for click mapping
+    int renderH;
+};
+
+void overlayPanelInit(OverlayPanel &p, int x, int y, int w, int h);
+
+void overlayPanelMarkDirty(OverlayPanel &p);
+
+// Creates or recreates the texture for `device`. Marks the panel dirty when the
+// texture is new, so the caller repaints into it.
+void overlayPanelEnsureDevice(OverlayPanel &p, IDirect3DDevice9 *device);
+
+// Returns the memory DC to paint into (GDI objects are created on first use),
+// or null if it could not be created. Bracket painting with EndPaint.
+HDC overlayPanelBeginPaint(OverlayPanel &p);
+
+// Forces the bitmap opaque (GDI leaves the alpha byte at 0), uploads it to the
+// texture and clears the dirty flag.
+void overlayPanelEndPaint(OverlayPanel &p);
+
+// Draws the quad. Saves and restores all device state.
+void overlayPanelDraw(OverlayPanel &p, IDirect3DDevice9 *device);
+
+// Maps a window-client point to panel-local coordinates, through the backbuffer
+// size so it is correct windowed. Returns false when the point is outside the
+// panel. Side-effect-free, so it can gate swallowing without acting.
+bool overlayPanelMapPoint(
+    const OverlayPanel &p, HWND hwnd, int clientX, int clientY, int &lx, int &ly
+);
+
+// Shared font cache (Segoe UI, DPI-scaled). Valid for the process lifetime.
+HFONT overlayPanelFont(int pointSize, bool bold);
+
+// GDI conveniences shared by the panels; `text` is ASCII, drawn as UTF-16.
+void overlayPanelFill(HDC dc, int l, int t, int r, int b, COLORREF color);
+void overlayPanelFrame(HDC dc, int l, int t, int r, int b, COLORREF color);
+void overlayPanelText(HDC dc, int x, int y, const char *text, COLORREF color);
+void overlayPanelTextCentered(HDC dc, int l, int r, int y, const char *text, COLORREF color);
+void overlayPanelTextRight(HDC dc, int right, int y, const char *text, COLORREF color);

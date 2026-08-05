@@ -1,6 +1,7 @@
 #include "attackHotkey.h"
-#include "../core/config.h"
 #include "../core/hook.h"
+#include "../core/hotkey.h"
+#include "../core/keybindWidget.h"
 #include <cstdint>
 #include <windows.h>
 
@@ -13,8 +14,10 @@ static const uint16_t SET_STATE_OPCODE = 0x68; // message opcode: set toggle-but
 static const uint16_t ATTACK_STANCE_SUBID = 0x1dbd; // the "Attack" stance toggle button
 static const uintptr_t ATTACK_FLAG_OFF = 0x8be0; // panel byte: attack stance on/off
 
-// Configurable via [hotkeys] AttackToggle in sh2-unofficial-patch.ini; 0 = disabled.
-static int s_hotkeyVk = VK_XBUTTON1; // Mouse4
+// Configurable via [hotkeys] AttackToggle in sh2-unofficial-patch.ini; None = disabled.
+// Rebindable at runtime from the settings overlay (docs/features/settings-overlay.md).
+static Hotkey s_hotkey = {VK_XBUTTON1, 0}; // Mouse4
+static bool s_installed = false;
 
 typedef void(__attribute__((thiscall)) * DispatchFn)(void *panel, void *msg);
 
@@ -27,19 +30,6 @@ uintptr_t g_dispReturn = 0;
 // `mov ecx, imm32` whose immediate is an ASLR-relocated module address, captured live.
 uint32_t g_attackHookEcx = 0;
 uintptr_t g_attackHookReturn = 0;
-
-static bool gameWindowFocused() {
-    HWND foreground = GetForegroundWindow();
-
-    if (!foreground) {
-        return false;
-    }
-
-    DWORD pid = 0;
-    GetWindowThreadProcessId(foreground, &pid);
-
-    return pid == GetCurrentProcessId();
-}
 
 // Toggle the "Attack" stance on the currently-selected troops by replaying the exact
 // message the stock Attack toggle button sends to the panel. Setting panel+0x8be0 makes the
@@ -70,9 +60,11 @@ static void triggerAttackToggle() {
 // is applied on the same thread that owns the panel — exactly as a real click would be.
 extern "C" void attackHotkeyTick() {
     static bool prevDown = false;
-    bool down = (GetAsyncKeyState(s_hotkeyVk) & 0x8000) != 0;
+    bool down = hotkeyHeld(s_hotkey);
 
-    if (down && !prevDown && gameWindowFocused()) {
+    // Polling bypasses the window procedure, so a rebind prompt cannot swallow
+    // this key the way it swallows the game's own input — check it explicitly.
+    if (down && !prevDown && !keybindCaptureActive() && gameWindowFocused()) {
         triggerAttackToggle();
     }
 
@@ -105,9 +97,9 @@ __declspec(naked) static void frameHook() {
 }
 
 void installAttackHotkey() {
-    s_hotkeyVk = configHotkey("AttackToggle", VK_XBUTTON1);
+    s_hotkey = hotkeyLoad("hotkeys", "AttackToggle", s_hotkey);
 
-    if (s_hotkeyVk == 0) {
+    if (!hotkeyIsBound(s_hotkey)) {
         return;
     }
 
@@ -121,4 +113,11 @@ void installAttackHotkey() {
     uintptr_t disp = base + DISPATCHER_RVA;
     g_dispReturn = disp + 6;
     installHook((void *)disp, reinterpret_cast<void *>(dispatcherHook), 6);
+    s_installed = true;
 }
+
+Hotkey attackToggleBinding() { return s_hotkey; }
+
+void attackToggleSetBinding(const Hotkey &hk) { s_hotkey = hk; }
+
+bool attackToggleInstalled() { return s_installed; }
