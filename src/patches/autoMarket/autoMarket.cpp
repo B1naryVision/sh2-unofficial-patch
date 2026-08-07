@@ -119,7 +119,7 @@ static const GoodName GOOD_NAMES[] = {
     {"Eels", 14, "Kitchen food"},
     {"Geese", 15, "Kitchen food"},
     {"Pigs", 17, "Kitchen food"},
-    {"Grapes", 19, "Kitchen food"},
+    {"Wine", 19, "Kitchen food"},
 
     {"Candles", 10, "Goods"},
     {"Wool", 11, "Goods"},

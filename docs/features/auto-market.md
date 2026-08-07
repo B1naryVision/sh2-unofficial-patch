@@ -92,7 +92,7 @@ player pointer = global RVA `0x6e8c60`; gold (float) at `player + 0x1010`.
 
 Good-id → name: 1 Wood, 2 Stone, 3 Iron, 4 Wheat, 5 Flour, 6 Hops, 7 Ale,
 9 Pitch, 10 Candles, 11 Wool, 12 Cloth, 14 Eels, 15 Geese, 17 Pigs,
-18 Vegetables, 19 Grapes, 22 Apples, 23 Bread, 24 Cheese, 25 Meat, 30 Bows,
+18 Vegetables, 19 Wine, 22 Apples, 23 Bread, 24 Cheese, 25 Meat, 30 Bows,
 31 Crossbows, 32 Swords, 33 Maces, 34 Pikes, 35 Spears, 36 Armour,
 37 Leather Armour. Ids 8/13/16/20/21/26–29 are unnamed (unused or non-market).
 
