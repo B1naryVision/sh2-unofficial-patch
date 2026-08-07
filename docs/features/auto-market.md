@@ -1,5 +1,7 @@
 # Auto-Market (QoL feature)
 
+**Status:** Added in v0.6.0 — confirmed in-game
+
 Keeps each good's stock inside a `[min, max]` band by posting the Market's own
 buy/sell commands at the good's real market price — the same result as a player
 clicking Buy/Sell in the trade window, but automated. Thresholds are set through

@@ -1,6 +1,6 @@
 # Shift-Click Batch Recruitment
 
-**Status:** Implemented, awaiting playtest (single-player and multiplayer)
+**Status:** Added in v0.6.0
 **Affects:** Stronghold 2 Steam v1.5.0 (32-bit, `Stronghold2.exe`)
 **Config:** `[recruitment] RecruitmentShiftMultiplier` in `sh2-unofficial-patch.ini` (default `20`, `0`/`1` disables)
 

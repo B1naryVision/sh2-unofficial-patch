@@ -1,6 +1,6 @@
 # In-game Settings Overlay
 
-**Status:** Unreleased
+**Status:** Added in v0.6.0
 **Patch type:** No game-code change — a Direct3D-drawn panel
 (`src/patches/settingsOverlay.cpp`) plus the shared panel plumbing
 (`src/core/overlayPanel.cpp`)

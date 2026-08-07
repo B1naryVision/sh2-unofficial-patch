@@ -1,6 +1,6 @@
 # Keybinding (`Hotkey` + in-game rebind widget)
 
-**Status:** Unreleased
+**Status:** Added in v0.6.0
 **Patch type:** No game-code change — a shared component (`src/core/hotkey.cpp`,
 `src/core/keybindWidget.cpp`) used by the hotkey patches and the overlays
 

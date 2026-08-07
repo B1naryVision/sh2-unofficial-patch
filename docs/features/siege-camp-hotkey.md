@@ -1,6 +1,6 @@
 # Siege Camp Hotkey — Open Panel First, Jump Camera on Second Press (`J`)
 
-**Status:** Implemented — confirmed in-game (panel opens without moving the view, a second press travels there)
+**Status:** Added in v0.6.0 — confirmed in-game (panel opens without moving the view, a second press travels there)
 **Affected version:** Stronghold 2 Steam v1.5.0 (32-bit, `Stronghold2.exe`)
 **Config:** `[interface] SiegeCampJumpOnSecondPress` in `sh2-unofficial-patch.ini` (default `1`; `0` restores stock behaviour)
 **Patch type:** Two trampolines inside `GameScreen::onKeyDown`'s siege camp case — one latches
