@@ -24,20 +24,32 @@ struct OverlayPanelVtx {
 struct OverlayPanel {
     int x, y, w, h;
     OverlayPanelVtx quad[4]; // prebuilt; the draw path never computes a float
+    BYTE alpha; // whole-panel opacity, 255 = opaque
 
     HDC dc; // GDI memory DC, created on the first paint
     HBITMAP dib;
     void *bits;
+    int dcW, dcH; // size the DIB was created at
 
     IDirect3DTexture9 *tex;
     IDirect3DDevice9 *texDevice;
+    int texW, texH; // size the texture was created at
 
     bool dirty; // repaint needed
-    int renderW; // backbuffer size, captured each present, for click mapping
-    int renderH;
 };
 
 void overlayPanelInit(OverlayPanel &p, int x, int y, int w, int h);
+
+// Moves and/or resizes the panel, rebuilding the quad. **Does float
+// arithmetic**, so call it from an install function or a function-prologue hook
+// — never from a frame-tick or render callback, where the interrupted code may
+// hold live x87 state. The GDI bitmap and texture are recreated lazily on the
+// render thread when the size changes, so no D3D object is touched here.
+void overlayPanelSetBounds(OverlayPanel &p, int x, int y, int w, int h);
+
+// Whole-panel opacity (255 = opaque, the default). Applied when the bitmap is
+// uploaded, so it takes effect on the next repaint.
+void overlayPanelSetAlpha(OverlayPanel &p, BYTE alpha);
 
 void overlayPanelMarkDirty(OverlayPanel &p);
 

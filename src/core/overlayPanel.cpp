@@ -1,4 +1,5 @@
 #include "overlayPanel.h"
+#include "d3dHook.h"
 #include <cstdint>
 #include <cstring>
 #include <d3d9.h>
@@ -107,15 +108,26 @@ void overlayPanelTextRight(HDC dc, int right, int y, const char *text, COLORREF 
 // ── panel ───────────────────────────────────────────────────────────────────────
 void overlayPanelInit(OverlayPanel &p, int x, int y, int w, int h) {
     memset(&p, 0, sizeof(p));
+    p.alpha = 255;
+    overlayPanelSetBounds(p, x, y, w, h);
+}
+
+void overlayPanelSetAlpha(OverlayPanel &p, BYTE alpha) {
+    if (p.alpha != alpha) {
+        p.alpha = alpha;
+        p.dirty = true;
+    }
+}
+
+void overlayPanelSetBounds(OverlayPanel &p, int x, int y, int w, int h) {
     p.x = x;
     p.y = y;
     p.w = w;
     p.h = h;
     p.dirty = true;
 
-    // The only float arithmetic in this file, deliberately done here (install
-    // time) and never on the render thread. The -0.5f is the D3D9 texel/pixel
-    // alignment offset.
+    // The only float arithmetic in this file, deliberately kept off the render
+    // thread. The -0.5f is the D3D9 texel/pixel alignment offset.
     float x0 = (float)x - 0.5f;
     float y0 = (float)y - 0.5f;
     float x1 = (float)(x + w) - 0.5f;
@@ -140,14 +152,7 @@ void overlayPanelInit(OverlayPanel &p, int x, int y, int w, int h) {
 void overlayPanelMarkDirty(OverlayPanel &p) { p.dirty = true; }
 
 void overlayPanelEnsureDevice(OverlayPanel &p, IDirect3DDevice9 *device) {
-    D3DVIEWPORT9 vp;
-
-    if (SUCCEEDED(device->GetViewport(&vp))) {
-        p.renderW = (int)vp.Width;
-        p.renderH = (int)vp.Height;
-    }
-
-    if (p.tex && p.texDevice == device) {
+    if (p.tex && p.texDevice == device && p.texW == p.w && p.texH == p.h) {
         return;
     }
 
@@ -161,13 +166,27 @@ void overlayPanelEnsureDevice(OverlayPanel &p, IDirect3DDevice9 *device) {
             device->CreateTexture(p.w, p.h, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &p.tex, nullptr)
         )) {
         p.texDevice = device;
+        p.texW = p.w;
+        p.texH = p.h;
         p.dirty = true;
     }
 }
 
 HDC overlayPanelBeginPaint(OverlayPanel &p) {
-    if (p.dc) {
+    if (p.dc && p.dcW == p.w && p.dcH == p.h) {
         return p.dc;
+    }
+
+    // A resize invalidates the bitmap; drop it and build one at the new size.
+    if (p.dc) {
+        DeleteDC(p.dc);
+        p.dc = nullptr;
+    }
+
+    if (p.dib) {
+        DeleteObject(p.dib);
+        p.dib = nullptr;
+        p.bits = nullptr;
     }
 
     HDC screen = GetDC(nullptr);
@@ -190,6 +209,8 @@ HDC overlayPanelBeginPaint(OverlayPanel &p) {
 
     SelectObject(p.dc, p.dib);
     SetBkMode(p.dc, TRANSPARENT);
+    p.dcW = p.w;
+    p.dcH = p.h;
     return p.dc;
 }
 
@@ -198,16 +219,17 @@ void overlayPanelEndPaint(OverlayPanel &p) {
         return;
     }
 
-    // GDI leaves the alpha byte at 0; make the whole panel opaque.
+    // GDI leaves the alpha byte at 0; stamp the panel's opacity into it.
     uint32_t *px = (uint32_t *)p.bits;
+    uint32_t alpha = (uint32_t)p.alpha << 24;
 
     for (int i = 0; i < p.w * p.h; ++i) {
-        px[i] |= 0xFF000000u;
+        px[i] = (px[i] & 0x00FFFFFFu) | alpha;
     }
 
-    p.dirty = false;
-
-    if (!p.tex) {
+    // A resize between paint and upload would copy the wrong number of rows.
+    // Leave the panel dirty so it repaints once the texture has caught up.
+    if (!p.tex || p.texW != p.w || p.texH != p.h) {
         return;
     }
 
@@ -222,6 +244,7 @@ void overlayPanelEndPaint(OverlayPanel &p) {
     }
 
     p.tex->UnlockRect(0);
+    p.dirty = false;
 }
 
 void overlayPanelDraw(OverlayPanel &p, IDirect3DDevice9 *device) {
@@ -260,7 +283,10 @@ void overlayPanelDraw(OverlayPanel &p, IDirect3DDevice9 *device) {
 bool overlayPanelMapPoint(
     const OverlayPanel &p, HWND hwnd, int clientX, int clientY, int &lx, int &ly
 ) {
-    if (p.renderW <= 0 || p.renderH <= 0) {
+    int renderW = 0;
+    int renderH = 0;
+
+    if (!d3dBackbufferSize(renderW, renderH)) {
         return false;
     }
 
@@ -271,7 +297,7 @@ bool overlayPanelMapPoint(
     }
 
     // Client -> backbuffer coords (handles windowed scaling), then panel-local.
-    lx = clientX * p.renderW / cr.right - p.x;
-    ly = clientY * p.renderH / cr.bottom - p.y;
+    lx = clientX * renderW / cr.right - p.x;
+    ly = clientY * renderH / cr.bottom - p.y;
     return lx >= 0 && ly >= 0 && lx < p.w && ly < p.h;
 }

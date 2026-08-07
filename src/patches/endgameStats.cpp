@@ -136,6 +136,7 @@ void installEndgameStats() {
     installHook((void *)winDtorSite, reinterpret_cast<void *>(winDtorHook), 5);
     installHook((void *)loseDtorSite, reinterpret_cast<void *>(loseDtorHook), 5);
 
+    installStatsOverlay();
     installUnitTracker();
     installSession();
 }

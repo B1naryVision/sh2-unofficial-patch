@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### [Improvement] - End-of-Game Statistics Draw More Reliably
+
+- **What the issue was:** The statistics panel was a separate window floating over the game, which could sit behind it in full screen, flicker when switching windows, and never showed up in screenshots.
+- **What we changed:** The statistics are now drawn as part of the game's own picture, so they appear reliably in both full screen and windowed play, come back cleanly after alt-tabbing, and are included when you take a screenshot.
+
 ### [Feature] - In-Game Settings Panel for Shortcuts
 
 - **What the issue was:** Changing any of the patch's shortcuts meant quitting the game, opening `sh2-unofficial-patch.ini` in a text editor and typing the right key name — awkward for anyone who would rather not edit config files.

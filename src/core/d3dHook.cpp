@@ -37,11 +37,16 @@ static void *patchVtableSlot(void *comObject, int index, void *hook) {
 }
 
 // ── render callback registry ───────────────────────────────────────────────────
-static D3DRenderFn s_renderCbs[4] = {};
+// Callbacks draw in registration order, so the patch installed last in
+// registry.cpp ends up on top. Registering past the capacity would be dropped
+// silently, so keep headroom: three overlays use it today (endgame stats,
+// auto-market editor, settings panel).
+static const int MAX_RENDER_CBS = 8;
+static D3DRenderFn s_renderCbs[MAX_RENDER_CBS] = {};
 static int s_renderCbCount = 0;
 
 void registerD3DRender(D3DRenderFn fn) {
-    if (fn && s_renderCbCount < 4) {
+    if (fn && s_renderCbCount < MAX_RENDER_CBS) {
         s_renderCbs[s_renderCbCount++] = fn;
     }
 }
@@ -49,7 +54,30 @@ void registerD3DRender(D3DRenderFn fn) {
 // Called from the naked EndScene trampoline with the device (`this`), while the
 // scene is still open. Dispatches to registered render callbacks. Callbacks must
 // be float-free (no x87 arithmetic) — the interrupted EndScene may hold FP state.
+static int s_backbufferW = 0;
+static int s_backbufferH = 0;
+
+bool d3dBackbufferSize(int &width, int &height) {
+    if (s_backbufferW <= 0 || s_backbufferH <= 0) {
+        return false;
+    }
+
+    width = s_backbufferW;
+    height = s_backbufferH;
+    return true;
+}
+
 extern "C" void renderOverlayC(IDirect3DDevice9 *device) {
+    // One viewport query per frame, shared by every overlay (and readable off
+    // the render thread afterwards). Integer fields only — no float work on
+    // this path.
+    D3DVIEWPORT9 vp;
+
+    if (SUCCEEDED(device->GetViewport(&vp))) {
+        s_backbufferW = (int)vp.Width;
+        s_backbufferH = (int)vp.Height;
+    }
+
     for (int i = 0; i < s_renderCbCount; ++i) {
         s_renderCbs[i](device);
     }

@@ -17,7 +17,7 @@ not on the end-game screens.
 ## What This Patch Does
 
 Hooks `WinScreen::OnActivate` and `LoseScreen::OnActivate`. When either fires, a
-transparent Win32 overlay window appears over the game showing per-player statistics:
+translucent panel is drawn over the game showing per-player statistics:
 
 - Player color and title
 - Gold balance, honour total, popularity
@@ -31,12 +31,46 @@ to the main menu, hooked via `MainMenuScreen::OnActivate`. The Win/LoseScreen
 scalar destructors are also hooked as a teardown safety net, but **they do not
 fire on normal screen exit** — a main-menu minidump showed both endgame screen
 objects still alive at the menu, so the game creates its screens once and keeps
-them for the process lifetime. Up to 8 players are shown. The overlay window is
-*owned by* the game window (found by process id, not a global title search), hides
-while another application holds the foreground, and reappears when the game regains
-it — alt-tabbing away and back no longer loses the stats. Numbers are right-aligned,
-the window is sized from measured text (Segoe UI, DPI-scaled), and it never grows
-wider than the game window.
+them for the process lifetime. Up to 8 players are shown. Numbers are
+right-aligned, the panel is sized from measured text (Segoe UI, DPI-scaled) and
+centred in the backbuffer, and it never grows wider than the screen.
+
+### Drawn in the frame, not in a window
+
+The panel used to be a `WS_EX_LAYERED` popup owned by the game window. It is now
+an `OverlayPanel` drawn inside the game's own `EndScene`, like the auto-market
+editor and the settings panel (see
+[settings-overlay.md](settings-overlay.md)). That deleted three workarounds the
+window model required, rather than merely relocating them:
+
+- a 250 ms `WM_TIMER` polling `GetForegroundWindow` to hide and re-show the
+  overlay across an alt-tab — being part of the frame, it cannot outlive it;
+- `WS_EX_TOPMOST`, kept because ownership alone did not reliably keep a layered
+  window above an exclusive-fullscreen device;
+- the window class registration, `WM_PAINT` double-buffering, `WS_EX_TRANSPARENT`
+  click-through and the process-id window search (~185 lines).
+
+It also means the stats now appear in in-game screenshots, which a layered
+window never did.
+
+**Sizing is the reason this needed care.** The panel measures its content and
+so must resize per show, and `overlayPanelSetBounds` rebuilds the quad's
+vertices — float work, which is forbidden on the frame-tick and render paths
+(live x87 state, see the auto-market doc). It is legal here precisely because
+`showStatsOverlay` is reached from `Win/LoseScreen::OnActivate`, a **function
+prologue**, where the x87 stack is empty by calling convention. The GDI bitmap
+and D3D texture are *not* recreated there: they are rebuilt lazily on the render
+thread when it notices the size changed, so no D3D object is touched off it.
+
+Centring uses the backbuffer size (`d3dBackbufferSize()`, captured once per
+frame in the EndScene dispatcher) rather than the game window rect, since that
+is the coordinate space the quad is drawn in — correct windowed and fullscreen
+alike.
+
+`showStatsOverlay` lowers the visible flag before rebuilding its row list and
+raises it only once the rows and bounds are final, so the render callback never
+walks a half-built list if a second endgame screen appears without a return to
+the menu in between.
 
 ## Architecture (code layout)
 
@@ -51,15 +85,20 @@ The feature is split into decoupled modules under `src/patches/endgameStats/`;
 | `unitTracker.cpp` | Spawn hook at RVA `0x0EE3BE`, per-slot recruit counts |
 | `session.cpp` | Game-thread polling, identity freezing, session lifecycle, counters |
 | `collect.cpp` | The four detection passes → `EndgameSnapshot` |
-| `overlay.cpp` | Row-model GDI rendering; knows nothing about game memory |
+| `overlay.cpp` | Row-model GDI painting into a shared `OverlayPanel`; knows nothing about game memory |
 | `debugDump.cpp` | `endgame_debug.txt` writer (DEBUG builds only) |
 
-Everything runs on the **game thread**: the session poll rides the shared
-frame-tick dispatcher (`src/core/frameTick.cpp`, main-loop trampoline at RVA
-`0x300c0`, shared with the stop-troops hotkey), and the spawn/screen hooks were
-always on the game thread. There is no background timer thread anymore, so no
-cross-thread races against the simulation and no risk of dereferencing a player
-object mid-free. Poll/spawn paths are float-free (raw float bits only) because
+Every path that touches **game memory** runs on the **game thread**: the session
+poll rides the shared frame-tick dispatcher (`src/core/frameTick.cpp`, main-loop
+trampoline at RVA `0x300c0`, shared with the stop-troops hotkey), and the
+spawn/screen hooks were always on the game thread. There is no background timer
+thread anymore, so no cross-thread races against the simulation and no risk of
+dereferencing a player object mid-free.
+
+Painting is the one part that runs from the render callback. It is safe by
+construction: by then the snapshot has been copied into DLL-owned rows
+(`std::wstring`), so the paint path reads **no game memory at all** — it cannot
+race the simulation no matter which thread `EndScene` is called on. Poll/spawn paths are float-free (raw float bits only) because
 those hook sites are mid-function where live x87 state is possible; conversion
 happens in `collect.cpp`, called from a function-prologue hook where the x87
 stack is empty by ABI.
@@ -439,6 +478,6 @@ uncommitted page (same crash class as above, one page later).
 
 **Safe for version mismatch.**
 
-The overlay reads player object fields and renders to a local Win32 window. No
-simulation entity state is modified. The unit spawn hook increments a DLL-local
+The overlay reads player object fields and draws locally into the client's own
+frame. No simulation entity state is modified. The unit spawn hook increments a DLL-local
 counter only. An unpatched client simply will not see the overlay; no desync.

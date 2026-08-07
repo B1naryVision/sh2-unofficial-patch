@@ -137,8 +137,8 @@ Armour = min:5
 Wood  = min:200
 ```
 
-The template ships with a few example presets (Start Game, Mid Game, Late Game,
-War, No Estate); add, edit or remove sections freely.
+The template ships with one example preset (Fast Estate); add, edit or remove
+sections freely.
 
 ## Distribution
 

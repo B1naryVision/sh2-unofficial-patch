@@ -1,11 +1,21 @@
 #include "overlay.h"
-#include "../../core/hook.h"
+#include "../../core/d3dHook.h"
+#include "../../core/overlayPanel.h"
 #include <array>
 #include <cstdint>
 #include <cstdio>
 #include <string>
 #include <vector>
 #include <windows.h>
+
+// Drawn as an OverlayPanel over the game (see src/core/overlayPanel.cpp), not
+// as a layered window: the panel is part of the game's own frame, so it needs
+// no z-order ownership, no topmost flag for exclusive fullscreen and no
+// foreground polling to survive an alt-tab.
+//
+// Sizing happens on the show path, which is a function-prologue hook
+// (Win/LoseScreen::OnActivate) and therefore the one place float work — the
+// panel quad — is safe. See docs/features/endgame-stats.md.
 
 // ── Display names ─────────────────────────────────────────────────────────────
 
@@ -37,6 +47,7 @@ static const COLORREF CLR_UNITS_ROW = RGB(210, 240, 200);
 static const COLORREF CLR_NOTE = RGB(160, 160, 160);
 
 static const BYTE OVERLAY_ALPHA = 230;
+static const int FONT_POINTS = 10;
 static const int MARGIN = 10;
 static const int CELL_PAD = 12;
 static const int MIN_COL_WIDTH = 84;
@@ -65,11 +76,8 @@ static int s_playerCount = 0;
 static int s_labelColW = 0;
 static int s_valueColW = 0;
 
-static HWND s_overlayHwnd = NULL;
-static HFONT s_font = NULL;
-static bool s_classRegistered = false;
-
-static const wchar_t OVERLAY_CLASS[] = L"SH2PatchStatsOverlay";
+static OverlayPanel s_panel;
+static bool s_visible = false;
 
 // ── Row construction ──────────────────────────────────────────────────────────
 
@@ -321,82 +329,13 @@ static int layoutRows(HDC hdc) {
     return totalH;
 }
 
-// ── Window ────────────────────────────────────────────────────────────────────
+// ── Painting ──────────────────────────────────────────────────────────────────
 
-struct GameWindowSearch {
-    HWND titled;
-    HWND fallback;
-};
+static void paintOverlay(HDC hdc) {
+    overlayPanelFill(hdc, 0, 0, s_panel.w, s_panel.h, CLR_BACKGROUND);
+    overlayPanelFrame(hdc, 0, 0, s_panel.w, s_panel.h, CLR_BORDER);
 
-static BOOL CALLBACK findGameWindowProc(HWND hwnd, LPARAM lp) {
-    GameWindowSearch *search = (GameWindowSearch *)lp;
-
-    DWORD pid = 0;
-    GetWindowThreadProcessId(hwnd, &pid);
-
-    if (pid != GetCurrentProcessId() || !IsWindowVisible(hwnd) || GetWindow(hwnd, GW_OWNER)) {
-        return TRUE;
-    }
-
-    wchar_t cls[64] = {};
-    GetClassNameW(hwnd, cls, 64);
-
-    if (wcscmp(cls, OVERLAY_CLASS) == 0) {
-        return TRUE;
-    }
-
-    if (!search->fallback) {
-        search->fallback = hwnd;
-    }
-
-    char title[64] = {};
-    GetWindowTextA(hwnd, title, 64);
-
-    if (strcmp(title, "Stronghold 2") == 0) {
-        search->titled = hwnd;
-        return FALSE;
-    }
-
-    return TRUE;
-}
-
-// The game's own top-level window, found by process id rather than by a
-// global title search (a title-only FindWindow can match unrelated windows in
-// other processes).
-static HWND findGameWindow() {
-    GameWindowSearch search = {NULL, NULL};
-    EnumWindows(findGameWindowProc, (LPARAM)&search);
-
-    if (search.titled) {
-        return search.titled;
-    }
-
-    return search.fallback;
-}
-
-static void paintOverlay(HWND hwnd, HDC target) {
-    RECT rc;
-    GetClientRect(hwnd, &rc);
-
-    // Double buffer: render into a memory bitmap, blit once.
-    HDC hdc = CreateCompatibleDC(target);
-    HBITMAP bmp = CreateCompatibleBitmap(target, rc.right, rc.bottom);
-    HBITMAP prevBmp = (HBITMAP)SelectObject(hdc, bmp);
-
-    HBRUSH bgBrush = CreateSolidBrush(CLR_BACKGROUND);
-    FillRect(hdc, &rc, bgBrush);
-    DeleteObject(bgBrush);
-
-    HPEN pen = CreatePen(PS_SOLID, 1, CLR_BORDER);
-    HPEN prevPen = (HPEN)SelectObject(hdc, pen);
-    HBRUSH prevBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
-    Rectangle(hdc, 0, 0, rc.right, rc.bottom);
-    SelectObject(hdc, prevPen);
-    SelectObject(hdc, prevBrush);
-    DeleteObject(pen);
-
-    HFONT prevFont = (HFONT)SelectObject(hdc, s_font);
-    SetBkMode(hdc, TRANSPARENT);
+    SelectObject(hdc, overlayPanelFont(FONT_POINTS, false));
 
     int y = MARGIN;
 
@@ -419,7 +358,12 @@ static void paintOverlay(HWND hwnd, HDC target) {
             cell.top = y;
             cell.bottom = y + row.height;
 
-            UINT align = row.rightAlignCells ? DT_RIGHT : DT_LEFT;
+            UINT align = DT_LEFT;
+
+            if (row.rightAlignCells) {
+                align = DT_RIGHT;
+            }
+
             DrawTextW(
                 hdc, row.cells[p].c_str(), (int)row.cells[p].size(), &cell,
                 align | DT_TOP | DT_SINGLELINE | DT_NOPREFIX
@@ -428,110 +372,71 @@ static void paintOverlay(HWND hwnd, HDC target) {
 
         y += row.height;
     }
-
-    SelectObject(hdc, prevFont);
-    BitBlt(target, 0, 0, rc.right, rc.bottom, hdc, 0, 0, SRCCOPY);
-    SelectObject(hdc, prevBmp);
-    DeleteObject(bmp);
-    DeleteDC(hdc);
 }
 
-static LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
-    switch (msg) {
-    case WM_PAINT: {
-        PAINTSTRUCT ps;
-        HDC hdc = BeginPaint(hwnd, &ps);
-        paintOverlay(hwnd, hdc);
-        EndPaint(hwnd, &ps);
-        return 0;
-    }
-    case WM_ERASEBKGND:
-        return 1; // fully painted in WM_PAINT (double-buffered)
-    case WM_TIMER: {
-        // Hide while another application has the foreground, and come back
-        // when the game regains it — the overlay must survive an alt-tab.
-        HWND fgWnd = GetForegroundWindow();
-        DWORD fgPid = 0;
-
-        if (fgWnd) {
-            GetWindowThreadProcessId(fgWnd, &fgPid);
-        }
-
-        if (fgPid == GetCurrentProcessId()) {
-            ShowWindow(hwnd, SW_SHOWNA);
-        } else {
-            ShowWindow(hwnd, SW_HIDE);
-        }
-
-        return 0;
-    }
-    case WM_DESTROY:
-        KillTimer(hwnd, 1);
-        s_overlayHwnd = NULL;
-        return 0;
-    }
-
-    return DefWindowProc(hwnd, msg, wp, lp);
-}
-
-static void registerOverlayClass() {
-    if (s_classRegistered) {
+// Render callback (render thread, inside EndScene). Registered at install so
+// the dispatcher slot exists before the device is created.
+static void statsRender(IDirect3DDevice9 *device) {
+    if (!s_visible) {
         return;
     }
 
-    WNDCLASSW wndClass = {};
-    wndClass.lpfnWndProc = OverlayWndProc;
-    wndClass.hInstance = (HINSTANCE)g_patchModule;
-    wndClass.lpszClassName = OVERLAY_CLASS;
-    s_classRegistered = RegisterClassW(&wndClass) != 0;
+    overlayPanelEnsureDevice(s_panel, device);
+
+    if (s_panel.dirty) {
+        HDC hdc = overlayPanelBeginPaint(s_panel);
+
+        if (hdc) {
+            paintOverlay(hdc);
+            overlayPanelEndPaint(s_panel);
+        }
+    }
+
+    overlayPanelDraw(s_panel, device);
+}
+
+void installStatsOverlay() {
+    overlayPanelInit(s_panel, 0, 0, 1, 1); // real bounds are set on each show
+    overlayPanelSetAlpha(s_panel, OVERLAY_ALPHA);
+    registerD3DRender(&statsRender);
 }
 
 void closeStatsOverlay() {
-    if (s_overlayHwnd) {
-        DestroyWindow(s_overlayHwnd);
-        s_overlayHwnd = NULL;
-    }
-
-    if (s_font) {
-        DeleteObject(s_font);
-        s_font = NULL;
-    }
+    s_visible = false;
+    s_rows.clear();
 }
 
 void showStatsOverlay(const EndgameSnapshot &snap) {
-    // Destroy any leftover overlay from a previous game before creating a
-    // fresh one.
-    closeStatsOverlay();
-    registerOverlayClass();
+    // Hide before rebuilding: the render callback walks s_rows, and a show on
+    // top of a still-visible overlay (a second endgame screen without a return
+    // to the menu in between) would otherwise let it read a half-built list.
+    // Visibility is raised again only once the rows and bounds are final.
+    s_visible = false;
 
     s_rows = buildRows(snap);
     s_playerCount = snap.count;
 
+    // Measure against a screen DC: the panel's own bitmap belongs to the render
+    // thread and may not exist yet, and the font metrics are identical either
+    // way (same font, same device caps).
     HDC screen = GetDC(NULL);
-    int fontHeight = -MulDiv(10, GetDeviceCaps(screen, LOGPIXELSY), 72);
-    s_font = CreateFontW(
-        fontHeight, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-        CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI"
-    );
-
-    HFONT prevFont = (HFONT)SelectObject(screen, s_font);
+    HFONT prevFont = (HFONT)SelectObject(screen, overlayPanelFont(FONT_POINTS, false));
     int contentH = layoutRows(screen);
     SelectObject(screen, prevFont);
     ReleaseDC(NULL, screen);
 
-    HWND gameWnd = findGameWindow();
-    RECT gameRect = {0, 0, 1024, 768};
+    // Centre in the backbuffer rather than the game window: these are the
+    // coordinates the panel quad is drawn in, so this is correct windowed and
+    // fullscreen alike.
+    int renderW = 1024;
+    int renderH = 768;
+    d3dBackbufferSize(renderW, renderH);
 
-    if (gameWnd) {
-        GetWindowRect(gameWnd, &gameRect);
-    }
+    int panelW = MARGIN + s_labelColW + s_playerCount * s_valueColW + MARGIN;
 
-    int gameW = gameRect.right - gameRect.left;
-    int winW = MARGIN + s_labelColW + s_playerCount * s_valueColW + MARGIN;
-
-    // Never wider than the game window: shrink the value columns to fit.
-    if (winW > gameW && s_playerCount > 0) {
-        int maxColW = (gameW - 2 * MARGIN - s_labelColW) / s_playerCount;
+    // Never wider than the screen: shrink the value columns to fit.
+    if (panelW > renderW && s_playerCount > 0) {
+        int maxColW = (renderW - 2 * MARGIN - s_labelColW) / s_playerCount;
 
         if (maxColW < 60) {
             maxColW = 60;
@@ -539,34 +444,28 @@ void showStatsOverlay(const EndgameSnapshot &snap) {
 
         if (maxColW < s_valueColW) {
             s_valueColW = maxColW;
-            winW = MARGIN + s_labelColW + s_playerCount * s_valueColW + MARGIN;
+            panelW = MARGIN + s_labelColW + s_playerCount * s_valueColW + MARGIN;
         }
     }
 
-    if (winW < 500) {
-        winW = 500;
+    if (panelW < 500) {
+        panelW = 500;
     }
 
-    int winH = contentH + 2 * MARGIN;
-    int winX = gameRect.left + (gameW - winW) / 2;
-    int winY = gameRect.top + (gameRect.bottom - gameRect.top - winH) / 2;
+    int panelH = contentH + 2 * MARGIN;
 
-    // Owned by the game window so it stays above it in z-order and minimises
-    // with it. WS_EX_TOPMOST is kept for exclusive-fullscreen setups where
-    // ownership alone is not enough; the WM_TIMER foreground check hides the
-    // overlay whenever another application is in front.
-    s_overlayHwnd = CreateWindowExW(
-        WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE, OVERLAY_CLASS,
-        L"Game Statistics", WS_POPUP, winX, winY, winW, winH, gameWnd, NULL,
-        (HINSTANCE)g_patchModule, NULL
-    );
-
-    if (!s_overlayHwnd) {
-        return;
+    // A panel larger than the backbuffer would be clipped by the quad anyway;
+    // clamping keeps the texture allocation sane on a small render target.
+    if (panelW > renderW) {
+        panelW = renderW;
     }
 
-    SetLayeredWindowAttributes(s_overlayHwnd, 0, OVERLAY_ALPHA, LWA_ALPHA);
-    ShowWindow(s_overlayHwnd, SW_SHOWNA);
-    UpdateWindow(s_overlayHwnd);
-    SetTimer(s_overlayHwnd, 1, 250, NULL);
+    if (panelH > renderH) {
+        panelH = renderH;
+    }
+
+    // Float work lives here: the show path is a function-prologue hook, so the
+    // x87 stack is empty (see endgameStats.cpp).
+    overlayPanelSetBounds(s_panel, (renderW - panelW) / 2, (renderH - panelH) / 2, panelW, panelH);
+    s_visible = true;
 }

@@ -20,6 +20,13 @@ void installD3DHook(IDirect3D9 *d3d);
 typedef void (*D3DRenderFn)(IDirect3DDevice9 *device);
 void registerD3DRender(D3DRenderFn fn);
 
+// Backbuffer dimensions, captured once per frame in the EndScene dispatcher.
+// Returns false until the first frame has been rendered. Readable from any
+// thread (two plain ints) — this is how code running on the game thread, e.g.
+// an overlay sizing itself at a screen transition, learns the render size
+// without touching the device.
+bool d3dBackbufferSize(int &width, int &height);
+
 // The device's focus/window handle (HWND as void*), captured at CreateDevice.
 // NULL until the device is created. Used by the overlay to subclass the window
 // for keyboard input.
