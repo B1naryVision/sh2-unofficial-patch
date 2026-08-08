@@ -92,13 +92,17 @@ coordinate mapping that makes clicks land correctly windowed.
 **The render path is float-free**, as the `EndScene` detour requires (it is a
 mid-function hook that may have live x87 state — see
 [auto-market.md](auto-market.md)). The quad's vertices are the only floats
-involved and they are computed **once, in `overlayPanelInit`, at install time**;
-the draw path copies the prebuilt array and never does arithmetic on it. That
-is why `overlayPanelInit` must not be called from a render callback.
+involved, and they are computed **off the render thread**: once in
+`overlayPanelInit` at install, then again by `overlayPanelSetBounds` each time
+the panel is opened, which is where it is sized to the current resolution (see
+[ui-scale.md](ui-scale.md)). The draw path copies the prebuilt array and never
+does arithmetic on it. That is why neither call may be made from a render
+callback — the panel's `WndProc`, reached through `DispatchMessage`, is the
+safe place for both.
 
 The auto-market editor was migrated onto the same plumbing once it had been
 confirmed in-game, so there is one implementation rather than two: it kept
-every layout constant, colour and hit region, and only lost its private copy of
+every layout rule, colour and hit region, and only lost its private copy of
 the bitmap/texture/quad code (about 150 lines).
 
 ## Multiplayer compatibility

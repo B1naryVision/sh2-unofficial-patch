@@ -48,9 +48,22 @@ static const COLORREF CLR_NOTE = RGB(160, 160, 160);
 
 static const BYTE OVERLAY_ALPHA = 230;
 static const int FONT_POINTS = 10;
-static const int MARGIN = 10;
-static const int CELL_PAD = 12;
-static const int MIN_COL_WIDTH = 84;
+
+// Design-space constants: what the panel measures at 1080p. Everything is
+// scaled through S() so the boxes and the text grow together — see
+// docs/features/ui-scale.md. Column widths are measured from the text on top of
+// that, as they always were.
+static const int D_MARGIN = 10;
+static const int D_CELL_PAD = 12;
+static const int D_MIN_COL_WIDTH = 84;
+static const int D_LABEL_PAD = 16;
+static const int D_MIN_PANEL_W = 500;
+
+// Scale the current layout was measured at; the shrink-to-fit pass in
+// showStatsOverlay may lower it below the resolved one.
+static int s_scale = 100;
+
+static int S(int designPx) { return overlayScaleBy(designPx, s_scale); }
 // Max displayed name length — clan-tagged names like "4H|TheSettler" must fit.
 static const int NAME_DISPLAY_CHARS = 16;
 
@@ -279,26 +292,26 @@ static int layoutRows(HDC hdc) {
     int line = tm.tmHeight + tm.tmExternalLeading;
 
     s_labelColW = 0;
-    s_valueColW = MIN_COL_WIDTH;
+    s_valueColW = S(D_MIN_COL_WIDTH);
     int totalH = 0;
 
     for (Row &row : s_rows) {
         switch (row.kind) {
         case RowKind::Title:
-            row.height = line + 8;
+            row.height = line + S(8);
             break;
         case RowKind::ColumnHeader:
-            row.height = line + 5;
+            row.height = line + S(5);
             break;
         case RowKind::Section:
-            row.height = line + 4;
+            row.height = line + S(4);
             break;
         case RowKind::Values:
         case RowKind::Note:
-            row.height = line + 2;
+            row.height = line + S(2);
             break;
         case RowKind::Gap:
-            row.height = 6;
+            row.height = S(6);
             break;
         }
 
@@ -317,7 +330,7 @@ static int layoutRows(HDC hdc) {
                 continue;
             }
 
-            int w = textWidth(hdc, row.cells[p]) + CELL_PAD;
+            int w = textWidth(hdc, row.cells[p]) + S(D_CELL_PAD);
 
             if (w > s_valueColW) {
                 s_valueColW = w;
@@ -325,8 +338,21 @@ static int layoutRows(HDC hdc) {
         }
     }
 
-    s_labelColW += 16;
+    s_labelColW += S(D_LABEL_PAD);
     return totalH;
+}
+
+// Measures the whole panel at `scale` and leaves it as the current one. The
+// panel's own bitmap belongs to the render thread and may not exist yet, so the
+// metrics come from a screen DC — identical either way (same font, same caps).
+static int measureLayout(int scale) {
+    s_scale = scale;
+    HDC screen = GetDC(NULL);
+    HFONT prevFont = (HFONT)SelectObject(screen, overlayPanelFont(FONT_POINTS, false, scale));
+    int contentH = layoutRows(screen);
+    SelectObject(screen, prevFont);
+    ReleaseDC(NULL, screen);
+    return contentH;
 }
 
 // ── Painting ──────────────────────────────────────────────────────────────────
@@ -335,14 +361,15 @@ static void paintOverlay(HDC hdc) {
     overlayPanelFill(hdc, 0, 0, s_panel.w, s_panel.h, CLR_BACKGROUND);
     overlayPanelFrame(hdc, 0, 0, s_panel.w, s_panel.h, CLR_BORDER);
 
-    SelectObject(hdc, overlayPanelFont(FONT_POINTS, false));
+    SelectObject(hdc, overlayPanelFont(FONT_POINTS, false, s_scale));
 
-    int y = MARGIN;
+    int margin = S(D_MARGIN);
+    int y = margin;
 
     for (const Row &row : s_rows) {
         if (!row.label.empty()) {
             SetTextColor(hdc, row.labelColor);
-            TextOutW(hdc, MARGIN, y, row.label.c_str(), (int)row.label.size());
+            TextOutW(hdc, margin, y, row.label.c_str(), (int)row.label.size());
         }
 
         SetTextColor(hdc, row.cellColor);
@@ -353,8 +380,8 @@ static void paintOverlay(HDC hdc) {
             }
 
             RECT cell;
-            cell.left = MARGIN + s_labelColW + p * s_valueColW;
-            cell.right = cell.left + s_valueColW - CELL_PAD;
+            cell.left = margin + s_labelColW + p * s_valueColW;
+            cell.right = cell.left + s_valueColW - S(D_CELL_PAD);
             cell.top = y;
             cell.bottom = y + row.height;
 
@@ -416,15 +443,6 @@ void showStatsOverlay(const EndgameSnapshot &snap) {
     s_rows = buildRows(snap);
     s_playerCount = snap.count;
 
-    // Measure against a screen DC: the panel's own bitmap belongs to the render
-    // thread and may not exist yet, and the font metrics are identical either
-    // way (same font, same device caps).
-    HDC screen = GetDC(NULL);
-    HFONT prevFont = (HFONT)SelectObject(screen, overlayPanelFont(FONT_POINTS, false));
-    int contentH = layoutRows(screen);
-    SelectObject(screen, prevFont);
-    ReleaseDC(NULL, screen);
-
     // Centre in the backbuffer rather than the game window: these are the
     // coordinates the panel quad is drawn in, so this is correct windowed and
     // fullscreen alike.
@@ -432,30 +450,62 @@ void showStatsOverlay(const EndgameSnapshot &snap) {
     int renderH = 768;
     d3dBackbufferSize(renderW, renderH);
 
-    int panelW = MARGIN + s_labelColW + s_playerCount * s_valueColW + MARGIN;
+    int scale = overlayScalePercent();
+    int panelW = 0;
+    int panelH = 0;
 
-    // Never wider than the screen: shrink the value columns to fit.
-    if (panelW > renderW && s_playerCount > 0) {
-        int maxColW = (renderW - 2 * MARGIN - s_labelColW) / s_playerCount;
+    // A tall game (many unit types, a wide scale) can want more height than the
+    // screen has. Clamping would just cut the bottom rows off, so measure again
+    // at the scale that does fit — two correction passes, so the font cache
+    // sees a handful of sizes rather than a sweep.
+    for (int pass = 0;; ++pass) {
+        int contentH = measureLayout(scale);
+        int margin = S(D_MARGIN);
+        panelW = margin + s_labelColW + s_playerCount * s_valueColW + margin;
 
-        if (maxColW < 60) {
-            maxColW = 60;
+        // Never wider than the screen: shrink the value columns first, since
+        // they are padded, before giving up any text size.
+        if (panelW > renderW && s_playerCount > 0) {
+            int maxColW = (renderW - 2 * margin - s_labelColW) / s_playerCount;
+
+            if (maxColW < S(60)) {
+                maxColW = S(60);
+            }
+
+            if (maxColW < s_valueColW) {
+                s_valueColW = maxColW;
+                panelW = margin + s_labelColW + s_playerCount * s_valueColW + margin;
+            }
         }
 
-        if (maxColW < s_valueColW) {
-            s_valueColW = maxColW;
-            panelW = MARGIN + s_labelColW + s_playerCount * s_valueColW + MARGIN;
+        if (panelW < S(D_MIN_PANEL_W)) {
+            panelW = S(D_MIN_PANEL_W);
         }
+
+        panelH = contentH + 2 * margin;
+
+        if ((panelW <= renderW && panelH <= renderH) || pass >= 2) {
+            break;
+        }
+
+        int byH = scale * renderH / (panelH > 0 ? panelH : 1);
+        int byW = scale * renderW / (panelW > 0 ? panelW : 1);
+        int fit = byH < byW ? byH : byW;
+
+        if (fit < 40) {
+            fit = 40;
+        }
+
+        if (fit >= scale) {
+            break;
+        }
+
+        scale = fit;
     }
 
-    if (panelW < 500) {
-        panelW = 500;
-    }
-
-    int panelH = contentH + 2 * MARGIN;
-
-    // A panel larger than the backbuffer would be clipped by the quad anyway;
-    // clamping keeps the texture allocation sane on a small render target.
+    // Whatever is left over after the shrink passes: a panel larger than the
+    // backbuffer would be clipped by the quad anyway, and clamping keeps the
+    // texture allocation sane on a small render target.
     if (panelW > renderW) {
         panelW = renderW;
     }

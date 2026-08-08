@@ -32,8 +32,10 @@ scalar destructors are also hooked as a teardown safety net, but **they do not
 fire on normal screen exit** — a main-menu minidump showed both endgame screen
 objects still alive at the menu, so the game creates its screens once and keeps
 them for the process lifetime. Up to 8 players are shown. Numbers are
-right-aligned, the panel is sized from measured text (Segoe UI, DPI-scaled) and
-centred in the backbuffer, and it never grows wider than the screen.
+right-aligned, the panel is sized from measured text (Segoe UI, scaled to the
+game's resolution rather than the desktop's DPI — see [ui-scale.md](ui-scale.md))
+and centred in the backbuffer. It never grows wider than the screen, and a panel
+too tall for one is measured again at a smaller scale instead of being clipped.
 
 ### Drawn in the frame, not in a window
 

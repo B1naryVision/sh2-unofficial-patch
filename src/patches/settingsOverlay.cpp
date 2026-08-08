@@ -13,28 +13,39 @@
 // The panel owns no game state — it moves bindings between the features, the
 // widgets and the ini. See docs/features/settings-overlay.md.
 
-static const int PANEL_X = 24;
-static const int PANEL_Y = 18;
-static const int PANEL_W = 446;
-static const int PANEL_H = 260;
+// Design-space constants: what the panel measures at 1080p. Everything is
+// scaled through overlayScaleBy, and the label and keybind columns are measured
+// from the font, so a long label or a wide scale moves the box instead of
+// running into it. See docs/features/ui-scale.md.
+static const int D_PANEL_X = 24;
+static const int D_PANEL_Y = 18;
+static const int D_MARGIN = 16;
+static const int D_TITLE_Y = 12;
+static const int D_CLEAR_W = 20;
+static const int D_BOX_MIN_W = 140;
 
-static const int TITLE_Y = 12;
-static const int HINT_Y = 38;
-static const int LIST_TOP = 64;
-static const int ROW_H = 30;
-static const int BOX_TOP = 3; // row-local
-static const int BOX_BOTTOM = 27;
-static const int LABEL_Y = 7; // row-local
-static const int BOX_L = 246;
-static const int BOX_R = 404;
-static const int CLEAR_L = 412;
-static const int CLEAR_R = 432;
-static const int RESTART_MARK_X = 226;
+static const int TITLE_POINTS = 16;
+static const int BODY_POINTS = 12;
 
-static const int SEP_Y = PANEL_H - 76;
-static const int FOOTER1_Y = PANEL_H - 68;
-static const int FOOTER2_Y = PANEL_H - 50;
-static const int STATUS_Y = PANEL_H - 28;
+static const char *HINT = "Click a shortcut, then press the new key.";
+static const char *FOOTER1 = "Esc closes  -  [x] clears a shortcut";
+static const char *FOOTER2 = "* saved, but applies the next time you start the game";
+static const char *STATUS_OK = "Saved to sh2-unofficial-patch.ini";
+static const char *STATUS_FAIL = "Could not write sh2-unofficial-patch.ini";
+static const char *PROMPT = "Press any key...";
+
+// Resolved layout, in panel pixels. Rebuilt on each show.
+struct Layout {
+    int scale;
+    int panelX, panelY, panelW, panelH;
+    int margin;
+    int titleY, hintY, listTop, rowH;
+    int boxTop, boxBottom, labelY; // row-local
+    int boxL, boxR, clearL, clearR, restartMarkX;
+    int sepY, footer1Y, footer2Y, statusY;
+};
+
+static Layout s_l = {};
 
 static const COLORREF COL_BG = RGB(26, 26, 34);
 static const COLORREF COL_EDGE = RGB(90, 90, 110);
@@ -115,7 +126,111 @@ static SettingRow s_rows[] = {
 
 static const int ROW_COUNT = (int)(sizeof(s_rows) / sizeof(s_rows[0]));
 
-static int rowTop(int index) { return LIST_TOP + index * ROW_H; }
+static int rowTop(int index) { return s_l.listTop + index * s_l.rowH; }
+
+// ── layout ──────────────────────────────────────────────────────────────────────
+static int maxInt(int a, int b) { return a > b ? a : b; }
+
+// Measures the panel at `scale`. Integer arithmetic and GDI measurement only —
+// no float, no D3D object touched.
+static void buildLayout(Layout &l, int scale) {
+    HFONT body = overlayPanelFont(BODY_POINTS, false, scale);
+    HFONT title = overlayPanelFont(TITLE_POINTS, true, scale);
+    int line = overlayPanelLineHeight(body);
+    int titleLine = overlayPanelLineHeight(title);
+
+    l.scale = scale;
+    l.margin = overlayScaleBy(D_MARGIN, scale);
+    l.panelX = overlayScaleBy(D_PANEL_X, scale);
+    l.panelY = overlayScaleBy(D_PANEL_Y, scale);
+
+    int gap = overlayScaleBy(8, scale);
+    int pad = overlayScaleBy(10, scale);
+
+    // ── columns ──
+    int labelW = 0;
+    int boxW = maxInt(overlayPanelTextWidth(body, PROMPT) + pad, overlayScaleBy(D_BOX_MIN_W, scale));
+
+    for (int i = 0; i < ROW_COUNT; ++i) {
+        char name[HOTKEY_NAME_MAX];
+        labelW = maxInt(labelW, overlayPanelTextWidth(body, s_rows[i].label));
+        hotkeyDisplayName(s_rows[i].get(), name, sizeof(name));
+        boxW = maxInt(boxW, overlayPanelTextWidth(body, name) + pad);
+    }
+
+    l.restartMarkX = l.margin + labelW + gap;
+    l.boxL = l.restartMarkX + overlayPanelTextWidth(body, "*") + gap * 2;
+    l.boxR = l.boxL + boxW;
+    l.clearL = l.boxR + gap;
+    l.clearR = l.clearL + overlayScaleBy(D_CLEAR_W, scale);
+
+    l.panelW = l.clearR + l.margin;
+    l.panelW = maxInt(l.panelW, overlayPanelTextWidth(title, "Patch Settings") + 2 * l.margin);
+    l.panelW = maxInt(l.panelW, overlayPanelTextWidth(body, HINT) + 2 * l.margin);
+    l.panelW = maxInt(l.panelW, overlayPanelTextWidth(body, FOOTER1) + 2 * l.margin);
+    l.panelW = maxInt(l.panelW, overlayPanelTextWidth(body, FOOTER2) + 2 * l.margin);
+    l.panelW = maxInt(l.panelW, overlayPanelTextWidth(body, STATUS_OK) + 2 * l.margin);
+    l.panelW = maxInt(l.panelW, overlayPanelTextWidth(body, STATUS_FAIL) + 2 * l.margin);
+
+    // ── rows ──
+    int boxH = line + pad;
+    l.boxTop = overlayScaleBy(3, scale);
+    l.boxBottom = l.boxTop + boxH;
+    l.labelY = l.boxTop + (boxH - line) / 2;
+    l.rowH = boxH + overlayScaleBy(6, scale);
+
+    l.titleY = overlayScaleBy(D_TITLE_Y, scale);
+    l.hintY = l.titleY + titleLine + overlayScaleBy(4, scale);
+    l.listTop = l.hintY + line + overlayScaleBy(12, scale);
+
+    l.sepY = l.listTop + ROW_COUNT * l.rowH + overlayScaleBy(10, scale);
+    l.footer1Y = l.sepY + overlayScaleBy(8, scale);
+    l.footer2Y = l.footer1Y + line + overlayScaleBy(2, scale);
+    l.statusY = l.footer2Y + line + overlayScaleBy(2, scale);
+    l.panelH = l.statusY + line + overlayScaleBy(10, scale);
+}
+
+// Rebuilds the layout and moves the panel and its widgets onto it. **Does float
+// work** (the panel quad), so it runs from the WndProc toggle — reached through
+// DispatchMessage with an empty x87 stack — and never from the render thread.
+static void applyLayout() {
+    int scale = overlayScalePercent();
+    buildLayout(s_l, scale);
+
+    // Shrink to fit a small render target, the same way the auto-market panel
+    // does. One correction pass is enough for a panel this size.
+    int renderW = 0;
+    int renderH = 0;
+
+    if (d3dBackbufferSize(renderW, renderH)) {
+        int availW = renderW - 2 * s_l.panelX;
+        int availH = renderH - 2 * s_l.panelY;
+
+        if (s_l.panelW > availW || s_l.panelH > availH) {
+            int byW = scale * availW / maxInt(s_l.panelW, 1);
+            int byH = scale * availH / maxInt(s_l.panelH, 1);
+            int fit = byW < byH ? byW : byH;
+
+            if (fit < 40) {
+                fit = 40;
+            }
+
+            if (fit < scale) {
+                buildLayout(s_l, fit);
+            }
+        }
+    }
+
+    for (int i = 0; i < ROW_COUNT; ++i) {
+        int top = rowTop(i);
+        keybindWidgetInit(
+            s_rows[i].widget, s_rows[i].get(), s_l.boxL, top + s_l.boxTop, s_l.boxR,
+            top + s_l.boxBottom
+        );
+    }
+
+    overlayPanelSetBounds(s_panel, s_l.panelX, s_l.panelY, s_l.panelW, s_l.panelH);
+}
 
 // Two rows bound to the same key: the first one to see the press wins, so flag
 // it rather than silently letting one shortcut shadow another.
@@ -151,15 +266,17 @@ static void commitRow(SettingRow &row) {
 }
 
 // ── drawing ─────────────────────────────────────────────────────────────────────
+// Draws the layout as applyLayout built it; the render thread never rebuilds it,
+// so the bitmap and the panel bounds can never disagree.
 static void paintPanel(HDC dc) {
-    overlayPanelFill(dc, 0, 0, PANEL_W, PANEL_H, COL_BG);
-    overlayPanelFrame(dc, 0, 0, PANEL_W, PANEL_H, COL_EDGE);
+    overlayPanelFill(dc, 0, 0, s_l.panelW, s_l.panelH, COL_BG);
+    overlayPanelFrame(dc, 0, 0, s_l.panelW, s_l.panelH, COL_EDGE);
 
-    SelectObject(dc, overlayPanelFont(16, true));
-    overlayPanelText(dc, 16, TITLE_Y, "Patch Settings", COL_TITLE);
+    SelectObject(dc, overlayPanelFont(TITLE_POINTS, true, s_l.scale));
+    overlayPanelText(dc, s_l.margin, s_l.titleY, "Patch Settings", COL_TITLE);
 
-    SelectObject(dc, overlayPanelFont(12, false));
-    overlayPanelText(dc, 16, HINT_Y, "Click a shortcut, then press the new key.", COL_DIM);
+    SelectObject(dc, overlayPanelFont(BODY_POINTS, false, s_l.scale));
+    overlayPanelText(dc, s_l.margin, s_l.hintY, HINT, COL_DIM);
 
     bool anyRestart = false;
 
@@ -172,36 +289,38 @@ static void paintPanel(HDC dc) {
             ink = COL_CONFLICT;
         }
 
-        overlayPanelText(dc, 16, top + LABEL_Y, row.label, ink);
+        overlayPanelText(dc, s_l.margin, top + s_l.labelY, row.label, ink);
 
         if (!row.installed()) {
-            overlayPanelText(dc, RESTART_MARK_X, top + LABEL_Y, "*", COL_DIM);
+            overlayPanelText(dc, s_l.restartMarkX, top + s_l.labelY, "*", COL_DIM);
             anyRestart = true;
         }
 
         keybindWidgetDraw(row.widget, dc, nullptr);
 
         if (row.allowUnbind) {
-            overlayPanelFrame(dc, CLEAR_L, top + BOX_TOP, CLEAR_R, top + BOX_BOTTOM, COL_EDGE);
-            overlayPanelTextCentered(dc, CLEAR_L, CLEAR_R, top + LABEL_Y, "x", COL_DIM);
+            overlayPanelFrame(
+                dc, s_l.clearL, top + s_l.boxTop, s_l.clearR, top + s_l.boxBottom, COL_EDGE
+            );
+            overlayPanelTextCentered(dc, s_l.clearL, s_l.clearR, top + s_l.labelY, "x", COL_DIM);
         }
     }
 
-    overlayPanelFill(dc, 12, SEP_Y, PANEL_W - 12, SEP_Y + 1, RGB(58, 58, 74));
-    overlayPanelText(dc, 16, FOOTER1_Y, "Esc closes  -  [x] clears a shortcut", COL_DIM);
+    int sepInset = overlayScaleBy(12, s_l.scale);
+    overlayPanelFill(
+        dc, sepInset, s_l.sepY, s_l.panelW - sepInset, s_l.sepY + overlayScaleBy(1, s_l.scale),
+        RGB(58, 58, 74)
+    );
+    overlayPanelText(dc, s_l.margin, s_l.footer1Y, FOOTER1, COL_DIM);
 
     if (anyRestart) {
-        overlayPanelText(
-            dc, 16, FOOTER2_Y, "* saved, but applies the next time you start the game", COL_DIM
-        );
+        overlayPanelText(dc, s_l.margin, s_l.footer2Y, FOOTER2, COL_DIM);
     }
 
     if (s_status == STATUS_SAVED) {
-        overlayPanelText(dc, 16, STATUS_Y, "Saved to sh2-unofficial-patch.ini", COL_OK);
+        overlayPanelText(dc, s_l.margin, s_l.statusY, STATUS_OK, COL_OK);
     } else if (s_status == STATUS_FAILED) {
-        overlayPanelText(
-            dc, 16, STATUS_Y, "Could not write sh2-unofficial-patch.ini", COL_CONFLICT
-        );
+        overlayPanelText(dc, s_l.margin, s_l.statusY, STATUS_FAIL, COL_CONFLICT);
     }
 }
 
@@ -217,13 +336,13 @@ static bool handleClick(int clientX, int clientY, HWND hwnd) {
     for (int i = 0; i < ROW_COUNT; ++i) {
         int top = rowTop(i);
 
-        if (ly < top + BOX_TOP || ly >= top + BOX_BOTTOM) {
+        if (ly < top + s_l.boxTop || ly >= top + s_l.boxBottom) {
             continue;
         }
 
-        if (lx >= BOX_L && lx < BOX_R) {
+        if (lx >= s_l.boxL && lx < s_l.boxR) {
             keybindWidgetBeginCapture(s_rows[i].widget);
-        } else if (lx >= CLEAR_L && lx < CLEAR_R && s_rows[i].allowUnbind) {
+        } else if (lx >= s_l.clearL && lx < s_l.clearR && s_rows[i].allowUnbind) {
             Hotkey unbound = {0, 0};
             keybindWidgetSetBinding(s_rows[i].widget, unbound);
             commitRow(s_rows[i]);
@@ -237,6 +356,12 @@ static bool handleClick(int clientX, int clientY, HWND hwnd) {
 }
 
 static void setVisible(bool visible) {
+    // Lay out on the way up, not at install: the panel is sized against the
+    // backbuffer, which does not exist yet when patches install.
+    if (visible) {
+        applyLayout();
+    }
+
     s_visible = visible;
     s_status = STATUS_NONE;
 
@@ -351,13 +476,12 @@ void installSettingsOverlay() {
         return;
     }
 
-    overlayPanelInit(s_panel, PANEL_X, PANEL_Y, PANEL_W, PANEL_H);
+    // Real bounds and widget rectangles are set by applyLayout on the first
+    // show, once there is a backbuffer to size against.
+    overlayPanelInit(s_panel, 0, 0, 1, 1);
 
     for (int i = 0; i < ROW_COUNT; ++i) {
-        int top = rowTop(i);
-        keybindWidgetInit(
-            s_rows[i].widget, s_rows[i].get(), BOX_L, top + BOX_TOP, BOX_R, top + BOX_BOTTOM
-        );
+        keybindWidgetInit(s_rows[i].widget, s_rows[i].get(), 0, 0, 0, 0);
     }
 
     registerD3DRender(&settingsRender);

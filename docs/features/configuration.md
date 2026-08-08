@@ -1,6 +1,6 @@
 # Patch Configuration (`sh2-unofficial-patch.ini`)
 
-**Status:** Added in v0.5.0; extended in v0.6.0 (key combinations, siege camp, recruitment and auto-market settings)
+**Status:** Added in v0.5.0; extended in v0.6.0 (key combinations, siege camp, recruitment and auto-market settings) and v0.6.1 (overlay scale)
 **Affected version:** Stronghold 2 Steam v1.5.0
 **Patch type:** No game-code change — a config layer (`src/core/config.cpp`) read by the individual patches at install time
 
@@ -41,6 +41,11 @@ no runtime re-read: edits made to the file while the game is running take
 effect on the next launch. (The settings overlay is the one writer — it changes
 the live binding and the file together, so it needs no re-read.)
 
+`[ui] Scale` is the one exception to the timing, not to the lifecycle: it is
+read on first use rather than in `DllMain`, because nothing can be sized until
+the game has created a device to read a backbuffer size from
+([ui-scale.md](ui-scale.md)). It is still read once and never re-read.
+
 ## Settings
 
 | Section | Key | Default | Meaning |
@@ -51,6 +56,7 @@ the live binding and the file together, so it needs no re-read.)
 | `[hotkeys]` | `AutoMarketPanel` | `` ` `` | Toggle the auto-market editor overlay ([auto-market.md](auto-market.md)); `None` disables the whole feature |
 | `[camera]` | `ZoomSpeedMultiplier` | `1.0` | Camera zoom speed factor ([zoom-speed.md](zoom-speed.md)); `1.0` leaves the game code untouched |
 | `[interface]` | `SiegeCampJumpOnSecondPress` | `1` | The siege camp hotkey (`J`) opens its panel on the first press and only moves the camera on a second press ([siege-camp-hotkey.md](siege-camp-hotkey.md)); `0` restores the stock one-press behaviour (no hooks installed) |
+| `[ui]` | `Scale` | `Auto` | Size of the patch's overlay panels in percent ([ui-scale.md](ui-scale.md)); `Auto` derives it from the game's resolution, `50`–`300` sets it by hand, anything else falls back to `Auto` |
 | `[recruitment]` | `RecruitmentShiftMultiplier` | `20` | Units queued per shift-click in barracks/mercenary post/monastery/engineers guild/siege camp ([shift-click-recruitment.md](shift-click-recruitment.md)); `0` or `1` disables (no hooks installed) |
 
 ### Hotkey value format

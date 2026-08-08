@@ -75,8 +75,33 @@ bool overlayPanelMapPoint(
     const OverlayPanel &p, HWND hwnd, int clientX, int clientY, int &lx, int &ly
 );
 
-// Shared font cache (Segoe UI, DPI-scaled). Valid for the process lifetime.
-HFONT overlayPanelFont(int pointSize, bool bold);
+// ── UI scale ────────────────────────────────────────────────────────────────────
+// Panel layouts are authored in "design pixels": what the panel measures at
+// 1080p. Every dimension — box, padding, gap and font alike — is routed through
+// overlayScale so a different render target scales the panel as a whole. Sizing
+// a font on its own (the desktop's DPI) while the boxes around it stay put is
+// what makes text clip. Integer arithmetic only, so this is safe on the render
+// path. See docs/features/ui-scale.md.
+
+// Resolved scale in percent: [ui] Scale from the ini when it is 50..300,
+// otherwise derived from the backbuffer height. Re-resolves when the render
+// target changes; 100 until the backbuffer is known.
+int overlayScalePercent();
+
+// Design pixels -> panel pixels at `percent`. Panels that shrink to fit a small
+// render target pass their own percent rather than the resolved one.
+int overlayScaleBy(int designPx, int percent);
+
+// Shared font cache (Segoe UI). `designPoints` is the point size the panel was
+// authored at on a 96-DPI display; the real height is derived from that and
+// `percent`, never from the desktop DPI. Valid for the process lifetime.
+HFONT overlayPanelFont(int designPoints, bool bold, int percent);
+
+// Height of one line of `font`, for layouts that size rows from their text.
+int overlayPanelLineHeight(HFONT font);
+
+// Width of `text` (ASCII, measured as UTF-16) in `font`.
+int overlayPanelTextWidth(HFONT font, const char *text);
 
 // GDI conveniences shared by the panels; `text` is ASCII, drawn as UTF-16.
 void overlayPanelFill(HDC dc, int l, int t, int r, int b, COLORREF color);

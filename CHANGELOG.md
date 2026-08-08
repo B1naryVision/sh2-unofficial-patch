@@ -2,6 +2,15 @@
 
 ---
 
+## [0.6.1]
+
+### [Fix] - Patch Panels Were Unreadable on Some Screens
+
+- **What the issue was:** The auto-market panel, the settings panel and the end-of-game statistics looked right for some players and badly wrong for others — text spilling out of the input boxes, labels running into the controls next to them, and lines pushed off the edge of the panel. The cause was Windows' display scaling (the 125% or 150% setting many laptops): the patch grew the text with it, but not the boxes around the text. That is why two players on the same 1920x1080 could see completely different results. Separately, at 1280x720 and 1024x768 the bottom of the auto-market panel ran off the screen entirely, and on very large screens the panels were uncomfortably small.
+- **What we changed:** The panels are now sized from the text they actually contain and scaled to the game's resolution instead of your Windows display scaling, so they look the same everywhere and nothing clips. A panel too large for the screen shrinks itself to fit rather than losing its bottom rows. If you would like them larger or smaller than the automatic size, set `Scale` under `[ui]` in `sh2-unofficial-patch.ini` to a percentage between 50 and 300.
+
+---
+
 ## [0.6.0]
 
 ### [Improvement] - End-of-Game Statistics Draw More Reliably

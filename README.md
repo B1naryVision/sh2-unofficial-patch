@@ -37,7 +37,7 @@ No game files are modified. Removing the DLL restores the original behavior comp
 
 ## Current Fixes and Features
 
-### v0.6.0
+### v0.6.1
 
 | Description | Offset | Status |
 | --- | --- | --- |
@@ -57,6 +57,7 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [Siege camp hotkey (`J`) opens the panel before moving the camera](docs/features/siege-camp-hotkey.md) | `base+0x1f2c65`, `base+0x1f2c99` | Added in v0.6.0 |
 | [Key combinations (`Ctrl`/`Shift`/`Alt`) for the patch hotkeys, plus the in-game rebind widget](docs/features/keybinding.md) | — | Added in v0.6.0 |
 | [In-game settings panel for rebinding hotkeys (`Ctrl+Shift+O`)](docs/features/settings-overlay.md) | — | Added in v0.6.0 |
+| [Overlay panels scale to the game's resolution instead of the desktop DPI](docs/features/ui-scale.md) | — | Added in v0.6.1 |
 
 ---
 

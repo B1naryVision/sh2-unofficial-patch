@@ -1,4 +1,5 @@
 #include "overlayPanel.h"
+#include "config.h"
 #include "d3dHook.h"
 #include <cstdint>
 #include <cstring>
@@ -6,29 +7,134 @@
 
 static const DWORD PANEL_FVF = D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_TEX1;
 
+// ── UI scale ────────────────────────────────────────────────────────────────────
+// The height the layouts are authored against, and the range a hand-set [ui]
+// Scale is honoured in. The auto clamp keeps a 4K panel from doubling into
+// absurdity and an 800x600 one from shrinking below legibility; a panel that
+// still does not fit shrinks itself further from there.
+static const int DESIGN_HEIGHT = 1080;
+static const int SCALE_MIN = 50;
+static const int SCALE_MAX = 300;
+static const int AUTO_MIN = 70;
+static const int AUTO_MAX = 250;
+
+static int s_scalePct = 100;
+static int s_scaleForHeight = 0; // backbuffer height s_scalePct was derived from
+static int s_scaleFixed = -1; // [ui] Scale, 0 when unset/invalid; -1 = unread
+
+int overlayScaleBy(int designPx, int percent) {
+    if (designPx < 0) {
+        return -(((-designPx) * percent + 50) / 100);
+    }
+
+    return (designPx * percent + 50) / 100;
+}
+
+int overlayScalePercent() {
+    if (s_scaleFixed < 0) {
+        // Anything that is not a number in range — absent, "Auto", garbage —
+        // leaves the scale on automatic, per the ini's fallback convention.
+        int configured = configInt("ui", "Scale", 0);
+        s_scaleFixed = 0;
+
+        if (configured >= SCALE_MIN && configured <= SCALE_MAX) {
+            s_scaleFixed = configured;
+        }
+    }
+
+    if (s_scaleFixed > 0) {
+        return s_scaleFixed;
+    }
+
+    int renderW = 0;
+    int renderH = 0;
+
+    if (!d3dBackbufferSize(renderW, renderH)) {
+        return s_scalePct; // no device yet; 100 until there is one
+    }
+
+    if (renderH == s_scaleForHeight) {
+        return s_scalePct;
+    }
+
+    int pct = renderH * 100 / DESIGN_HEIGHT;
+
+    if (pct < AUTO_MIN) {
+        pct = AUTO_MIN;
+    }
+
+    if (pct > AUTO_MAX) {
+        pct = AUTO_MAX;
+    }
+
+    s_scaleForHeight = renderH;
+    s_scalePct = pct;
+    return pct;
+}
+
 // ── font cache ──────────────────────────────────────────────────────────────────
+// Keyed on the resolved pixel height, so a scale change simply lands on a
+// different entry. Sixty-four slots covers the four sizes the panels use across
+// many scales: the resolved one, any shrink-to-fit steps below it, and repeated
+// resolution changes within a session. Nothing is ever evicted — the panels
+// hand these HFONTs straight to SelectObject on the render thread.
 struct FontEntry {
-    int pointSize;
+    int pixelHeight;
     bool bold;
     HFONT font;
 };
 
-static FontEntry s_fonts[8] = {};
+static FontEntry s_fonts[64] = {};
 static int s_fontCount = 0;
 
-HFONT overlayPanelFont(int pointSize, bool bold) {
+HFONT overlayPanelFont(int designPoints, bool bold, int percent) {
+    // Points at 96 DPI -> design pixels, then into panel pixels. The desktop
+    // DPI is deliberately not consulted: the panel is drawn into the game's
+    // backbuffer, so its own scale is the only one that means anything here.
+    int pixelHeight = overlayScaleBy(MulDiv(designPoints, 96, 72), percent);
+
+    if (pixelHeight < 8) {
+        pixelHeight = 8;
+    }
+
     for (int i = 0; i < s_fontCount; ++i) {
-        if (s_fonts[i].pointSize == pointSize && s_fonts[i].bold == bold) {
+        if (s_fonts[i].pixelHeight == pixelHeight && s_fonts[i].bold == bold) {
             return s_fonts[i].font;
         }
     }
 
+    // Cache full: nothing is ever evicted (the HFONTs stay alive for the
+    // process), so fall back on the cached font that is closest in size and
+    // matches the requested weight. Slot 0 would hand a title the body size and
+    // strip the bold off every header; the nearest match keeps the panel
+    // legible, and layout stays consistent because it measures the same font.
     if (s_fontCount >= (int)(sizeof(s_fonts) / sizeof(s_fonts[0]))) {
-        return nullptr;
+        int best = -1;
+        int bestScore = 0;
+
+        for (int i = 0; i < s_fontCount; ++i) {
+            int delta = s_fonts[i].pixelHeight - pixelHeight;
+
+            if (delta < 0) {
+                delta = -delta;
+            }
+
+            // A weight mismatch is worse than any plausible size mismatch.
+            int score = delta + (s_fonts[i].bold == bold ? 0 : 4096);
+
+            if (best < 0 || score < bestScore) {
+                best = i;
+                bestScore = score;
+            }
+        }
+
+        if (best < 0) {
+            return nullptr;
+        }
+
+        return s_fonts[best].font;
     }
 
-    HDC screen = GetDC(nullptr);
-    int dpi = GetDeviceCaps(screen, LOGPIXELSY);
     int weight = FW_NORMAL;
 
     if (bold) {
@@ -36,18 +142,15 @@ HFONT overlayPanelFont(int pointSize, bool bold) {
     }
 
     HFONT font = CreateFontW(
-        -MulDiv(pointSize, dpi, 72), 0, 0, 0, weight, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-        L"Segoe UI"
+        -pixelHeight, 0, 0, 0, weight, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+        CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI"
     );
-
-    ReleaseDC(nullptr, screen);
 
     if (!font) {
         return nullptr;
     }
 
-    s_fonts[s_fontCount].pointSize = pointSize;
+    s_fonts[s_fontCount].pixelHeight = pixelHeight;
     s_fonts[s_fontCount].bold = bold;
     s_fonts[s_fontCount].font = font;
     ++s_fontCount;
@@ -103,6 +206,32 @@ void overlayPanelTextRight(HDC dc, int right, int y, const char *text, COLORREF 
     GetTextExtentPoint32W(dc, w, len, &sz);
     SetTextColor(dc, color);
     TextOutW(dc, right - sz.cx, y, w, len);
+}
+
+// ── measuring ───────────────────────────────────────────────────────────────────
+// Layouts are computed before the panel's own bitmap exists (and off the render
+// thread), so they measure against a screen DC. The metrics are identical
+// either way: same font, and both DCs report the same device caps.
+int overlayPanelLineHeight(HFONT font) {
+    HDC screen = GetDC(nullptr);
+    HFONT prev = (HFONT)SelectObject(screen, font);
+    TEXTMETRICW tm = {};
+    GetTextMetricsW(screen, &tm);
+    SelectObject(screen, prev);
+    ReleaseDC(nullptr, screen);
+    return tm.tmHeight + tm.tmExternalLeading;
+}
+
+int overlayPanelTextWidth(HFONT font, const char *text) {
+    wchar_t w[128];
+    int len = toWide(text, w, 128);
+    HDC screen = GetDC(nullptr);
+    HFONT prev = (HFONT)SelectObject(screen, font);
+    SIZE sz = {0, 0};
+    GetTextExtentPoint32W(screen, w, len, &sz);
+    SelectObject(screen, prev);
+    ReleaseDC(nullptr, screen);
+    return sz.cx;
 }
 
 // ── panel ───────────────────────────────────────────────────────────────────────

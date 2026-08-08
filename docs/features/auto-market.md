@@ -139,9 +139,15 @@ category headers; each Min/Max is a cell.
 
 That plumbing now lives in `src/core/overlayPanel.cpp`, shared with the settings
 overlay — this file keeps only the layout and the editing logic. The quad's
-vertices are built at install time by `overlayPanelInit`, which is what keeps the
-render path free of float arithmetic; see
+vertices are the only float work involved, and they are built off the render
+thread: `overlayPanelInit` at install, then `overlayPanelSetBounds` from the
+`WndProc` each time the panel is opened. See
 [settings-overlay.md](settings-overlay.md).
+
+The layout itself is measured rather than written down — column widths from the
+text they hold, row heights from the font, the whole panel scaled to the game's
+resolution, and shrunk further if a 28-good list still will not fit the screen.
+See [ui-scale.md](ui-scale.md).
 
 **Input.** The overlay subclasses the game window's `WndProc`. The toggle hotkey
 shows/hides it; while open it routes keys (arrows/Tab to move, digits to type,
