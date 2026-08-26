@@ -4,6 +4,11 @@
 
 ## [0.7.0]
 
+### [Fix] - Statistics Panel Stayed on Screen in the Campaign
+
+- **What the issue was:** After finishing a campaign mission, clicking on to the next mission left the end-of-game statistics panel drawn over the new mission, and nothing would clear it short of going back to the main menu.
+- **What we changed:** The panel now disappears as soon as you leave the victory or defeat screen, whichever way you leave it — on to the next mission, restarting, or back to the main menu.
+
 ### [Feature] - Zoom Out Much Further
 
 - **What the issue was:** The camera stopped zooming out very early, so on a wide monitor you could only ever see a small part of your castle at once and had to scroll constantly to follow a battle.

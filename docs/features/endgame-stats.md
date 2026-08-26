@@ -26,12 +26,15 @@ translucent panel is drawn over the game showing per-player statistics:
 - Per-source honour (feasting, dancing, monastery, jousting, church, granary, statues, crime)
 - Cumulative units recruited by type (tracked via unit spawn hook throughout the game)
 
-The overlay is dismissed (and all tracking state reset) when the player returns
-to the main menu, hooked via `MainMenuScreen::OnActivate`. The Win/LoseScreen
-scalar destructors are also hooked as a teardown safety net, but **they do not
-fire on normal screen exit** — a main-menu minidump showed both endgame screen
-objects still alive at the menu, so the game creates its screens once and keeps
-them for the process lifetime. Up to 8 players are shown. Numbers are
+The overlay is dismissed (and all tracking state reset) when the player leaves
+the endgame screen — detected by watching the screen's `Pane` parent pointer on
+the frame tick, see "Dismissal" below. `MainMenuScreen::OnActivate` also resets
+everything on any return to the main menu, which covers quitting a game
+mid-way, where no endgame screen ever appears. The Win/LoseScreen scalar
+destructors are hooked as a teardown safety net, but **they do not fire on
+normal screen exit** — a main-menu minidump showed both endgame screen objects
+still alive at the menu, so the game creates its screens once and keeps them
+for the process lifetime. Up to 8 players are shown. Numbers are
 right-aligned, the panel is sized from measured text (Segoe UI, scaled to the
 game's resolution rather than the desktop's DPI — see [ui-scale.md](ui-scale.md))
 and centred in the backbuffer. It never grows wider than the screen, and a panel
@@ -73,6 +76,52 @@ alike.
 raises it only once the rows and bounds are final, so the render callback never
 walks a half-built list if a second endgame screen appears without a return to
 the menu in between.
+
+## Dismissal — leaving the endgame screen
+
+The overlay is raised by `Win/LoseScreen::OnActivate` and must come down when
+the player leaves that screen. The screens are never destroyed and, in the
+singleplayer campaign, the player never passes through the main menu on the way
+out: clicking on from the victory screen loads the next mission directly. Both
+of the original teardown hooks (the scalar destructors, `MainMenuScreen::
+OnActivate`) therefore miss that path, and the panel stayed on screen over the
+next mission — see Known Issues.
+
+**The screen tree gives the missing signal.** Every `Pane` has a parent pointer
+at `+0x80` (the field `Pane::isVisible`, RVA `0xcfa0`, walks up), and exactly
+one screen is attached to the root pane at any time — that screen is the one
+being displayed. Two minidumps taken 30 seconds apart around the bug show it
+directly:
+
+| Screen | Dump A (victory screen up) | Dump B (next mission running) |
+| --- | --- | --- |
+| WinScreen | parent = `0x5b3d6d8` (root pane) | parent = `0` |
+| GameScreen | parent = `0` | parent = `0x5b3d6d8` |
+| every other screen | parent = `0` | parent = `0` |
+
+So the dismissal rule is: remember the `this` of the screen whose `OnActivate`
+raised the overlay (the hook site's `ECX`), and on the frame tick dismiss once
+its parent goes back to null. `endgameScreenTick` arms only after it has seen
+the screen attached at least once, so an `OnActivate` that runs before the
+screen is put on screen cannot make the overlay dismiss itself a frame later.
+The tick is one pointer read and is float-free, as the frame-tick contract
+requires.
+
+This is preferable to hooking the successor screen (`GameScreen::OnActivate`,
+RVA `0x1ee750`): it needs no assumption about *which* screen comes next, so it
+covers the campaign's next mission, a restart, and the return to the menu with
+one rule.
+
+Dismissal runs the same full reset as the main-menu hook (session, unit counts
+and the per-game auto-market thresholds), because in the campaign this *is* the
+game-to-game boundary — the next mission must not inherit the previous one's
+thresholds or recruit counts.
+
+**Note on the `Pane` flag byte at `+0x18`**: an earlier note here read the
+`0x10` bit as "this screen is active". That does not hold generally — in both
+of these in-game dumps `MainMenuScreen` still read `0x1f` while the game was
+running, and `GameScreen` read `0x0f` while it was the attached screen. The
+parent pointer above is the reliable discriminator.
 
 ## Architecture (code layout)
 
@@ -206,10 +255,11 @@ lifecycle.
   menu-time table remnants are never captured. (A player must recruit within
   a game for tracking to start — in practice the first barracks purchase by
   *any* player, typically within the first minute.)
-- **Active → Idle (full reset)**: `MainMenuScreen::OnActivate` fires — the
-  player reached the main menu, whether from the endgame screen or by
-  quitting a game mid-way. All slot caches and unit counts are cleared and
-  the overlay is dismissed. (The Win/LoseScreen scalar destructors are hooked
+- **Active → Idle (full reset)**: the player leaves the endgame screen (the
+  screen-detach tick, see Dismissal — the only signal the campaign's
+  next-mission path gives), or `MainMenuScreen::OnActivate` fires, which
+  covers quitting a game mid-way without an endgame screen. All slot caches
+  and unit counts are cleared and the overlay is dismissed. (The Win/LoseScreen scalar destructors are hooked
   as a teardown safety net, but screen objects persist for the process
   lifetime, so they never fire on normal screen exit.) The reset deliberately
   does not happen at overlay show — so if a screen's `OnActivate` fires
@@ -278,6 +328,15 @@ pane. The same dump showed the endgame screen objects still alive, proving
 screens persist for the process lifetime and their destructors never fire on
 normal exit — which is why the overlay could not be dismissed before this
 hook existed.
+
+### Screen-detach tick — dismiss when the endgame screen is left
+
+| Item | Value |
+| --- | --- |
+| `Pane` parent offset | `+0x80` (null = not the displayed screen) |
+| Read from | the `Win/LoseScreen` `this` captured in `ECX` at the `OnActivate` hook |
+| Runs on | the shared frame-tick dispatcher (RVA `0x300c0`) |
+| How found | `Pane::isVisible` (RVA `0xcfa0`) walks `[this+0x80]`; confirmed against two minidumps, see Dismissal above |
 
 ### WinScreen / LoseScreen scalar destructors — teardown safety net
 
@@ -467,6 +526,16 @@ uncommitted page (same crash class as above, one page later).
   session starts from a genuinely clean slate. The per-slot pointer-reuse
   check remains as defence in depth for any game→game transition that skips
   the menu (e.g. a scripted restart, if one exists).
+
+- **Campaign: overlay stayed up over the next mission (fixed)**: the
+  singleplayer campaign goes straight from the victory screen into the next
+  mission, so `MainMenuScreen::OnActivate` — until now the only working
+  dismiss point — never fired and the stats panel stayed drawn over the new
+  mission indefinitely. Fixed by dismissing when the endgame screen is
+  detached from the root pane (see Dismissal). Note the corollary: if a path
+  ever exists that leaves the endgame screen and resumes the *same* game, the
+  reset would clear that game's auto-market thresholds and recruit counts
+  along with the overlay.
 
 - **Endgame screens are never destroyed (why the overlay used to stick)**:
   the Win/LoseScreen scalar-destructor hooks were meant to dismiss the
