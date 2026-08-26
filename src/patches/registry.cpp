@@ -4,6 +4,7 @@
 #include "autoMarket/autoMarket.h"
 #include "barracksCrash.h"
 #include "endgameStats.h"
+#include "farPlane.h"
 #include "introSkip.h"
 #include "knightCatapultCrash.h"
 #include "mapEdgeCrash.h"
@@ -12,7 +13,9 @@
 #include "settingsOverlay.h"
 #include "shiftRecruit.h"
 #include "siegeCampHotkey.h"
+#include "skyBackdrop.h"
 #include "stopTroopsHotkey.h"
+#include "zoomLimit.h"
 #include "zoomSpeed.h"
 
 void applyUnofficialPatches() {
@@ -28,6 +31,9 @@ void applyUnofficialPatches() {
     installStopTroopsHotkey();
     installAttackHotkey();
     installZoomSpeed();
+    installZoomLimit();
+    installSkyBackdrop();
+    installFarPlane();
     installShiftRecruit();
     installAutoMarket();
     installSiegeCampHotkey();

@@ -55,6 +55,9 @@ the game has created a device to read a backbuffer size from
 | `[hotkeys]` | `AttackToggle` | `Mouse4` | Toggle attack-move stance ([attack-move-hotkey.md](attack-move-hotkey.md)) |
 | `[hotkeys]` | `AutoMarketPanel` | `` ` `` | Toggle the auto-market editor overlay ([auto-market.md](auto-market.md)); `None` disables the whole feature |
 | `[camera]` | `ZoomSpeedMultiplier` | `1.0` | Camera zoom speed factor ([zoom-speed.md](zoom-speed.md)); `1.0` leaves the game code untouched |
+| `[camera]` | `ZoomOutLimit` | `Vanilla` | `Auto` zooms out to the furthest usable distance for the map and camera angle ([zoom-limit.md](zoom-limit.md)); `Vanilla` leaves the game code untouched |
+| `[camera]` | `ExtendSky` | `0` | Stretch the sky backdrop to the bottom of the screen so the area beyond the map edge is not black ([sky-backdrop.md](sky-backdrop.md)); pairs with a raised `ZoomOutLimit` |
+| `[camera]` | `FarPlaneMultiplier` | `1.0` | Multiplies the distance at which the landscape stops being drawn ([far-plane.md](far-plane.md)); raise it if the view goes black when fully zoomed out |
 | `[interface]` | `SiegeCampJumpOnSecondPress` | `1` | The siege camp hotkey (`J`) opens its panel on the first press and only moves the camera on a second press ([siege-camp-hotkey.md](siege-camp-hotkey.md)); `0` restores the stock one-press behaviour (no hooks installed) |
 | `[ui]` | `Scale` | `Auto` | Size of the patch's overlay panels in percent ([ui-scale.md](ui-scale.md)); `Auto` derives it from the game's resolution, `50`–`300` sets it by hand, anything else falls back to `Auto` |
 | `[recruitment]` | `RecruitmentShiftMultiplier` | `20` | Units queued per shift-click in barracks/mercenary post/monastery/engineers guild/siege camp ([shift-click-recruitment.md](shift-click-recruitment.md)); `0` or `1` disables (no hooks installed) |
@@ -94,6 +97,14 @@ Accepted range `0.1`–`10.0`. Out-of-range values, `NaN`, and the default
 `1.0` all leave the zoom code untouched — the feature is strictly opt-in.
 See [zoom-speed.md](zoom-speed.md) for how the multiplier reaches the game
 code (an `fmul` against a float in the DLL's data section).
+
+### ZoomOutLimit
+
+Accepts `Vanilla` (default, game code untouched) or `Auto`. Any other value,
+and a missing key, leave the feature off. There is no number to tune: `Auto`
+derives the limit from the map's extent, the viewport aspect and the camera's
+current pitch, against a calibration measured from two process dumps, and never
+reduces the limit below the game's own. See [zoom-limit.md](zoom-limit.md).
 
 ### RecruitmentShiftMultiplier
 

@@ -37,7 +37,7 @@ No game files are modified. Removing the DLL restores the original behavior comp
 
 ## Current Fixes and Features
 
-### v0.6.1
+### v0.7.0
 
 | Description | Offset | Status |
 | --- | --- | --- |
@@ -58,6 +58,9 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [Key combinations (`Ctrl`/`Shift`/`Alt`) for the patch hotkeys, plus the in-game rebind widget](docs/features/keybinding.md) | — | Added in v0.6.0 |
 | [In-game settings panel for rebinding hotkeys (`Ctrl+Shift+O`)](docs/features/settings-overlay.md) | — | Added in v0.6.0 |
 | [Overlay panels scale to the game's resolution instead of the desktop DPI](docs/features/ui-scale.md) | — | Added in v0.6.1 |
+| [Zoom out to the furthest usable distance (opt-in)](docs/features/zoom-limit.md) | `base+0x362480` | Added in v0.7.0 |
+| [Sky backdrop fills the screen at far zoom (opt-in)](docs/features/sky-backdrop.md) | `base+0x34b540` | Added in v0.7.0 |
+| [Configurable far clip plane (opt-in)](docs/features/far-plane.md) | `base+0x1fa5e7`, `base+0x335dee`, `base+0x1ff578` | Added in v0.7.0 |
 
 ---
 
@@ -124,9 +127,10 @@ make clean    # remove build artifacts
 
 Copy [sh2-unofficial-patch.ini](sh2-unofficial-patch.ini) next to `d3d9.dll`
 in the game directory to rebind or disable the hotkeys and to opt into a
-faster camera zoom. Every setting is documented inside the file; without it
-the defaults apply (Stop troops: `H`, attack-move toggle: `Mouse4`, stock
-zoom speed). See [docs/features/configuration.md](docs/features/configuration.md)
+faster camera zoom or a higher zoom-out limit. Every setting is documented
+inside the file; without it the defaults apply (Stop troops: `H`, attack-move
+toggle: `Mouse4`, stock zoom speed and zoom-out limit).
+See [docs/features/configuration.md](docs/features/configuration.md)
 for details.
 
 ---
