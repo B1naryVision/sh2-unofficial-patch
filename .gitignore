@@ -29,3 +29,6 @@ cmake_install.cmake
 # Large process dumps — never commit
 *.DMP
 *.dmp
+
+# Local working notes, not part of the shipped patch
+CLAUDE.md
