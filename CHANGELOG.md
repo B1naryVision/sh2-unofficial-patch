@@ -4,6 +4,11 @@
 
 ## [0.7.0]
 
+### [Fix] - Games Already in Progress Clutter the Multiplayer Browser
+
+- **What the issue was:** The multiplayer game list showed games that had already started alongside ones you could actually join, and clicking one did nothing at all — no message, no explanation — so finding a joinable game meant working through them by trial and error.
+- **What we changed:** Games that have already started are now left out of the list, so everything you can see is something you can join. Only you need the patch for this to work: the list is filtered on your own machine, and games hosted by players without the patch are filtered out just the same.
+
 ### [Fix] - Statistics Panel Stayed on Screen in the Campaign
 
 - **What the issue was:** After finishing a campaign mission, clicking on to the next mission left the end-of-game statistics panel drawn over the new mission, and nothing would clear it short of going back to the main menu.

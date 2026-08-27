@@ -61,6 +61,7 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [Zoom out to the furthest usable distance (opt-in)](docs/features/zoom-limit.md) | `base+0x362480` | Added in v0.7.0 |
 | [Sky backdrop fills the screen at far zoom (opt-in)](docs/features/sky-backdrop.md) | `base+0x34b540` | Added in v0.7.0 |
 | [Configurable far clip plane (opt-in)](docs/features/far-plane.md) | `base+0x1fa5e7`, `base+0x335dee`, `base+0x1ff578` | Added in v0.7.0 |
+| [In-progress games hidden from the multiplayer browser](docs/bugs/in-progress-lobbies.md) | `base+0x3e065b`, `base+0x3e06bf` | Fixed in v0.7.0 |
 
 ---
 

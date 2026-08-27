@@ -60,6 +60,7 @@ the game has created a device to read a backbuffer size from
 | `[camera]` | `FarPlaneMultiplier` | `1.0` | Multiplies the distance at which the landscape stops being drawn ([far-plane.md](far-plane.md)); raise it if the view goes black when fully zoomed out |
 | `[interface]` | `SiegeCampJumpOnSecondPress` | `1` | The siege camp hotkey (`J`) opens its panel on the first press and only moves the camera on a second press ([siege-camp-hotkey.md](siege-camp-hotkey.md)); `0` restores the stock one-press behaviour (no hooks installed) |
 | `[ui]` | `Scale` | `Auto` | Size of the patch's overlay panels in percent ([ui-scale.md](ui-scale.md)); `Auto` derives it from the game's resolution, `50`–`300` sets it by hand, anything else falls back to `Auto` |
+| `[multiplayer]` | `HideInProgressLobbies` | `1` | Leave games that have already started out of the multiplayer game list ([in-progress-lobbies.md](../bugs/in-progress-lobbies.md)); `0` restores the stock list (no hooks installed) |
 | `[recruitment]` | `RecruitmentShiftMultiplier` | `20` | Units queued per shift-click in barracks/mercenary post/monastery/engineers guild/siege camp ([shift-click-recruitment.md](shift-click-recruitment.md)); `0` or `1` disables (no hooks installed) |
 
 ### Hotkey value format

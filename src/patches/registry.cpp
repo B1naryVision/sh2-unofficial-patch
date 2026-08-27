@@ -7,6 +7,7 @@
 #include "farPlane.h"
 #include "introSkip.h"
 #include "knightCatapultCrash.h"
+#include "lobbyInProgressFilter.h"
 #include "mapEdgeCrash.h"
 #include "mpAiEnable.h"
 #include "mpConnectCompleteCrash.h"
@@ -25,6 +26,7 @@ void applyUnofficialPatches() {
     installMpAiEnable();
     installIntroSkip();
     installMpConnectCompleteCrashFix();
+    installLobbyInProgressFilter();
     installEndgameStats();
     installBarracksCrashFix();
     installMapEdgeCrashFix();
