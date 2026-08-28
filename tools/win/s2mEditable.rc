@@ -1,0 +1,34 @@
+#include <windows.h>
+
+1 ICON "s2mEditable.ico"
+1 RT_MANIFEST "s2mEditable.manifest"
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION     1,0,0,0
+PRODUCTVERSION  1,0,0,0
+FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
+FILEFLAGS       0
+FILEOS          VOS_NT_WINDOWS32
+FILETYPE        VFT_APP
+FILESUBTYPE     VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName",      "Stronghold 2 Unofficial Patch"
+            VALUE "FileDescription",  "Stronghold 2 Map Unlocker"
+            VALUE "FileVersion",      "1.0.0.0"
+            VALUE "InternalName",     "sh2-map-unlocker"
+            VALUE "OriginalFilename", "sh2-map-unlocker.exe"
+            VALUE "ProductName",      "Stronghold 2 Unofficial Patch"
+            VALUE "ProductVersion",   "1.0.0.0"
+            VALUE "LegalCopyright",   "Public domain (Unlicense)"
+            VALUE "Comments",         "Makes a Stronghold 2 map editable by removing the author marker from its header. Source: github.com/sh2-unofficial-patch"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

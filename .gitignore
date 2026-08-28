@@ -32,3 +32,6 @@ cmake_install.cmake
 
 # Local working notes, not part of the shipped patch
 CLAUDE.md
+
+# Tool build output
+tools/win/*.exe
