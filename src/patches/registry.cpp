@@ -11,6 +11,7 @@
 #include "mapEdgeCrash.h"
 #include "mpAiEnable.h"
 #include "mpConnectCompleteCrash.h"
+#include "pingCommand.h"
 #include "settingsOverlay.h"
 #include "shiftRecruit.h"
 #include "siegeCampHotkey.h"
@@ -27,6 +28,7 @@ void applyUnofficialPatches() {
     installIntroSkip();
     installMpConnectCompleteCrashFix();
     installLobbyInProgressFilter();
+    installPingCommand();
     installEndgameStats();
     installBarracksCrashFix();
     installMapEdgeCrashFix();

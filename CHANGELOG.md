@@ -2,6 +2,15 @@
 
 ---
 
+## [Unreleased]
+
+### [Feature] - See Who Is Lagging With `!ping`
+
+- **What the issue was:** When a multiplayer game turned choppy there was no way to tell who was struggling, so it came down to guesswork and finger-pointing, and the game's own "Latency" column in the game list has never shown anything.
+- **What we changed:** Type `!ping` in chat during a multiplayer game and everyone sees a message listing the round-trip time to each player, so the lobby can decide together what to do about it. Players without the patch still see the results, though their own time shows as "n/a" until they install it.
+
+---
+
 ## [0.7.0]
 
 ### [Fix] - Games Already in Progress Clutter the Multiplayer Browser

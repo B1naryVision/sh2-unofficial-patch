@@ -62,6 +62,7 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [Sky backdrop fills the screen at far zoom (opt-in)](docs/features/sky-backdrop.md) | `base+0x34b540` | Added in v0.7.0 |
 | [Configurable far clip plane (opt-in)](docs/features/far-plane.md) | `base+0x1fa5e7`, `base+0x335dee`, `base+0x1ff578` | Added in v0.7.0 |
 | [In-progress games hidden from the multiplayer browser](docs/bugs/in-progress-lobbies.md) | `base+0x3e065b`, `base+0x3e06bf` | Fixed in v0.7.0 |
+| [`!ping` chat command showing per-player latency](docs/features/ping-command.md) | `base+0x24d8e0`, `base+0x3d88c0` | Added in v0.7.1 |
 
 ---
 
