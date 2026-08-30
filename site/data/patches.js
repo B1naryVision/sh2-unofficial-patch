@@ -20,7 +20,8 @@
 
    `type:"ba"` is the before/after slider. Use it only where the two
    pictures are taken from the same spot and differ in one visible way
-   (zoom distance, black edges, panel size). For a crash fix or an
+   (zoom distance, panel size, a list with and without its filter). For
+   a crash fix or an
    animation, a short YouTube clip says far more than two stills.
 
    The YouTube `id` is the part after `v=` in the address bar:
@@ -184,7 +185,7 @@ const PATCHES = [
     title:"Zoom out much further",
     was:"The camera stopped pulling back very early, so on a wide monitor you saw only a corner of your castle and had to scroll constantly to follow a battle.",
     now:"You can pull back far enough to take in the whole fight, stopping at the point where the view stops holding up.",
-    how:"Set ZoomOutLimit to Auto in the settings file. There is nothing to tune — the stopping point is worked out from the size of the map and the angle of your camera, so it suits small and large maps alike."
+    how:"Set ZoomOutLimit to Auto under [camera] in the settings file. There is nothing to tune — the stopping point is worked out from the size of the map you are playing and the angle of your camera, so it suits small and large maps alike, and looking straight down reaches further than a tilted view does."
   },
 
   /* ---------- INTERFACE ------------------------------------------ */
@@ -228,9 +229,7 @@ const HISTORY = [
   { v:"0.7.0", date:"", items:[
     "Games already in progress no longer clutter the multiplayer browser",
     "The statistics panel no longer stays on screen in the campaign",
-    "Zoom out much further (opt-in)",
-    "No more black edges when zoomed far out (opt-in)",
-    "Keep the landscape drawn when zoomed far out (opt-in)"
+    "Zoom out much further (opt-in)"
   ]},
   { v:"0.6.1", date:"", items:[
     "Patch panels are readable on every screen and display-scaling setting"

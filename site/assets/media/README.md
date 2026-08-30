@@ -38,9 +38,8 @@ unrelated pictures rather than one change.
 Good candidates in this patch:
 
 - `zoom-limit` — the stock zoom-out limit vs. `ZoomOutLimit=Auto`
-- `sky-backdrop` — the black wedge vs. sky filling it
-- `far-plane` — black screen at full zoom-out vs. landscape still drawn
 - `ui-scale` — a clipped panel vs. one that fits
+- `in-progress-lobbies` — the game list before and after the filtering
 
 ## Format and size
 
