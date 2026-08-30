@@ -1,0 +1,60 @@
+name: Player site
+
+# Publishes site/ to GitHub Pages. The site is plain HTML/CSS/JS with no
+# build step, so this only uploads the folder and deploys it.
+#
+# One-time setup on GitHub:
+#   Settings -> Pages -> Source = "GitHub Actions"
+# (The "Deploy from a branch" option can only serve the repo root or /docs,
+# and /docs here holds the developer write-ups. Deploying from Actions is
+# what lets the site live in its own folder.)
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "site/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never run two deploys at once; let a newer push win.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Sanity-check the site
+        run: |
+          test -f site/index.html      || { echo '::error::site/index.html missing'; exit 1; }
+          test -f site/data/patches.js || { echo '::error::site/data/patches.js missing'; exit 1; }
+          test -f site/.nojekyll       || { echo '::error::site/.nojekyll missing -- Pages would run Jekyll'; exit 1; }
+          node --check site/data/patches.js
+          node --check site/assets/js/site.js
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
