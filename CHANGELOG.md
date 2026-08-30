@@ -28,16 +28,6 @@
 - **What the issue was:** The camera stopped zooming out very early, so on a wide monitor you could only ever see a small part of your castle at once and had to scroll constantly to follow a battle.
 - **What we changed:** Set `ZoomOutLimit=Auto` under `[camera]` in `sh2-unofficial-patch.ini` and you can pull back much further, stopping at the point where the view stops holding up. There is nothing to tune: the stopping point is worked out from the size of the map you are playing and the angle of your camera, so it suits small and large maps alike, and looking straight down reaches further than a tilted view does. Off by default, and only your own view changes, so it stays compatible with players who do not have the patch.
 
-### [Feature] - No More Black Edges When Zoomed Far Out
-
-- **What the issue was:** With the camera pulled a long way back, a black wedge crept into the picture along the border of the map and grew the further out you went. The sky stops in a straight line at the map's far edge, but the map's border runs diagonally across the screen, so the gap between the two was left unpainted.
-- **What we changed:** Set `ExtendSky=1` under `[camera]` in `sh2-unofficial-patch.ini` and the sky continues all the way down instead of stopping short, so that gap shows sky. The sky itself looks exactly as it did before — the extra part sits behind the landscape and is only visible where the black used to be. Off by default, and it changes nothing but the picture on your own screen.
-
-### [Feature] - Keep the Landscape Drawn When Zoomed Far Out
-
-- **What the issue was:** The game stops drawing the landscape past a fixed distance, and its own graphics view-distance setting cannot raise that limit. Pulling the camera back far enough — most easily with the view tilted straight down — put the whole map beyond it and the screen went black until you zoomed back in.
-- **What we changed:** Set `FarPlaneMultiplier` under `[camera]` in `sh2-unofficial-patch.ini` to push that limit further out; raise it until the picture stays visible all the way out to the new maximum zoom. Off by default, and it only affects what your own machine draws.
-
 ---
 
 ## [0.6.1]

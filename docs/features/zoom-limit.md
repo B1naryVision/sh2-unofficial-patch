@@ -47,8 +47,8 @@ pitch-dependent by design rather than by accident.
 
 The limiting extent is `min(mapWidth, mapDepth × aspect)`, because the ground
 width visible at distance `d` is exactly `d` — the projection is built with
-`D3DXMatrixPerspectiveLH(w = 1024, zNear = 1024)`, so `tan(halfFOV) = 0.5`
-horizontally (see [far-plane.md](far-plane.md)) — and the visible depth is that
+`D3DXMatrixPerspectiveLH(w = 1024, zNear = 1024)` at VA `0x72d7a0`, so
+`tan(halfFOV) = (w/2)/zNear = 0.5` horizontally — and the visible depth is that
 divided by the viewport aspect. Whichever runs out first brings the map's edge
 into view. On the calibration map that expression yields 260096, which is what
 the two measurements are expressed against.
@@ -59,18 +59,22 @@ limit = lerp(144000, 234392.90625, t) * (extent / 260096);
 limit = max(limit, engineInstalledLimit);
 ```
 
-The camera pointer, viewport ints (RVA `0x6c7818`/`0x6c781c`) and map bounds all
-come from the same places the [sky backdrop](sky-backdrop.md) patch reads.
+The viewport dimensions are the renderer's own ints at RVA `0x6c7818` and
+`0x6c781c`.
 
-### Caveat on the top-down figure
+### What bounds the top-down figure
 
-The 234392.9 measurement was taken **with the far-plane patch inactive** — it
-had a byte-check bug (see [far-plane.md](far-plane.md)) and had never installed.
-The runtime far distance in both dumps is 240000, and 234392.9 sits just under
-it, so that capture is almost certainly the far plane clipping the ground rather
-than the map's edge coming into view. Re-measuring top-down with the far-plane
-fix live would likely support a larger figure. The angled capture at 144000 is
-well clear of 240000 and is not suspect.
+234392.9 sits just under the **stock far clip plane**, which both dumps show at
+240000 world units (`renderer+0x184`; the projection at VA `0x72d7a0` takes it
+as `zFar`). So the top-down capture is the point where the ground starts being
+clipped, not where the map's edge comes into view — and since the patch leaves
+the far plane alone, that is exactly the right thing for the limit to respect.
+The angled capture at 144000 is well clear of 240000 and is bounded by the map
+instead.
+
+Raising the far plane was tried and then dropped: it moved the ceiling, but
+playtesting showed the view at these limits is comfortable without it, so the
+extra render distance bought nothing worth the depth-precision cost.
 
 ---
 
