@@ -56,6 +56,7 @@ the game has created a device to read a backbuffer size from
 | `[hotkeys]` | `AutoMarketPanel` | `` ` `` | Toggle the auto-market editor overlay ([auto-market.md](auto-market.md)); `None` disables the whole feature |
 | `[camera]` | `ZoomSpeedMultiplier` | `1.0` | Camera zoom speed factor ([zoom-speed.md](zoom-speed.md)); `1.0` leaves the game code untouched |
 | `[camera]` | `ZoomOutLimit` | `Vanilla` | `Auto` zooms out to the furthest usable distance for the map and camera angle ([zoom-limit.md](zoom-limit.md)); `Vanilla` leaves the game code untouched |
+| `[camera]` | `ScrollSpeedMultiplier` | `1.0` | Camera scroll speed factor for the keyboard scroll keys and mouse edge scrolling ([scroll-speed.md](scroll-speed.md)); `1.0` leaves the game code untouched |
 | `[interface]` | `SiegeCampJumpOnSecondPress` | `1` | The siege camp hotkey (`J`) opens its panel on the first press and only moves the camera on a second press ([siege-camp-hotkey.md](siege-camp-hotkey.md)); `0` restores the stock one-press behaviour (no hooks installed) |
 | `[ui]` | `Scale` | `Auto` | Size of the patch's overlay panels in percent ([ui-scale.md](ui-scale.md)); `Auto` derives it from the game's resolution, `50`–`300` sets it by hand, anything else falls back to `Auto` |
 | `[multiplayer]` | `HideInProgressLobbies` | `1` | Leave games that have already started out of the multiplayer game list ([in-progress-lobbies.md](../bugs/in-progress-lobbies.md)); `0` restores the stock list (no hooks installed) |
@@ -96,6 +97,14 @@ Accepted range `0.1`–`10.0`. Out-of-range values, `NaN`, and the default
 `1.0` all leave the zoom code untouched — the feature is strictly opt-in.
 See [zoom-speed.md](zoom-speed.md) for how the multiplier reaches the game
 code (an `fmul` against a float in the DLL's data section).
+
+### ScrollSpeedMultiplier
+
+Accepted range `0.1`–`10.0`. Out-of-range values, `NaN`, and the default
+`1.0` all leave the scroll code untouched — the feature is strictly opt-in. It
+covers both the keyboard scroll keys and pushing the mouse against a screen
+edge, and scales the acceleration ramp along with the top speed. See
+[scroll-speed.md](scroll-speed.md).
 
 ### ZoomOutLimit
 

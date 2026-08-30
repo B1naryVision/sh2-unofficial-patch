@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### [Feature] - Move the Camera Around the Map Faster
+
+- **What the issue was:** Scrolling across the map was slow, and slower than it looked because the camera took over a second to get up to full speed, so crossing a large map meant holding a key down and waiting.
+- **What we changed:** Set `ScrollSpeedMultiplier` under `[camera]` in `sh2-unofficial-patch.ini` to scroll faster — 2.0 is twice the normal speed. It applies both to the keyboard scroll keys and to pushing the mouse against the edge of the screen, and the camera gets up to speed proportionally quicker too. As in the stock game, scrolling stays faster the further you are zoomed out. Off by default, and only your own view changes, so it stays compatible with players who do not have the patch.
+
 ### [Feature] - See Who Is Lagging With `!ping`
 
 - **What the issue was:** When a multiplayer game turned choppy there was no way to tell who was struggling, so it came down to guesswork and finger-pointing, and the game's own "Latency" column in the game list has never shown anything.

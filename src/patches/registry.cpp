@@ -11,6 +11,7 @@
 #include "mpAiEnable.h"
 #include "mpConnectCompleteCrash.h"
 #include "pingCommand.h"
+#include "scrollSpeed.h"
 #include "settingsOverlay.h"
 #include "shiftRecruit.h"
 #include "siegeCampHotkey.h"
@@ -33,6 +34,7 @@ void applyUnofficialPatches() {
     installStopTroopsHotkey();
     installAttackHotkey();
     installZoomSpeed();
+    installScrollSpeed();
     installZoomLimit();
     installShiftRecruit();
     installAutoMarket();
