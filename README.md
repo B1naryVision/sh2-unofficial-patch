@@ -4,6 +4,10 @@ An unofficial community patch for **Stronghold 2** (Firefly Studios, 2005) fixin
 
 [![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](https://unlicense.org)
 
+**Playing rather than building?** The player site has install instructions and a
+plain-English list of everything the patch fixes:
+**<https://b1naryvision.github.io/sh2-unofficial-patch/>**
+
 ---
 
 ## Overview

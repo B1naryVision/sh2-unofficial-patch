@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="night">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stronghold 2 Unofficial Patch — crash fixes and quality of life</title>
+<meta name="description" content="A free community patch for Stronghold 2 that fixes long-standing crashes and adds the conveniences the game never had. One file, no installer, delete it to undo.">
+<meta property="og:title" content="Stronghold 2 Unofficial Patch">
+<meta property="og:description" content="Fixes the crashes. Adds the conveniences. One file in your game folder — delete it to undo.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+
+<!-- ================================================================
+     NAV
+     ================================================================ -->
+<header class="nav">
+  <div class="wrap nav__inner">
+    <a class="brand" href="#top">
+      <span class="brand__mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+          <path d="M12 2l8 3v6.5C20 17 12 22 12 22S4 17 4 11.5V5z"/><path d="M12 6v10M8.5 9.5h7"/>
+        </svg>
+      </span>
+      <span class="brand__txt">Unofficial Patch
+        <span class="brand__sub">Stronghold 2</span>
+      </span>
+    </a>
+
+    <nav class="nav__links">
+      <a href="#install">Install</a>
+      <a href="#fixes">What's fixed</a>
+      <a href="#videos" data-optional>Videos</a>
+      <a href="#settings" data-optional>Settings</a>
+      <a href="#faq">Questions</a>
+      <button class="icon-btn" id="themeBtn" type="button" aria-label="Switch theme"></button>
+      <a class="btn btn--primary btn--sm" href="#install">Download</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ================================================================
+     HERO
+     ================================================================ -->
+<section class="hero" id="top">
+  <div class="wrap hero__inner">
+    <div>
+      <span class="badge"><span class="dot"></span>Free · Community made</span>
+
+      <h1>The fixes Stronghold 2<em>never got</em></h1>
+      <p class="hero__game">Steam edition · v1.5.0</p>
+
+      <p class="lead">
+        Twenty years on, the game still crashes when a catapult hits a mounting knight,
+        still makes you click a hundred times to raise an army, and still shows you a
+        sliver of your own castle.
+      </p>
+      <p class="lead">
+        <strong>This patch fixes all of it.</strong> One file goes next to the game.
+        No installer, no settings to learn, and deleting that one file puts everything
+        back exactly as it was.
+      </p>
+
+      <div class="hero__cta">
+        <a class="btn btn--primary btn--lg" href="#install">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download &amp; install
+        </a>
+        <a class="btn btn--lg" href="#fixes">See what it fixes</a>
+      </div>
+
+      <p class="hero__meta">
+        Latest release <b data-ver>v0.7.0</b>
+        <span hidden> · released <span id="relDate"></span></span>
+      </p>
+
+      <div class="stats">
+        <div class="stat"><div class="stat__k" id="statTotal">20</div><div class="stat__l">Fixes &amp; features</div></div>
+        <div class="stat"><div class="stat__k" id="statCrashes">4</div><div class="stat__l">Crashes killed</div></div>
+        <div class="stat"><div class="stat__k" id="statSolo">19/20</div><div class="stat__l">Work solo in MP</div></div>
+        <div class="stat"><div class="stat__k">1</div><div class="stat__l">File to install</div></div>
+      </div>
+    </div>
+
+    <div id="heroArt"></div>
+  </div>
+</section>
+
+<!-- ================================================================
+     TRUST
+     ================================================================ -->
+<section class="section section--tight">
+  <div class="wrap">
+    <div class="trust">
+      <div class="trust__item">
+        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Your game is untouched</h3>
+        <p>Not one of the game's own files is changed. The patch sits beside them and corrects things while you play.</p>
+      </div>
+      <div class="trust__item">
+        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Undo by deleting one file</h3>
+        <p>No installer and no uninstaller. Remove the file and the game is exactly as it was a minute ago.</p>
+      </div>
+      <div class="trust__item">
+        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>Your saves keep working</h3>
+        <p>Saved games, campaign progress and custom maps all carry on working, with the patch or without it.</p>
+      </div>
+      <div class="trust__item">
+        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Play with anyone</h3>
+        <p>Almost everything here works in multiplayer whether or not the other players have the patch. Each fix says which.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     INSTALL
+     ================================================================ -->
+<section class="section section--alt" id="install">
+  <div class="wrap wrap--narrow">
+    <div class="section__head">
+      <p class="eyebrow">Two minutes, three steps</p>
+      <h2>Installing it</h2>
+      <hr class="rule">
+      <p>If you can find a folder and drag a file into it, you can do this. There is no installer to run and nothing to configure.</p>
+    </div>
+
+    <div id="installVideo"></div>
+
+    <ol class="steps">
+      <li class="step">
+        <div class="step__num">1</div>
+        <div class="step__body">
+          <h3>Download the patch</h3>
+          <p>Grab the newest release and unzip it. Inside you will find <strong>d3d9.dll</strong> — that is the patch — along with an optional settings file you can ignore for now.</p>
+          <p>
+            <a class="btn btn--primary" id="dlBtn" href="https://github.com/B1naryVision/sh2-unofficial-patch/releases/latest" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Download <span data-ver>v0.7.0</span>
+            </a>
+          </p>
+          <details class="help">
+            <summary>Windows says the file is unsafe</summary>
+            <div class="help__body">
+              <p>That warning appears for any small program not signed by a company that paid for a certificate — which no free community project does. It is not a sign that anything is wrong with the file.</p>
+              <p>Every release is built automatically from the public source code, and each download is published with a checksum and a build record proving which code produced it. Both are on the release page if you would like to check.</p>
+            </div>
+          </details>
+        </div>
+      </li>
+
+      <li class="step">
+        <div class="step__num">2</div>
+        <div class="step__body">
+          <h3>Put it in your Stronghold 2 folder</h3>
+          <p>Drop <strong>d3d9.dll</strong> into the folder the game itself lives in — the one containing <strong>Stronghold2.exe</strong>. Not a subfolder, not your documents. Right beside the game.</p>
+          <p>On most machines that is:</p>
+          <span class="path">C:\Program Files (x86)\Steam\steamapps\common\Stronghold 2</span>
+          <div class="copy-row">
+            <button class="copy-btn" type="button" data-copy="C:\Program Files (x86)\Steam\steamapps\common\Stronghold 2">Copy this path</button>
+          </div>
+          <details class="help">
+            <summary>Show me how to find it from Steam</summary>
+            <div class="help__body">
+              <ol>
+                <li>Open Steam and go to your <strong>Library</strong>.</li>
+                <li>Right-click <strong>Stronghold 2</strong> in the list.</li>
+                <li>Choose <strong>Manage &rarr; Browse local files</strong>.</li>
+                <li>Windows opens the exact folder you need. Drop the file in there.</li>
+              </ol>
+            </div>
+          </details>
+        </div>
+      </li>
+
+      <li class="step">
+        <div class="step__num">3</div>
+        <div class="step__body">
+          <h3>Start the game as you always do</h3>
+          <p>That is the whole installation. Launch Stronghold 2 through Steam and the patch loads by itself — no menu to open, nothing to switch on.</p>
+          <p>You should go straight to the main menu without the Firefly logo video. That is how you know it is working.</p>
+          <details class="help">
+            <summary>How do I remove it later?</summary>
+            <div class="help__body">
+              <p>Delete <strong>d3d9.dll</strong> from that same folder. The game returns to exactly how it was, and every save still works.</p>
+            </div>
+          </details>
+        </div>
+      </li>
+    </ol>
+
+    <div class="notice" style="margin-top:26px">
+      <span class="notice__tag">Optional</span>
+      <p>The download also contains <code>sh2-unofficial-patch.ini</code>. Copy it next to <code>d3d9.dll</code> only if you want to change the shortcut keys or switch on the optional camera features. <b>You never have to open it</b> — the keys can also be changed from inside the game with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd>.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     VIDEOS
+     ================================================================ -->
+<section class="section section--edge" id="videos" hidden>
+  <div class="wrap">
+    <div class="watch">
+      <div class="watch__player" id="playlistEmbed"></div>
+      <div class="watch__copy">
+        <p class="eyebrow">Prefer to watch</p>
+        <h2>Every release, walked through</h2>
+        <hr class="rule">
+        <p>Each video goes through the fixes in a release and shows them happening in
+           the game &mdash; the crash that used to happen, and what it does now instead.
+           If reading a list of changes is not your thing, start here.</p>
+        <p class="watch__note">New videos cover fixes one at a time, so you can jump
+           straight to the one you care about.</p>
+        <p>
+          <a class="btn" id="playlistBtn" href="#" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            Open the playlist
+          </a>
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     FIXES
+     ================================================================ -->
+<section class="section" id="fixes">
+  <div class="wrap">
+    <div class="section__head">
+      <p class="eyebrow">Everything it does</p>
+      <h2>What the patch fixes</h2>
+      <hr class="rule">
+      <p>Pick a category, or click any card to see the detail — what went wrong before, what happens now, and how to use it.</p>
+    </div>
+
+    <div class="filters" id="filters"></div>
+    <div class="cards" id="cards"></div>
+
+    <div class="mp-key">
+      <div class="mp-key__row">
+        <span class="mp mp--solo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Others don't need it</span>
+        <span>Install it on your own machine and play with anybody, patched or not.</span>
+      </div>
+      <div class="mp-key__row">
+        <span class="mp mp--host"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Only the host needs it</span>
+        <span>Whoever creates the game needs the patch. Everyone else joins as normal.</span>
+      </div>
+      <div class="mp-key__row">
+        <span class="mp mp--partial"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Better if both have it</span>
+        <span>Safe to use either way, but the other side needs it too for the full effect.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     SETTINGS
+     ================================================================ -->
+<section class="section section--alt" id="settings">
+  <div class="wrap">
+    <div class="section__head">
+      <p class="eyebrow">Only if you want to</p>
+      <h2>The settings file</h2>
+      <hr class="rule">
+      <p>Everything below already has a sensible default. Change something only if you want it to behave differently — the file is plain text and every line is explained inside it.</p>
+    </div>
+
+    <div class="notice">
+      <span class="notice__tag">Shortcut</span>
+      <p>To change the patch's <b>keys</b>, you do not need this file at all. Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd> while playing, click the shortcut you want to change, and press the key you would rather use. It saves itself.</p>
+    </div>
+
+    <div class="set-scroll">
+      <table class="set">
+        <thead>
+          <tr><th>Setting</th><th>Default</th><th>What it does</th></tr>
+        </thead>
+        <tbody id="setBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     FAQ
+     ================================================================ -->
+<section class="section" id="faq">
+  <div class="wrap wrap--narrow">
+    <div class="section__head">
+      <p class="eyebrow">Before you ask</p>
+      <h2>Questions people actually ask</h2>
+      <hr class="rule">
+    </div>
+    <div class="faq" id="faqList"></div>
+  </div>
+</section>
+
+<!-- ================================================================
+     CHANGELOG
+     ================================================================ -->
+<section class="section section--alt" id="changelog">
+  <div class="wrap wrap--narrow">
+    <div class="section__head">
+      <p class="eyebrow">The full list</p>
+      <h2>What changed, and when</h2>
+      <hr class="rule">
+      <p>Every release so far, newest first.</p>
+    </div>
+    <div class="log" id="log"></div>
+  </div>
+</section>
+
+<!-- ================================================================
+     CLOSING CTA
+     ================================================================ -->
+<section class="section cta-band">
+  <div class="wrap">
+    <h2>Ready to play a fixed Stronghold 2?</h2>
+    <p>One file, two minutes, and twenty years of rough edges gone. It is free, and it always will be.</p>
+    <div class="hero__cta">
+      <a class="btn btn--primary btn--lg" href="#install">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download <span data-ver>v0.7.0</span>
+      </a>
+      <a class="btn btn--lg" href="https://github.com/B1naryVision/sh2-unofficial-patch/issues" target="_blank" rel="noopener">Report a problem</a>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     FOOTER
+     ================================================================ -->
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot__grid">
+      <div class="foot__col">
+        <h4>The patch</h4>
+        <ul>
+          <li><a href="#install">Download and install</a></li>
+          <li><a href="#fixes">What it fixes</a></li>
+          <li><a href="#settings">Settings</a></li>
+          <li><a href="#changelog">Version history</a></li>
+        </ul>
+      </div>
+      <div class="foot__col">
+        <h4>Help</h4>
+        <ul>
+          <li><a href="#videos">Video walkthroughs</a></li>
+          <li><a href="#faq">Common questions</a></li>
+          <li><a href="https://github.com/B1naryVision/sh2-unofficial-patch/issues" target="_blank" rel="noopener">Report a bug</a></li>
+          <li><a href="https://github.com/B1naryVision/sh2-unofficial-patch" target="_blank" rel="noopener">Source code</a></li>
+        </ul>
+      </div>
+      <div class="foot__col">
+        <h4>For the curious</h4>
+        <ul>
+          <li><a href="https://github.com/B1naryVision/sh2-unofficial-patch/tree/master/docs" target="_blank" rel="noopener">Technical write-ups</a></li>
+          <li><a href="https://github.com/B1naryVision/sh2-unofficial-patch/releases" target="_blank" rel="noopener">All releases</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="foot__note">
+      An unofficial, community-made patch for Stronghold 2. Not made by, endorsed by, or affiliated with
+      Firefly Studios. Stronghold 2 and all related marks belong to their respective owners.
+      Free to use and released into the public domain &mdash; &copy; <span id="year"></span>.
+    </p>
+  </div>
+</footer>
+
+<!-- ================================================================
+     DETAIL MODAL
+     ================================================================ -->
+<dialog class="modal-host" id="detail">
+  <div class="modal">
+    <div class="modal__head">
+      <div>
+        <h3 id="detailTitle"></h3>
+        <div class="meta" id="detailMeta"></div>
+      </div>
+      <button class="modal__close" id="detailClose" type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal__body" id="detailBody"></div>
+  </div>
+</dialog>
+
+<script src="data/patches.js"></script>
+<script src="assets/js/site.js"></script>
+</body>
+</html>
