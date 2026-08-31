@@ -28,7 +28,7 @@ BEGIN
             VALUE "ProductName",      "Stronghold 2 Unofficial Patch"
             VALUE "ProductVersion",   "0.7.1.0"
             VALUE "LegalCopyright",   "Public domain (Unlicense)"
-            VALUE "Comments",         "Community bug-fix and quality-of-life patch for Stronghold 2. Loads as a Direct3D 9 proxy and forwards every call to the system d3d9.dll. Source: github.com/sh2-unofficial-patch"
+            VALUE "Comments",         "Community bug-fix and quality-of-life patch for Stronghold 2. Loads as a Direct3D 9 proxy and forwards every call to the system d3d9.dll. Source: github.com/B1naryVision/sh2-unofficial-patch"
         END
     END
     BLOCK "VarFileInfo"

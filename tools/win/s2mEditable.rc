@@ -24,7 +24,7 @@ BEGIN
             VALUE "ProductName",      "Stronghold 2 Unofficial Patch"
             VALUE "ProductVersion",   "1.0.0.0"
             VALUE "LegalCopyright",   "Public domain (Unlicense)"
-            VALUE "Comments",         "Makes a Stronghold 2 map editable by removing the author marker from its header. Source: github.com/sh2-unofficial-patch"
+            VALUE "Comments",         "Makes a Stronghold 2 map editable by removing the author marker from its header. Source: github.com/B1naryVision/sh2-unofficial-patch"
         END
     END
     BLOCK "VarFileInfo"

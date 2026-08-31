@@ -7,7 +7,7 @@
 ### [Fix] - Antivirus and Browser Warnings on Download
 
 - **What the issue was:** Downloading the patch could bring up a browser warning, and more recently an antivirus alert calling the file a virus. It is a false alarm — the patch loads into the game and edits its behaviour in memory, which is normal for a mod but looks like the kind of thing scanners are built to catch — but there was nothing in the file to say who made it, which made the guess worse.
-- **What we changed:** The patch file now carries proper details of what it is, who made it and where the source code lives, so Windows can show a publisher instead of a blank, and it is built with the modern safety settings Windows expects. Every release also comes with checksums and a build record on GitHub so anyone can confirm the file was built from the public source. If your antivirus still objects, please report it to us with the exact name it gives the detection.
+- **What we changed:** The patch file now carries proper details of what it is, who made it and where the source code lives, so its file properties name the project and link to the source instead of sitting blank, and it is built with the modern safety settings Windows expects. Every release also comes with checksums and a build record on GitHub so anyone can confirm the file was built from the public source. If your antivirus still objects, please report it to us with the exact name it gives the detection.
 
 ### [Feature] - Move the Camera Around the Map Faster
 

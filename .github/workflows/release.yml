@@ -43,7 +43,7 @@ jobs:
           file d3d9.dll | grep -q 'PE32 executable' || { echo '::error::not a PE32 DLL'; exit 1; }
           i686-w64-mingw32-objdump -p d3d9.dll | grep -q 'Direct3DCreate9' || { echo '::error::Direct3DCreate9 export missing'; exit 1; }
           i686-w64-mingw32-objdump -h d3d9.dll | grep -q '\.rsrc' \
-            || { echo '::error::version resource missing -- SmartScreen would show no publisher'; exit 1; }
+            || { echo '::error::version resource missing -- no publisher in file properties'; exit 1; }
           i686-w64-mingw32-objdump -h d3d9.dll | grep -q '\.reloc' \
             || { echo '::error::no relocations -- ASLR cannot apply'; exit 1; }
           i686-w64-mingw32-objdump -p d3d9.dll | grep -qE 'DllCharacteristics[[:space:]]+0*140' \
@@ -61,7 +61,7 @@ jobs:
           file tools/win/sh2-map-unlocker.exe | grep -q 'PE32 executable' \
             || { echo '::error::map unlocker is not a PE32 exe'; exit 1; }
           i686-w64-mingw32-objdump -h tools/win/sh2-map-unlocker.exe | grep -q '\.rsrc' \
-            || { echo '::error::version resource missing -- SmartScreen would show no publisher'; exit 1; }
+            || { echo '::error::version resource missing -- no publisher in file properties'; exit 1; }
 
       - name: Package zip bundle
         id: package
