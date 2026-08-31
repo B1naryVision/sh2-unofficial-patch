@@ -1,5 +1,6 @@
 #include "zoomLimit.h"
 #include "../core/config.h"
+#include "../core/frameTick.h"
 #include "../core/hook.h"
 #include <cstdint>
 #include <cstring>
@@ -63,6 +64,14 @@ static uint32_t s_pitchBits = 0;
 // than vanilla.
 static float s_stockMax = 0.0f;
 
+// Live state for the settings overlay. The hook stays in once installed and is
+// gated on s_enabled instead, so turning the feature off never rewrites code
+// the game might be executing.
+static bool s_enabled = false;
+static bool s_installed = false;
+static bool s_failed = false;
+static bool s_installPending = false;
+
 // Read by the hook below, so it may not be static (GAS cannot resolve local
 // statics) and it must outlive the game — the patch DLL is never unloaded.
 uintptr_t g_zoomUpdateReturn = 0;
@@ -82,6 +91,18 @@ extern "C" void zoomLimitApply(uintptr_t camera) {
 
     uint32_t *maxDistance = (uint32_t *)(camera + MAX_DISTANCE_OFFSET);
     uint32_t pitchBits = *(uint32_t *)(camera + PITCH_OFFSET);
+
+    // Switched off in the settings panel: give the engine's own limit back
+    // once, then leave the camera alone until it is switched on again.
+    if (!s_enabled) {
+        if (s_writtenBits != 0 && *maxDistance == s_writtenBits && s_stockMax > 0.0f) {
+            memcpy(maxDistance, &s_stockMax, sizeof(*maxDistance));
+            s_writtenBits = 0;
+            s_pitchBits = 0;
+        }
+
+        return;
+    }
 
     if (*maxDistance != s_writtenBits) {
         // Not ours: the engine has just installed its own limit.
@@ -161,24 +182,14 @@ __declspec(naked) static void cameraUpdateHook() {
                      "jmp *_g_zoomUpdateReturn\n\t");
 }
 
-void installZoomLimit() {
-    char mode[32] = {0};
-
-    if (!configString("camera", "ZoomOutLimit", mode, sizeof(mode))) {
-        return;
-    }
-
-    if (_stricmp(mode, "Auto") != 0) {
-        return;
-    }
-
+static bool writeHook() {
     uintptr_t base = (uintptr_t)GetModuleHandleA(NULL);
     uint8_t *site = (uint8_t *)(base + UPDATE_SITE_RVA);
 
     // Only patch if the stock bytes are present, so a future game update that
     // shifts this code cannot be silently corrupted.
     if (memcmp(site, UPDATE_STOCK, sizeof(UPDATE_STOCK)) != 0) {
-        return;
+        return false;
     }
 
     s_camera = base + CAMERA_RVA;
@@ -187,4 +198,55 @@ void installZoomLimit() {
     g_zoomUpdateReturn = (uintptr_t)site + sizeof(UPDATE_STOCK);
 
     installHook(site, reinterpret_cast<void *>(cameraUpdateHook), sizeof(UPDATE_STOCK));
+    return true;
+}
+
+// Runs on the game thread: the camera update may be executing the prologue this
+// trampoline overwrites. No float arithmetic here, as the tick site requires.
+static void zoomLimitTick() {
+    if (!s_installPending) {
+        return;
+    }
+
+    s_installPending = false;
+    s_installed = writeHook();
+    s_failed = !s_installed;
+}
+
+bool zoomLimitEnabled() { return s_enabled; }
+
+bool zoomLimitFailed() { return s_failed; }
+
+void zoomLimitSetEnabled(bool enabled) {
+    s_enabled = enabled;
+
+    if (!enabled || s_installed) {
+        return;
+    }
+
+    s_installPending = true;
+}
+
+void installZoomLimit() {
+    // Registered even when the feature is off, so the settings panel can switch
+    // it on later: the tick is where the code rewrite happens, and the hook
+    // behind it may only be installed at load time.
+    registerFrameTick(&zoomLimitTick);
+
+    char mode[32] = {0};
+
+    if (!configString("camera", "ZoomOutLimit", mode, sizeof(mode))) {
+        return;
+    }
+
+    if (_stricmp(mode, "Auto") != 0) {
+        return; // default: the game code is left completely untouched
+    }
+
+    s_enabled = true;
+
+    // Install time runs under the loader lock with no game thread yet, so the
+    // hook is safe to write directly rather than deferring it to a frame.
+    s_installed = writeHook();
+    s_failed = !s_installed;
 }

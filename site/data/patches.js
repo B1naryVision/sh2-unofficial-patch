@@ -171,6 +171,13 @@ const PATCHES = [
     now:"A panel inside the game lists every shortcut the patch adds. Click one, press the key you want, and it is saved for next time.",
     how:"Press Ctrl+Shift+O in game. [x] clears a shortcut, Esc closes the panel, and any two shortcuts sharing a key are highlighted so you can spot the clash. Combinations like Ctrl+Shift+H work too."
   },
+  {
+    id:"settings-panel", cat:"controls", kind:"improvement", version:"0.7.0", mp:"solo",
+    title:"Every setting, adjustable while you play",
+    was:"Only the shortcuts could be changed in game. Camera speeds, how far you can zoom out, how many units a Shift-click recruits and the size of the patch's panels all lived in a text file — and those are settings you can only judge by feel, so getting one right meant guessing a number, starting the game, deciding it was wrong, quitting, and guessing again.",
+    now:"The settings panel now has a control for everything the patch can do: a slider for the numbers, a switch for the on/off choices. Changes take effect as you make them, so you can drag a camera speed slider and feel the difference straight away, and anything that was switched off when you started can be switched on without restarting.",
+    how:"Press Ctrl+Shift+O in game. Drag a slider or click a switch — it is applied and saved as you go. The mouse still reaches the game while the panel is open, so roll the wheel or push the cursor to the edge of the screen to judge a camera setting without closing it."
+  },
 
   /* ---------- CAMERA --------------------------------------------- */
   {
@@ -231,6 +238,7 @@ const PATCHES = [
    ================================================================== */
 const HISTORY = [
   { v:"0.7.0", date:"", items:[
+    "Every patch setting is adjustable in game, while you play",
     "Games already in progress no longer clutter the multiplayer browser",
     "The statistics panel no longer stays on screen in the campaign",
     "Zoom out much further (opt-in)",

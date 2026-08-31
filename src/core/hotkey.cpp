@@ -388,14 +388,7 @@ bool hotkeySave(const char *section, const char *key, const Hotkey &hk) {
     char text[HOTKEY_NAME_MAX];
     hotkeyToString(hk, text, sizeof(text));
 
-    if (!WritePrivateProfileStringA(section, key, text, ini)) {
-        return false;
-    }
-
-    // Flushes the ini write cache so the file on disk is up to date even if the
-    // game is killed rather than closed.
-    WritePrivateProfileStringA(nullptr, nullptr, nullptr, ini);
-    return true;
+    return configSetString(section, key, text);
 }
 
 // ── live key state ──────────────────────────────────────────────────────────────

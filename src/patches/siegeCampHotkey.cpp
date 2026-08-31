@@ -1,5 +1,6 @@
 #include "siegeCampHotkey.h"
 #include "../core/config.h"
+#include "../core/frameTick.h"
 #include "../core/hook.h"
 #include <cstdint>
 #include <cstring>
@@ -36,12 +37,22 @@ uintptr_t g_siegeGateStock = 0;
 uintptr_t g_siegeGateSkip = 0;
 uintptr_t g_siegeRefreshFlag = 0;
 
+// Live state for the settings overlay. The hooks stay in once installed and the
+// latch is gated on s_enabled instead, so turning the feature off never
+// rewrites code the game might be executing.
+static bool s_enabled = false;
+static bool s_installed = false;
+static bool s_failed = false;
+static bool s_installPending = false;
+
 extern "C" void siegeCampLatch() {
     uint8_t *screen = (uint8_t *)g_siegeGameScreen;
 
     g_siegeSuppressCamera = 0;
 
-    if (!screen) {
+    // Switched off in the settings panel: never suppress, which is exactly the
+    // stock one-press behaviour.
+    if (!s_enabled || !screen) {
         return;
     }
 
@@ -96,11 +107,7 @@ __declspec(naked) static void cameraGateHook() {
                      "jmp *_g_siegeGateSkip\n\t");
 }
 
-void installSiegeCampHotkey() {
-    if (configInt("interface", "SiegeCampJumpOnSecondPress", 1) == 0) {
-        return;
-    }
-
+static bool writeHooks() {
     uintptr_t base = (uintptr_t)GetModuleHandleA(NULL);
     uint8_t *latchSite = (uint8_t *)(base + LATCH_SITE_RVA);
     uint8_t *gateSite = (uint8_t *)(base + GATE_SITE_RVA);
@@ -108,7 +115,7 @@ void installSiegeCampHotkey() {
     // All or nothing: a build whose key handler moved must not be half-patched.
     if (memcmp(latchSite, LATCH_STOCK, sizeof(LATCH_STOCK)) != 0 ||
         memcmp(gateSite, GATE_STOCK, sizeof(GATE_STOCK)) != 0) {
-        return;
+        return false;
     }
 
     g_siegeRefreshFlag = base + CAMERA_REFRESH_RVA;
@@ -119,4 +126,49 @@ void installSiegeCampHotkey() {
     g_siegeLatchReturn = (uintptr_t)latchSite + sizeof(LATCH_STOCK);
     installHook(latchSite, reinterpret_cast<void *>(&latchHook), sizeof(LATCH_STOCK));
     installHook(gateSite, reinterpret_cast<void *>(&cameraGateHook), sizeof(GATE_STOCK));
+    return true;
+}
+
+// Runs on the game thread: both sites are inside the key handler the player may
+// be triggering. No float arithmetic here, as the tick site requires.
+static void siegeCampTick() {
+    if (!s_installPending) {
+        return;
+    }
+
+    s_installPending = false;
+    s_installed = writeHooks();
+    s_failed = !s_installed;
+}
+
+bool siegeCampTwoStep() { return s_enabled; }
+
+bool siegeCampFailed() { return s_failed; }
+
+void siegeCampSetTwoStep(bool twoStep) {
+    s_enabled = twoStep;
+
+    if (!twoStep || s_installed) {
+        return;
+    }
+
+    s_installPending = true;
+}
+
+void installSiegeCampHotkey() {
+    // Registered even when the feature is off, so the settings panel can switch
+    // it on later: the tick is where the code rewrite happens, and the hook
+    // behind it may only be installed at load time.
+    registerFrameTick(&siegeCampTick);
+
+    if (configInt("interface", "SiegeCampJumpOnSecondPress", 1) == 0) {
+        return; // vanilla: the game code is left completely untouched
+    }
+
+    s_enabled = true;
+
+    // Install time runs under the loader lock with no game thread yet, so the
+    // hooks are safe to write directly rather than deferring them to a frame.
+    s_installed = writeHooks();
+    s_failed = !s_installed;
 }

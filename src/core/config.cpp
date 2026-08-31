@@ -56,6 +56,21 @@ bool configString(const char *section, const char *key, char *buf, int bufLen) {
     return readValue(section, key, buf, (DWORD)bufLen);
 }
 
+bool configSetString(const char *section, const char *key, const char *value) {
+    if (!s_iniPath[0]) {
+        return false;
+    }
+
+    if (!WritePrivateProfileStringA(section, key, value, s_iniPath)) {
+        return false;
+    }
+
+    // Flushes the ini write cache so the file on disk is up to date even if the
+    // game is killed rather than closed.
+    WritePrivateProfileStringA(nullptr, nullptr, nullptr, s_iniPath);
+    return true;
+}
+
 int configSectionNames(char *buf, int bufLen) {
     if (bufLen <= 0) {
         return 0;

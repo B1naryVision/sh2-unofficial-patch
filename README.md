@@ -60,7 +60,7 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [Auto-market with in-game editor (`` ` ``)](docs/features/auto-market.md) | `base+0x21da50`, `base+0x1e1160`, `base+0x37efb0`, `base+0x6bcfd8` | Added in v0.6.0 |
 | [Siege camp hotkey (`J`) opens the panel before moving the camera](docs/features/siege-camp-hotkey.md) | `base+0x1f2c65`, `base+0x1f2c99` | Added in v0.6.0 |
 | [Key combinations (`Ctrl`/`Shift`/`Alt`) for the patch hotkeys, plus the in-game rebind widget](docs/features/keybinding.md) | — | Added in v0.6.0 |
-| [In-game settings panel for rebinding hotkeys (`Ctrl+Shift+O`)](docs/features/settings-overlay.md) | — | Added in v0.6.0 |
+| [In-game settings panel for hotkeys and every patch setting (`Ctrl+Shift+O`)](docs/features/settings-overlay.md) | — | Added in v0.6.0, extended in v0.7.0 |
 | [Overlay panels scale to the game's resolution instead of the desktop DPI](docs/features/ui-scale.md) | — | Added in v0.6.1 |
 | [Zoom out to the furthest usable distance (opt-in)](docs/features/zoom-limit.md) | `base+0x362480` | Added in v0.7.0 |
 | [In-progress games hidden from the multiplayer browser](docs/bugs/in-progress-lobbies.md) | `base+0x3e065b`, `base+0x3e06bf` | Fixed in v0.7.0 |
@@ -132,9 +132,14 @@ make clean    # remove build artifacts
 
 Copy [sh2-unofficial-patch.ini](sh2-unofficial-patch.ini) next to `d3d9.dll`
 in the game directory to rebind or disable the hotkeys and to opt into a
-faster camera zoom or a higher zoom-out limit. Every setting is documented
-inside the file; without it the defaults apply (Stop troops: `H`, attack-move
-toggle: `Mouse4`, stock zoom speed and zoom-out limit).
+faster camera zoom, a faster camera pan or a higher zoom-out limit. Every
+setting is documented inside the file; without it the defaults apply (Stop
+troops: `H`, attack-move toggle: `Mouse4`, stock camera speeds and zoom-out
+limit).
+
+Every one of those settings can also be changed in game with `Ctrl+Shift+O`,
+which applies it to the running game and writes it back to the ini — see
+[docs/features/settings-overlay.md](docs/features/settings-overlay.md).
 See [docs/features/configuration.md](docs/features/configuration.md)
 for details.
 

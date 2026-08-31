@@ -75,6 +75,13 @@ bool overlayPanelMapPoint(
     const OverlayPanel &p, HWND hwnd, int clientX, int clientY, int &lx, int &ly
 );
 
+// The same mapping without the bounds test: true whenever the coordinates could
+// be mapped at all, inside the panel or not. For tracking a drag that has left
+// the control it started in.
+bool overlayPanelMapPointRaw(
+    const OverlayPanel &p, HWND hwnd, int clientX, int clientY, int &lx, int &ly
+);
+
 // ── UI scale ────────────────────────────────────────────────────────────────────
 // Panel layouts are authored in "design pixels": what the panel measures at
 // 1080p. Every dimension — box, padding, gap and font alike — is routed through
@@ -87,6 +94,15 @@ bool overlayPanelMapPoint(
 // otherwise derived from the backbuffer height. Re-resolves when the render
 // target changes; 100 until the backbuffer is known.
 int overlayScalePercent();
+
+// Overrides the resolved scale live, for the settings overlay: 0 means Auto
+// (derive it from the backbuffer), 50..300 fixes it. Values outside that range
+// are ignored. Panels pick the new scale up the next time they lay out, so the
+// caller re-lays out whatever is on screen.
+void overlayScaleSetFixed(int percent);
+
+// The current fixed scale, or 0 when it is on Auto.
+int overlayScaleFixed();
 
 // Design pixels -> panel pixels at `percent`. Panels that shrink to fit a small
 // render target pass their own percent rather than the resolved one.

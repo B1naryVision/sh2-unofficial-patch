@@ -8,7 +8,11 @@
 // site was located and validated (no branch targets the overwritten bytes).
 static const uintptr_t FRAME_BODY_RVA = 0x300c0;
 
-static const int MAX_TICKS = 8;
+// Slots for every callback the patch can register. Features that can be
+// switched on from the settings panel register at install time even when they
+// are off, so the count is the number of tick-using patches, not the number
+// currently doing anything.
+static const int MAX_TICKS = 16;
 
 static FrameTickFn s_ticks[MAX_TICKS];
 static int s_tickCount = 0;
@@ -40,6 +44,9 @@ __declspec(naked) static void frameTickHook() {
                      "jmp *_g_frameTickReturn\n\t");
 }
 
+// Register at install time. The hook is written on the first registration, and
+// writing it from any other thread would rewrite six bytes of the main loop
+// while the game thread is executing them.
 void registerFrameTick(FrameTickFn fn) {
     if (!fn || s_tickCount >= MAX_TICKS) {
         return;

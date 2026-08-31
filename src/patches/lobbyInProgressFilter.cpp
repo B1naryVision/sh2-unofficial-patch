@@ -1,5 +1,6 @@
 #include "lobbyInProgressFilter.h"
 #include "../core/config.h"
+#include "../core/frameTick.h"
 #include "../core/hook.h"
 #include <cstdint>
 #include <cstring>
@@ -97,6 +98,16 @@ callGetLobbyData(void * /*lister*/, const uint32_t * /*id*/, const char * /*key*
                      "ret\n\t");
 }
 
+// Live on/off for the settings overlay. Read by both drop paths - the naked one below tests
+// it directly - so switching the filter off lets every row through with the hooks left in
+// place, rather than rewriting code the browser may be executing. Not static: the inline asm
+// cannot resolve a local symbol.
+int g_lobbyFilterOn = 0;
+
+static bool s_installed = false;
+static bool s_failed = false;
+static bool s_installPending = false;
+
 // Asks Steam whether this lobby's game has already started. Reached from a mid-function hook,
 // so it must stay free of floating-point work - it does string comparison only.
 extern "C" void lobbyListRowCheck(void *lister, const uint32_t *id) {
@@ -105,7 +116,7 @@ extern "C" void lobbyListRowCheck(void *lister, const uint32_t *id) {
 
     g_lobbySkipRow = 0;
 
-    if (!lister || !fn) {
+    if (!g_lobbyFilterOn || !lister || !fn) {
         return;
     }
 
@@ -122,8 +133,11 @@ extern "C" void lobbyListRowCheck(void *lister, const uint32_t *id) {
 // added. Skipping the call means cleaning up its arguments here - it is a `ret 0x18` callee,
 // and the 0x18 bytes (flag, the 16-byte lobby id, host name) are already on the stack.
 __declspec(naked) static void rowBuilderHook() {
-    __asm__ volatile("cmpb $0, 0x10(%ebp)\n\t"
+    __asm__ volatile("cmpl $0, _g_lobbyFilterOn\n\t"
+                     "je .Ladd\n\t"
+                     "cmpb $0, 0x10(%ebp)\n\t"
                      "jne .Lskip\n\t"
+                     ".Ladd:\n\t"
                      "movl _g_lobbyListModel, %ecx\n\t"
                      "jmp *_g_lobbyRowAdd\n\t"
                      ".Lskip:\n\t"
@@ -156,11 +170,7 @@ __declspec(naked) static void listRowHook() {
                      "jmp *_g_lobbyListSkip\n\t");
 }
 
-void installLobbyInProgressFilter() {
-    if (configInt("multiplayer", "HideInProgressLobbies", 1) != 1) {
-        return;
-    }
-
+static bool writeHooks() {
     uintptr_t base = (uintptr_t)GetModuleHandleA(NULL);
     uint8_t *keySite = (uint8_t *)(base + KEY_SITE_RVA);
     uint8_t *hookSite = (uint8_t *)(base + HOOK_SITE_RVA);
@@ -168,23 +178,23 @@ void installLobbyInProgressFilter() {
 
     // All-or-nothing: verify every site before writing any of them.
     if (!isOperand(keySite, 0x68, base + STAGING_STR_RVA)) {
-        return;
+        return false;
     }
 
     if (!isOperand(hookSite, 0xb9, base + LIST_MODEL_RVA)) {
-        return;
+        return false;
     }
 
     if (memcmp(listSite, LIST_SITE_BYTES, sizeof(LIST_SITE_BYTES)) != 0) {
-        return;
+        return false;
     }
 
     if (*(void **)(base + GET_LOBBY_DATA_IAT_RVA) == nullptr) {
-        return;
+        return false;
     }
 
     if (!writeOperand(keySite, base + PLAYING_STR_RVA)) {
-        return;
+        return false;
     }
 
     memcpy(&g_lobbyListModel, hookSite + 1, sizeof(g_lobbyListModel));
@@ -195,4 +205,49 @@ void installLobbyInProgressFilter() {
     g_lobbyListBack = base + LIST_BACK_RVA;
     g_lobbyListSkip = base + LIST_SKIP_RVA;
     installHook((void *)listSite, reinterpret_cast<void *>(listRowHook), 6);
+    return true;
+}
+
+// Runs on the game thread: the browser may be building a list. No float
+// arithmetic here, as the tick site requires.
+static void lobbyFilterTick() {
+    if (!s_installPending) {
+        return;
+    }
+
+    s_installPending = false;
+    s_installed = writeHooks();
+    s_failed = !s_installed;
+}
+
+bool lobbyFilterEnabled() { return g_lobbyFilterOn != 0; }
+
+bool lobbyFilterFailed() { return s_failed; }
+
+void lobbyFilterSetEnabled(bool enabled) {
+    g_lobbyFilterOn = enabled ? 1 : 0;
+
+    if (!enabled || s_installed) {
+        return;
+    }
+
+    s_installPending = true;
+}
+
+void installLobbyInProgressFilter() {
+    // Registered even when the feature is off, so the settings panel can switch
+    // it on later: the tick is where the code rewrite happens, and the hook
+    // behind it may only be installed at load time.
+    registerFrameTick(&lobbyFilterTick);
+
+    if (configInt("multiplayer", "HideInProgressLobbies", 1) != 1) {
+        return; // vanilla: the game code is left completely untouched
+    }
+
+    g_lobbyFilterOn = 1;
+
+    // Install time runs under the loader lock with no game thread yet, so the
+    // hooks are safe to write directly rather than deferring them to a frame.
+    s_installed = writeHooks();
+    s_failed = !s_installed;
 }

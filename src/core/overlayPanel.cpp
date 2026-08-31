@@ -30,6 +30,26 @@ int overlayScaleBy(int designPx, int percent) {
     return (designPx * percent + 50) / 100;
 }
 
+void overlayScaleSetFixed(int percent) {
+    if (percent != 0 && (percent < SCALE_MIN || percent > SCALE_MAX)) {
+        return;
+    }
+
+    s_scaleFixed = percent;
+
+    // Forces the automatic path to recompute rather than return the cached
+    // value it derived for this backbuffer height.
+    s_scaleForHeight = 0;
+}
+
+int overlayScaleFixed() {
+    if (s_scaleFixed < 0) {
+        return 0; // not read yet; the ini has not been consulted
+    }
+
+    return s_scaleFixed;
+}
+
 int overlayScalePercent() {
     if (s_scaleFixed < 0) {
         // Anything that is not a number in range — absent, "Auto", garbage —
@@ -409,7 +429,7 @@ void overlayPanelDraw(OverlayPanel &p, IDirect3DDevice9 *device) {
     saved->Release();
 }
 
-bool overlayPanelMapPoint(
+bool overlayPanelMapPointRaw(
     const OverlayPanel &p, HWND hwnd, int clientX, int clientY, int &lx, int &ly
 ) {
     int renderW = 0;
@@ -428,5 +448,15 @@ bool overlayPanelMapPoint(
     // Client -> backbuffer coords (handles windowed scaling), then panel-local.
     lx = clientX * renderW / cr.right - p.x;
     ly = clientY * renderH / cr.bottom - p.y;
+    return true;
+}
+
+bool overlayPanelMapPoint(
+    const OverlayPanel &p, HWND hwnd, int clientX, int clientY, int &lx, int &ly
+) {
+    if (!overlayPanelMapPointRaw(p, hwnd, clientX, clientY, lx, ly)) {
+        return false;
+    }
+
     return lx >= 0 && ly >= 0 && lx < p.w && ly < p.h;
 }

@@ -4,6 +4,11 @@
 
 ## [0.7.0]
 
+### [Improvement] - Change Every Patch Setting From Inside the Game
+
+- **What the issue was:** Only the patch's keyboard shortcuts could be changed in game. Everything else — camera zoom speed, how far you can zoom out, camera pan speed, how many units a Shift-click recruits, the size of the patch's own panels — lived in a text file you had to edit with the game closed. Worse, these are settings you can only judge by feel, so finding a camera speed you liked meant guessing a number, starting the game, deciding it was wrong, quitting, and guessing again.
+- **What we changed:** The settings panel (**`Ctrl+Shift+O`**) now has a control for every setting the patch has: a slider for the numbers, a switch for the on/off choices, alongside the shortcuts that were already there. Changes take effect as you make them — drag the camera speed slider and the very next nudge of the camera moves at the new speed — and are saved for next time. You can still push the mouse to the edge of the screen or roll the wheel while the panel is open, so you can feel a camera setting without closing anything. Settings that were off when the game started can now be switched on without a restart.
+
 ### [Fix] - Antivirus and Browser Warnings on Download
 
 - **What the issue was:** Downloading the patch could bring up a browser warning, and more recently an antivirus alert calling the file a virus. It is a false alarm — the patch loads into the game and edits its behaviour in memory, which is normal for a mod but looks like the kind of thing scanners are built to catch — but there was nothing in the file to say who made it, which made the guess worse.

@@ -1,5 +1,6 @@
 #include "shiftRecruit.h"
 #include "../core/config.h"
+#include "../core/frameTick.h"
 #include <cstdint>
 #include <cstring>
 #include <windows.h>
@@ -65,6 +66,13 @@ typedef uint8_t(__attribute__((thiscall)) * PaneProcessFn)(void *pane, void *eve
 
 static int s_multiplier = MULTIPLIER_DEFAULT;
 static PaneProcessFn s_siegeProcess = nullptr;
+
+// Live state for the settings overlay. The hooks stay in once installed; a
+// multiplier of 1 makes every patched path queue exactly one unit, so turning
+// the feature off never rewrites code the game might be executing.
+static bool s_installed = false;
+static bool s_failed = false;
+static bool s_installPending = false;
 
 // Same calling convention as the stock post function, so the three patched
 // call sites need no register or stack fixups.
@@ -142,19 +150,8 @@ static uint8_t __attribute__((thiscall)) siegeCampProcess(void *pane, void *even
     return handled;
 }
 
-void installShiftRecruit() {
-    int multiplier = configInt("recruitment", "RecruitmentShiftMultiplier", MULTIPLIER_DEFAULT);
-
-    if (multiplier == 0 || multiplier == 1) {
-        return;
-    }
-
-    if (multiplier < 0 || multiplier > MULTIPLIER_MAX) {
-        multiplier = MULTIPLIER_DEFAULT;
-    }
-
-    s_multiplier = multiplier;
-
+static bool writeHooks() {
+    bool any = false;
     uintptr_t base = (uintptr_t)GetModuleHandleA(NULL);
     uintptr_t stub = (uintptr_t)reinterpret_cast<void *>(&shiftRecruitPost);
 
@@ -180,6 +177,7 @@ void installShiftRecruit() {
         VirtualProtect(site, sizeof(patched), PAGE_EXECUTE_READWRITE, &oldProtect);
         memcpy(site, patched, sizeof(patched));
         VirtualProtect(site, sizeof(patched), oldProtect, &oldProtect);
+        any = true;
     }
 
     // Siege camp: swap SubPanelSiegeCamp's process() vtable entry for the
@@ -194,5 +192,68 @@ void installShiftRecruit() {
         VirtualProtect(slot, sizeof(*slot), PAGE_READWRITE, &oldProtect);
         *slot = wrapper;
         VirtualProtect(slot, sizeof(*slot), oldProtect, &oldProtect);
+        any = true;
     }
+
+    return any;
+}
+
+// Runs on the game thread: the retargeted call sites are live code, and the
+// vtable slot is read by the pane the player may be clicking in. No float
+// arithmetic here, as the tick site requires.
+static void shiftRecruitTick() {
+    if (!s_installPending) {
+        return;
+    }
+
+    s_installPending = false;
+    s_installed = writeHooks();
+    s_failed = !s_installed;
+}
+
+int shiftRecruitMultiplier() { return s_multiplier; }
+
+bool shiftRecruitFailed() { return s_failed; }
+
+void shiftRecruitSetMultiplier(int multiplier) {
+    if (multiplier < 1 || multiplier > MULTIPLIER_MAX) {
+        return;
+    }
+
+    s_multiplier = multiplier;
+
+    if (multiplier == 1 || s_installed) {
+        return;
+    }
+
+    s_installPending = true;
+}
+
+void installShiftRecruit() {
+    // Registered even when the feature is off, so the settings panel can switch
+    // it on later: the tick is where the code rewrite happens, and the hook
+    // behind it may only be installed at load time.
+    registerFrameTick(&shiftRecruitTick);
+
+    int multiplier = configInt("recruitment", "RecruitmentShiftMultiplier", MULTIPLIER_DEFAULT);
+
+    if (multiplier < 0 || multiplier > MULTIPLIER_MAX) {
+        multiplier = MULTIPLIER_DEFAULT;
+    }
+
+    // 0 and 1 both mean the stock single recruit.
+    if (multiplier == 0) {
+        multiplier = 1;
+    }
+
+    s_multiplier = multiplier;
+
+    if (multiplier == 1) {
+        return; // default off: the game code is left completely untouched
+    }
+
+    // Install time runs under the loader lock with no game thread yet, so the
+    // rewrites are safe to do directly rather than deferring them to a frame.
+    s_installed = writeHooks();
+    s_failed = !s_installed;
 }

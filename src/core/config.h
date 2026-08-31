@@ -24,6 +24,12 @@ float configFloat(const char *section, const char *key, float defaultValue);
 
 int configInt(const char *section, const char *key, int defaultValue);
 
+// Writes a value, creating the ini, the section or the key as needed, and
+// flushes the write cache so the file on disk is current even if the game is
+// killed rather than closed. Returns false when the ini path is unknown or the
+// write failed (a read-only game directory, typically).
+bool configSetString(const char *section, const char *key, const char *value);
+
 // Enumerates all ini section names into buf as a double-NUL-terminated list
 // (walk with strlen+1 until an empty string). Returns chars written; 0 if none.
 int configSectionNames(char *buf, int bufLen);

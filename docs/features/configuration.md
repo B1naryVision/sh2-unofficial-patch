@@ -1,6 +1,6 @@
 # Patch Configuration (`sh2-unofficial-patch.ini`)
 
-**Status:** Added in v0.5.0; extended in v0.6.0 (key combinations, siege camp, recruitment and auto-market settings) and v0.6.1 (overlay scale)
+**Status:** Added in v0.5.0; extended in v0.6.0 (key combinations, siege camp, recruitment and auto-market settings), v0.6.1 (overlay scale) and v0.7.0 (every setting editable in game)
 **Affected version:** Stronghold 2 Steam v1.5.0
 **Patch type:** No game-code change — a config layer (`src/core/config.cpp`) read by the individual patches at install time
 
@@ -15,9 +15,11 @@ players can rebind or disable those features without a custom build.
 
 ---
 
-Hotkeys can also be rebound **in game** with `Ctrl+Shift+O`, which writes the
-new values back into this file — see
-[settings-overlay.md](settings-overlay.md). Everything else is edited by hand.
+Every setting below can also be changed **in game** with `Ctrl+Shift+O`, which
+applies it to the running game and writes it back into this file — see
+[settings-overlay.md](settings-overlay.md). Editing the file by hand still
+works and is still the only way to define auto-market `[preset:NAME]`
+sections.
 
 ## File location and lifecycle
 
@@ -39,7 +41,14 @@ kernel32 calls are used (`GetModuleFileNameA`, `GetPrivateProfileStringA`),
 which are safe under the loader lock like every other install step. There is
 no runtime re-read: edits made to the file while the game is running take
 effect on the next launch. (The settings overlay is the one writer — it changes
-the live binding and the file together, so it needs no re-read.)
+the live value and the file together, so it needs no re-read.)
+
+**A setting switched on from the overlay installs its patch on the frame tick**,
+not at the moment of the click: the config layer's "off means nothing is
+installed" rule leaves those features with no hooks in the game, and writing
+live code from the overlay's thread could tear an instruction the game thread is
+executing. Switching one back off never un-patches — the hooks stay in and are
+gated on a flag. See [settings-overlay.md](settings-overlay.md).
 
 `[ui] Scale` is the one exception to the timing, not to the lifecycle: it is
 read on first use rather than in `DllMain`, because nothing can be sized until

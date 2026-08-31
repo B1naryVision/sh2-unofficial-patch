@@ -21,6 +21,7 @@ SRCS = src/dllmain.cpp \
        src/core/config.cpp \
        src/core/hotkey.cpp \
        src/core/keybindWidget.cpp \
+       src/core/optionWidget.cpp \
        src/core/overlayPanel.cpp \
        src/core/hook.cpp \
        src/core/log.cpp \
