@@ -53,6 +53,10 @@ jobs:
             exit 1
           fi
 
+      # The map unlocker is built and checked on every release so it cannot rot,
+      # but it is deliberately NOT attached to the release for now -- it is
+      # being held back for a later one. To ship it again, add it back to the
+      # checksums, the attestation subjects and the upload step below.
       - name: Build map unlocker tool
         run: make tool
 
@@ -103,8 +107,7 @@ jobs:
             Windows: certutil -hashfile d3d9.dll SHA256
           EOF
           zip -r "${STAGE}.zip" "${STAGE}"
-          sha256sum "${STAGE}.zip" "${STAGE}/d3d9.dll" \
-                    tools/win/sh2-map-unlocker.exe > SHA256SUMS.txt
+          sha256sum "${STAGE}.zip" "${STAGE}/d3d9.dll" > SHA256SUMS.txt
           cat SHA256SUMS.txt
           echo "zip=${STAGE}.zip" >> "$GITHUB_OUTPUT"
 
@@ -114,7 +117,6 @@ jobs:
           subject-path: |
             ${{ steps.package.outputs.zip }}
             d3d9.dll
-            tools/win/sh2-map-unlocker.exe
 
       - name: Upload assets to the release
         if: github.event_name == 'release'
@@ -123,11 +125,13 @@ jobs:
         run: |
           gh release upload "${GITHUB_REF_NAME}" \
             "${{ steps.package.outputs.zip }}" \
-            tools/win/sh2-map-unlocker.exe \
             SHA256SUMS.txt \
             --repo "${GITHUB_REPOSITORY}" \
             --clobber
 
+      # Dry runs only, so this is a workflow artifact in the Actions tab rather
+      # than a public release asset: the held-back map unlocker stays reachable
+      # for testing without being published.
       - name: Upload workflow artifacts (dry runs only)
         if: github.event_name != 'release'
         uses: actions/upload-artifact@v4
