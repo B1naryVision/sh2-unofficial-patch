@@ -81,11 +81,18 @@ jobs:
                automatically.
 
           Configure (optional):
-            Copy sh2-unofficial-patch.ini next to d3d9.dll to rebind the
-            hotkeys or change the camera zoom speed. Edit it with any text
-            editor; every setting is explained inside. Without the file the
-            defaults apply (Stop troops: H, Attack-move toggle: Mouse4,
-            stock zoom speed).
+            Press Ctrl+Shift+O in game to open the settings panel. It has a
+            control for every setting the patch has -- the shortcuts, the
+            camera speeds, how far you can zoom out, how many units a
+            Shift-click recruits -- and changes take effect straight away,
+            so you can judge a camera speed while you play. Your choices are
+            saved to sh2-unofficial-patch.ini next to d3d9.dll.
+
+            Copy the included sh2-unofficial-patch.ini into the game folder
+            first if you would rather set things up in a text editor; every
+            setting is explained inside. Without the file the defaults apply
+            (Stop troops: H, Attack-move toggle: Mouse4, stock camera speeds
+            and zoom-out limit).
 
           Uninstall:
             Delete d3d9.dll from the game directory. No game files are
