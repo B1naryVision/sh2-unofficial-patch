@@ -205,6 +205,8 @@ This is an open reverse-engineering project. Contributions are welcome.
 
 See [docs/architecture.md](docs/architecture.md) for technical background on the hook infrastructure, naming conventions, and safe patching patterns.
 
+If an antivirus product flags a release, see [docs/antivirus-false-positive.md](docs/antivirus-false-positive.md) for why it happens and the report template to send the vendor.
+
 ---
 
 ## Acknowledgements
