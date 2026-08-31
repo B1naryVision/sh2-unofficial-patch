@@ -1,6 +1,6 @@
 # Antivirus False-Positive Reports
 
-**Status:** Process document. The binary-side work it refers to landed in v0.7.1
+**Status:** Process document. The binary-side work it refers to landed in v0.7.0
 (version resource, ASLR/DEP bits, stripped release build — see `src/d3d9.rc`
 and the `Sanity-check the binary` step in `.github/workflows/release.yml`).
 
@@ -24,7 +24,7 @@ from public source.
 So the strategy is provenance, not evasion:
 
 1. Make the binary look like real software (version resource, ASLR/DEP,
-   stripped release build) — done in v0.7.1.
+   stripped release build) — done in v0.7.0.
 2. Publish verifiable build provenance — the release workflow already emits
    SHA-256 sums and a GitHub build-provenance attestation.
 3. Report each false positive to the vendor that raised it.

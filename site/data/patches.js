@@ -128,7 +128,7 @@ const PATCHES = [
     how:"Only you need the patch. The list is tidied on your own machine, so games hosted by players without the patch are filtered out too."
   },
   {
-    id:"ping-command", cat:"multiplayer", kind:"feature", version:"next", mp:"partial",
+    id:"ping-command", cat:"multiplayer", kind:"feature", version:"0.7.0", mp:"partial",
     title:"See who is lagging, with !ping",
     was:"When a game turned choppy there was no way to tell who was struggling, so it came down to guesswork and finger-pointing. The game's own Latency column has never shown anything.",
     now:"Everyone sees a chat message listing the round-trip time to each player, so the lobby can decide together what to do about it.",
@@ -188,7 +188,7 @@ const PATCHES = [
     how:"Set ZoomOutLimit to Auto under [camera] in the settings file. There is nothing to tune — the stopping point is worked out from the size of the map you are playing and the angle of your camera, so it suits small and large maps alike, and looking straight down reaches further than a tilted view does."
   },
   {
-    id:"scroll-speed", cat:"camera", kind:"improvement", version:"next", mp:"solo", optIn:true,
+    id:"scroll-speed", cat:"camera", kind:"improvement", version:"0.7.0", mp:"solo", optIn:true,
     title:"Faster camera scrolling",
     was:"Moving across the map was slow, and slower than it looked because the camera took over a second to work up to full speed — crossing a large map meant holding a key down and waiting.",
     now:"You can make the camera move as fast (or as slow) as you like, and it gets up to speed proportionally quicker too. It works the same whether you scroll with the keyboard or by pushing the mouse against the edge of the screen.",
@@ -230,14 +230,13 @@ const PATCHES = [
    the bottom of the page. Keep it in step with CHANGELOG.md.
    ================================================================== */
 const HISTORY = [
-  { v:"next", date:"In development", items:[
-    "See who is lagging with the !ping chat command",
-    "Move the camera around the map faster (opt-in)"
-  ]},
   { v:"0.7.0", date:"", items:[
     "Games already in progress no longer clutter the multiplayer browser",
     "The statistics panel no longer stays on screen in the campaign",
-    "Zoom out much further (opt-in)"
+    "Zoom out much further (opt-in)",
+    "See who is lagging with the !ping chat command",
+    "Move the camera around the map faster (opt-in)",
+    "Fewer antivirus and browser warnings when downloading the patch"
   ]},
   { v:"0.6.1", date:"", items:[
     "Patch panels are readable on every screen and display-scaling setting"

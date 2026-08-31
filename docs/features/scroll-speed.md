@@ -1,6 +1,6 @@
 # Camera Scroll Speed (configurable multiplier)
 
-**Status:** Added in v0.7.1 (offsets from static analysis of the camera controller); opt-in via `sh2-unofficial-patch.ini`
+**Status:** Added in v0.7.0 (offsets from static analysis of the camera controller); opt-in via `sh2-unofficial-patch.ini`
 **Affected version:** Stronghold 2 Steam v1.5.0
 **Patch type:** In-place byte rewrite (RVA `0x1f9d86`, 6 bytes) — no trampoline
 

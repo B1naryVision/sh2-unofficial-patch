@@ -64,8 +64,8 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [Overlay panels scale to the game's resolution instead of the desktop DPI](docs/features/ui-scale.md) | — | Added in v0.6.1 |
 | [Zoom out to the furthest usable distance (opt-in)](docs/features/zoom-limit.md) | `base+0x362480` | Added in v0.7.0 |
 | [In-progress games hidden from the multiplayer browser](docs/bugs/in-progress-lobbies.md) | `base+0x3e065b`, `base+0x3e06bf` | Fixed in v0.7.0 |
-| [`!ping` chat command showing per-player latency](docs/features/ping-command.md) | `base+0x24d8e0`, `base+0x3d88c0` | Added in v0.7.1 |
-| [Configurable camera scroll speed (opt-in)](docs/features/scroll-speed.md) | `base+0x1f9d86` | Added in v0.7.1 |
+| [`!ping` chat command showing per-player latency](docs/features/ping-command.md) | `base+0x24d8e0`, `base+0x3d88c0` | Added in v0.7.0 |
+| [Configurable camera scroll speed (opt-in)](docs/features/scroll-speed.md) | `base+0x1f9d86` | Added in v0.7.0 |
 
 ---
 

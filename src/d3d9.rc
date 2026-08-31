@@ -8,8 +8,8 @@
 // code signing. Keep FILEVERSION in step with CHANGELOG.md.
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION     0,7,1,0
-PRODUCTVERSION  0,7,1,0
+FILEVERSION     0,7,0,0
+PRODUCTVERSION  0,7,0,0
 FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
 FILEFLAGS       0
 FILEOS          VOS_NT_WINDOWS32
@@ -22,11 +22,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName",      "Stronghold 2 Unofficial Patch"
             VALUE "FileDescription",  "Stronghold 2 Unofficial Patch (Direct3D 9 proxy)"
-            VALUE "FileVersion",      "0.7.1.0"
+            VALUE "FileVersion",      "0.7.0.0"
             VALUE "InternalName",     "sh2-unofficial-patch"
             VALUE "OriginalFilename", "d3d9.dll"
             VALUE "ProductName",      "Stronghold 2 Unofficial Patch"
-            VALUE "ProductVersion",   "0.7.1.0"
+            VALUE "ProductVersion",   "0.7.0.0"
             VALUE "LegalCopyright",   "Public domain (Unlicense)"
             VALUE "Comments",         "Community bug-fix and quality-of-life patch for Stronghold 2. Loads as a Direct3D 9 proxy and forwards every call to the system d3d9.dll. Source: github.com/B1naryVision/sh2-unofficial-patch"
         END
