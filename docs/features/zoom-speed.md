@@ -13,7 +13,7 @@ high-resolution monitor (2560×1440) it feels sluggish — it takes many wheel
 notches / a long hold to move between the closest and farthest zoom. The zoom
 speed is hardcoded in the binary; there is no in-game option or config-file
 value for it (`config.dat`, `Stronghold2.GraphicsSettings.xml`, and the game's
-XML config files contain no zoom/scroll entry).
+XML config files contain no zoom or camera-speed entry).
 
 ## Fix
 

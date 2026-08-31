@@ -154,7 +154,7 @@ sites, all modifier checks — confirming the note in
 | Site | Key | Purpose |
 | --- | --- | --- |
 | `0x5fc6bf` | Alt (`0x12`) | alternate action on a UI click |
-| `0x5ff132` | Shift | camera scroll speed boost |
+| `0x5ff132` | Shift | camera pan speed boost |
 | `0x6314d1` | Shift | troop-command modifier flag (1 → 2) |
 | `0x6af3a5` | Shift | goods/trade panel: suppress auto-close while Shift held |
 

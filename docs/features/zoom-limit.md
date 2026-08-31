@@ -145,7 +145,7 @@ if (*distance > limit) *distance = limit;
 
 The distance clamp matters because the engine only clamps distance when the
 player *zooms*: tilting towards the horizon lowers the limit, and without this
-the camera would sit parked past it until the next scroll of the wheel.
+the camera would sit parked past it until the next turn of the wheel.
 
 Notes on why it is shaped this way:
 

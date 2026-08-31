@@ -38,7 +38,7 @@ by itself, because the patch reads the panel's own visibility rather than keepin
 All addresses are VAs at the preferred image base `0x400000` (RVA = VA − `0x400000`).
 
 Keyboard shortcuts are **not** polled from `Dragonfly::EventMgr::ms_keyStateSet` (its ~20 call
-sites are all modifier tests and camera scrolling). They arrive as UI events:
+sites are all modifier tests and camera panning). They arrive as UI events:
 
 ```text
 Dragonfly EventMgr

@@ -183,16 +183,16 @@ const PATCHES = [
   {
     id:"zoom-limit", cat:"camera", kind:"feature", version:"0.7.0", mp:"solo", optIn:true,
     title:"Zoom out much further",
-    was:"The camera stopped pulling back very early, so on a wide monitor you saw only a corner of your castle and had to scroll constantly to follow a battle.",
+    was:"The camera stopped pulling back very early, so on a wide monitor you saw only a corner of your castle and had to pan constantly to follow a battle.",
     now:"You can pull back far enough to take in the whole fight, stopping at the point where the view stops holding up.",
     how:"Set ZoomOutLimit to Auto under [camera] in the settings file. There is nothing to tune — the stopping point is worked out from the size of the map you are playing and the angle of your camera, so it suits small and large maps alike, and looking straight down reaches further than a tilted view does."
   },
   {
-    id:"scroll-speed", cat:"camera", kind:"improvement", version:"0.7.0", mp:"solo", optIn:true,
-    title:"Faster camera scrolling",
+    id:"pan-speed", cat:"camera", kind:"improvement", version:"0.7.0", mp:"solo", optIn:true,
+    title:"Faster camera panning",
     was:"Moving across the map was slow, and slower than it looked because the camera took over a second to work up to full speed — crossing a large map meant holding a key down and waiting.",
-    now:"You can make the camera move as fast (or as slow) as you like, and it gets up to speed proportionally quicker too. It works the same whether you scroll with the keyboard or by pushing the mouse against the edge of the screen.",
-    how:"Set ScrollSpeedMultiplier under [camera] in the settings file — 2.0 means twice the normal speed. As in the normal game, scrolling stays faster the further you are zoomed out."
+    now:"You can make the camera move as fast (or as slow) as you like, and it gets up to speed proportionally quicker too. It works the same whether you pan with the keyboard or by pushing the mouse against the edge of the screen.",
+    how:"Set PanSpeedMultiplier under [camera] in the settings file — 2.0 means twice the normal speed. As in the normal game, panning stays faster the further you are zoomed out."
   },
 
   /* ---------- INTERFACE ------------------------------------------ */
@@ -288,7 +288,7 @@ const SETTINGS = [
   ]},
   { group:"Camera", rows:[
     ["ZoomSpeedMultiplier","1.0","How fast the mouse wheel zooms. 2.5 is two and a half times normal."],
-    ["ScrollSpeedMultiplier","1.0","How fast the camera moves across the map, with the keyboard or the screen edge. 2.0 is twice normal."],
+    ["PanSpeedMultiplier","1.0","How fast the camera moves across the map, with the keyboard or the screen edge. 2.0 is twice normal."],
     ["ZoomOutLimit","Vanilla","Set to Auto to pull the camera back much further than the game normally allows."]
   ]},
   { group:"Everything else", rows:[

@@ -10,8 +10,8 @@
 #include "mapEdgeCrash.h"
 #include "mpAiEnable.h"
 #include "mpConnectCompleteCrash.h"
+#include "panSpeed.h"
 #include "pingCommand.h"
-#include "scrollSpeed.h"
 #include "settingsOverlay.h"
 #include "shiftRecruit.h"
 #include "siegeCampHotkey.h"
@@ -34,7 +34,7 @@ void applyUnofficialPatches() {
     installStopTroopsHotkey();
     installAttackHotkey();
     installZoomSpeed();
-    installScrollSpeed();
+    installPanSpeed();
     installZoomLimit();
     installShiftRecruit();
     installAutoMarket();

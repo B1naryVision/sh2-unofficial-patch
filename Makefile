@@ -45,7 +45,7 @@ SRCS = src/dllmain.cpp \
        src/patches/stopTroopsHotkey.cpp \
        src/patches/attackHotkey.cpp \
        src/patches/zoomSpeed.cpp \
-       src/patches/scrollSpeed.cpp \
+       src/patches/panSpeed.cpp \
        src/patches/zoomLimit.cpp \
        src/patches/shiftRecruit.cpp \
        src/patches/siegeCampHotkey.cpp \

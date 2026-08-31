@@ -1,19 +1,23 @@
-#include "scrollSpeed.h"
+#include "panSpeed.h"
 #include "../core/config.h"
 #include <cstdint>
 #include <cstring>
 #include <windows.h>
 
-// Multiplies how fast the camera scrolls across the map, for both the keyboard
-// scroll keys and pushing the mouse against a screen edge. Opt-in via
-// [camera] ScrollSpeedMultiplier in sh2-unofficial-patch.ini; the stock code is
+// Multiplies how fast the camera pans across the map, for both the keyboard
+// pan keys and pushing the mouse against a screen edge. Opt-in via
+// [camera] PanSpeedMultiplier in sh2-unofficial-patch.ini; the stock code is
 // left untouched at the default of 1.0. Patch details, offsets, and the
-// reverse-engineering trail live in docs/features/scroll-speed.md.
+// reverse-engineering trail live in docs/features/pan-speed.md.
+//
+// Note the engine's own names run the other way: Camera::scroll is the mover
+// patched here, and Camera::pan is an unrelated bounds clamp. Engine symbols
+// below keep their real names.
 
 static const float MULTIPLIER_MIN = 0.1f;
 static const float MULTIPLIER_MAX = 10.0f;
 
-// fmul qword [scroll speed], inside the camera controller's per-frame update.
+// fmul qword [pan speed], inside the camera controller's per-frame update.
 // It turns the frame time into the target velocity Camera::scroll ramps up to,
 // and it is the only reference to that constant in the exe.
 static const uintptr_t SITE_RVA = 0x1f9d86;
@@ -29,10 +33,10 @@ static const float STOCK_SPEED = 76800.0f;
 // Operand of the patched fmul. Static storage in the (never unloaded) patch
 // DLL, so the address baked into the game code stays valid for the process
 // lifetime.
-static float g_scrollSpeed = STOCK_SPEED;
+static float g_panSpeed = STOCK_SPEED;
 
-void installScrollSpeed() {
-    float multiplier = configFloat("camera", "ScrollSpeedMultiplier", 1.0f);
+void installPanSpeed() {
+    float multiplier = configFloat("camera", "PanSpeedMultiplier", 1.0f);
 
     // The negated comparison also rejects NaN.
     if (!(multiplier >= MULTIPLIER_MIN && multiplier <= MULTIPLIER_MAX) || multiplier == 1.0f) {
@@ -56,12 +60,12 @@ void installScrollSpeed() {
         return;
     }
 
-    g_scrollSpeed = STOCK_SPEED * multiplier;
+    g_panSpeed = STOCK_SPEED * multiplier;
 
     // Same length: the qword form reads the game's double, the dword form reads
     // our float.
     uint8_t patched[6];
-    uint32_t speedAddr = (uint32_t)(uintptr_t)&g_scrollSpeed;
+    uint32_t speedAddr = (uint32_t)(uintptr_t)&g_panSpeed;
 
     memcpy(patched, FMUL_DWORD_ABS32, sizeof(FMUL_DWORD_ABS32));
     memcpy(patched + 2, &speedAddr, sizeof(speedAddr));

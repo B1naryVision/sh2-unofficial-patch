@@ -11,8 +11,8 @@
 
 ### [Feature] - Move the Camera Around the Map Faster
 
-- **What the issue was:** Scrolling across the map was slow, and slower than it looked because the camera took over a second to get up to full speed, so crossing a large map meant holding a key down and waiting.
-- **What we changed:** Set `ScrollSpeedMultiplier` under `[camera]` in `sh2-unofficial-patch.ini` to scroll faster — 2.0 is twice the normal speed. It applies both to the keyboard scroll keys and to pushing the mouse against the edge of the screen, and the camera gets up to speed proportionally quicker too. As in the stock game, scrolling stays faster the further you are zoomed out. Off by default, and only your own view changes, so it stays compatible with players who do not have the patch.
+- **What the issue was:** Moving the view across the map was slow, and slower than it looked because the camera took over a second to get up to full speed, so crossing a large map meant holding a key down and waiting.
+- **What we changed:** Set `PanSpeedMultiplier` under `[camera]` in `sh2-unofficial-patch.ini` to move the camera faster — 2.0 is twice the normal speed. It applies both to the keyboard keys and to pushing the mouse against the edge of the screen, and the camera gets up to speed proportionally quicker too. As in the stock game, it stays faster the further you are zoomed out. Off by default, and only your own view changes, so it stays compatible with players who do not have the patch.
 
 ### [Feature] - See Who Is Lagging With `!ping`
 
@@ -31,7 +31,7 @@
 
 ### [Feature] - Zoom Out Much Further
 
-- **What the issue was:** The camera stopped zooming out very early, so on a wide monitor you could only ever see a small part of your castle at once and had to scroll constantly to follow a battle.
+- **What the issue was:** The camera stopped zooming out very early, so on a wide monitor you could only ever see a small part of your castle at once and had to move the view constantly to follow a battle.
 - **What we changed:** Set `ZoomOutLimit=Auto` under `[camera]` in `sh2-unofficial-patch.ini` and you can pull back much further, stopping at the point where the view stops holding up. There is nothing to tune: the stopping point is worked out from the size of the map you are playing and the angle of your camera, so it suits small and large maps alike, and looking straight down reaches further than a tilted view does. Off by default, and only your own view changes, so it stays compatible with players who do not have the patch.
 
 ---
