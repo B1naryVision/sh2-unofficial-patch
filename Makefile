@@ -1,10 +1,21 @@
 CXX      = i686-w64-mingw32-g++
+WINDRES  = i686-w64-mingw32-windres
 CXXFLAGS = -m32 -O2 -std=c++17 -Wall -Wextra -Isrc
-# --no-insert-timestamp zeroes the PE header timestamp so identical source
-# and toolchain produce a bit-identical DLL (reproducible builds).
-LDFLAGS  = -shared -Wl,--enable-stdcall-fixup -Wl,--no-insert-timestamp -static-libgcc -static-libstdc++ -lkernel32 -luser32 -lgdi32
+# -s strips the ~270 KB of DWARF debug sections a release build has no use for
+# (the debug target puts it back). --dynamicbase and --nxcompat set the ASLR and
+# DEP bits: a DLL shipping with DllCharacteristics of 0 reads as a legacy or
+# hand-built binary to reputation and antivirus heuristics, and this one already
+# has enough working against it. --no-insert-timestamp zeroes the PE header
+# timestamp so identical source and toolchain produce a bit-identical DLL
+# (reproducible builds).
+STRIP    = -s
+LDFLAGS  = -shared -Wl,--enable-stdcall-fixup -Wl,--no-insert-timestamp \
+           -Wl,--dynamicbase -Wl,--nxcompat $(STRIP) \
+           -static-libgcc -static-libstdc++ -lkernel32 -luser32 -lgdi32
 TARGET   = d3d9.dll
 DEF      = d3d9.def
+RC       = src/d3d9.rc
+RES      = src/d3d9.res.o
 
 SRCS = src/dllmain.cpp \
        src/core/config.cpp \
@@ -53,17 +64,22 @@ TOOL_SRC   = tools/win/s2mEditable.cpp
 TOOL_RC    = tools/win/s2mEditable.rc
 TOOL_RES   = tools/win/s2mEditable.res.o
 TOOL_TEST  = tools/win/test-s2m.exe
-WINDRES    = i686-w64-mingw32-windres
 TOOLFLAGS  = -m32 -Os -std=c++17 -Wall -Wextra -municode -fno-exceptions -fno-rtti \
              -s -Wl,--no-insert-timestamp -static-libgcc -static-libstdc++
 TOOLLIBS   = -lcomdlg32 -lshell32 -lole32 -luser32
 
 all: $(TARGET)
 
-$(TARGET): $(SRCS) $(HDRS) $(DEF)
-	$(CXX) $(CXXFLAGS) -o $@ $(SRCS) $(DEF) $(LDFLAGS)
+$(TARGET): $(SRCS) $(HDRS) $(DEF) $(RES)
+	$(CXX) $(CXXFLAGS) -o $@ $(SRCS) $(DEF) $(RES) $(LDFLAGS)
+
+# The version resource is what a scanner and the file properties dialog read to
+# find out whose software this is. See the comment in src/d3d9.rc.
+$(RES): $(RC)
+	$(WINDRES) -i $< -o $@ -O coff
 
 debug: CXXFLAGS += -DDEBUG -g
+debug: STRIP =
 debug: $(TARGET)
 
 deploy: $(TARGET)
@@ -87,6 +103,6 @@ $(TOOL_TEST): tools/win/test_s2mEditable.cpp $(TOOL_SRC)
 tool-test: $(TOOL_TEST)
 
 clean:
-	rm -f $(TARGET) $(TOOL) $(TOOL_RES) $(TOOL_TEST)
+	rm -f $(TARGET) $(RES) $(TOOL) $(TOOL_RES) $(TOOL_TEST)
 
 .PHONY: all debug deploy tool tool-test clean
