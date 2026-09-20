@@ -387,8 +387,10 @@
   function initInstallVideo() {
     if (!SITE.installVideo) { return; }
 
-    $("#installVideo").innerHTML = mediaHTML(
-      { type:"youtube", id:SITE.installVideo, cap:"The whole install, start to finish" }, "install");
+    $("#installVideo").innerHTML =
+      '<p class="eyebrow">Prefer to watch</p>' +
+      mediaHTML({ type:"youtube", id:SITE.installVideo,
+                  cap:"Downloading the release and installing it, start to finish" }, "install");
   }
 
   function initDeepLink() {

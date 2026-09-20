@@ -67,7 +67,7 @@ const SITE = {
   /* Optional: a short install walkthrough video. Paste a YouTube id
      here and it appears at the top of the Install section. Leave ""
      to hide it. */
-  installVideo: "",
+  installVideo: "cxfQfq5oW1E",
 
   /* Optional: a hero picture — a wide, good-looking in-game shot.
      Drop the file in assets/media/ and put its path here. */
