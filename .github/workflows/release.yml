@@ -98,6 +98,11 @@ jobs:
             (Stop troops: H, Attack-move toggle: Mouse4, stock camera speeds
             and zoom-out limit).
 
+          Using DXVK, ReShade or dgVoodoo:
+            These also use the name d3d9.dll. Rename the add-on's d3d9.dll
+            to d3d9_chain.dll and put it in the game directory next to the
+            patch's d3d9.dll. The patch loads it for you.
+
           Uninstall:
             Delete d3d9.dll from the game directory. No game files are
             modified.

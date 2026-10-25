@@ -229,6 +229,13 @@ const PATCHES = [
     was:"The patch's panels looked right for some players and badly wrong for others — text spilling out of boxes, labels running into each other, rows pushed off the edge. Two players on the same 1920x1080 could see completely different results.",
     now:"Panels size themselves to the text they contain and follow the game's resolution rather than your Windows display scaling, so they look the same everywhere and nothing clips.",
     how:"Automatic. If you want them larger or smaller, set Scale under [ui] to a percentage between 50 and 300."
+  },
+  {
+    id:"dll-chaining", cat:"interface", kind:"feature", version:"next", mp:"solo",
+    title:"Use the patch together with DXVK or ReShade",
+    was:"The patch and graphics add-ons such as DXVK, ReShade or dgVoodoo all need the same file name in the game folder, so you could only have one of them.",
+    now:"The patch can now load one of those add-ons for you, so you can use both at once.",
+    how:"Rename the add-on's d3d9.dll to d3d9_chain.dll and put it in the game folder next to the patch's d3d9.dll. That's all there is to it — take the file away again to go back to normal."
   }
 ];
 
@@ -238,7 +245,8 @@ const PATCHES = [
    ================================================================== */
 const HISTORY = [
   { v:"next", date:"", items:[
-    "Fixed occasional stuttering caused by skipping the intro videos"
+    "Fixed occasional stuttering caused by skipping the intro videos",
+    "Works alongside DXVK, ReShade and other graphics add-ons"
   ]},
   { v:"0.7.0", date:"", items:[
     "Every patch setting is adjustable in game, while you play",

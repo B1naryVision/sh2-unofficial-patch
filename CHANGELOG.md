@@ -9,6 +9,11 @@
 - **What the issue was:** Skipping the intro videos could make the game stutter now and then during play, because watching those videos had been quietly keeping the game's timing precise for the rest of the session.
 - **What we changed:** The patch now keeps the game's timing exactly as precise as it is after watching the intro, so play is as smooth as before, and the intro is still skipped.
 
+### [Feature] - Use the Patch Together With DXVK, ReShade and Other Graphics Add-ons
+
+- **What the issue was:** Graphics add-ons such as DXVK, ReShade and dgVoodoo need the same file name in the game folder as the patch, so you had to choose between them.
+- **What we changed:** Rename the add-on's `d3d9.dll` to `d3d9_chain.dll` and put it next to the patch's `d3d9.dll`; the patch loads it for you and both work together. Without that file nothing changes. Only your own machine is affected, so it stays compatible with players who do not have the patch.
+
 ---
 
 ## [0.7.0]

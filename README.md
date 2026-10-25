@@ -66,6 +66,7 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [In-progress games hidden from the multiplayer browser](docs/bugs/in-progress-lobbies.md) | `base+0x3e065b`, `base+0x3e06bf` | Fixed in v0.7.0 |
 | [`!ping` chat command showing per-player latency](docs/features/ping-command.md) | `base+0x24d8e0`, `base+0x3d88c0` | Added in v0.7.0 |
 | [Configurable camera pan speed (opt-in)](docs/features/pan-speed.md) | `base+0x1f9d86` | Added in v0.7.0 |
+| [Chain-load a D3D9 wrapper (DXVK, ReShade, dgVoodoo) as `d3d9_chain.dll`](docs/features/dll-chaining.md) | — | Unreleased |
 
 ---
 
@@ -125,6 +126,11 @@ make clean    # remove build artifacts
 3. Launch the game normally through Steam. The patch loads automatically.
 
 **To uninstall**: delete `d3d9.dll` from the game directory.
+
+**Using DXVK, ReShade or another D3D9 wrapper?** Rename the wrapper's
+`d3d9.dll` to `d3d9_chain.dll` and put it next to the patch's `d3d9.dll`; the
+patch loads it in place of the system library. See
+[docs/features/dll-chaining.md](docs/features/dll-chaining.md).
 
 ---
 

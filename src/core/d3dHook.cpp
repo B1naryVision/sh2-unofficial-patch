@@ -11,6 +11,11 @@
 // EndScene *function* instead: that catches the scene render regardless of the
 // vtable copy. The device is resolved once via a temporary CreateDevice detour
 // (only to read EndScene's address out of vtable[42]).
+//
+// A chained wrapper (DXVK and friends, docs/features/dll-chaining.md) has its
+// own EndScene with an unknown prologue, so instead we swap vtable[42] itself
+// while still inside CreateDevice — before it returns, and so before
+// dxrenderer.dll can take its copy of the vtable.
 
 // ── device resolution (temporary CreateDevice detour) ──────────────────────────
 typedef HRESULT(WINAPI *CreateDeviceFn)(
@@ -88,8 +93,9 @@ extern "C" void renderOverlayC(IDirect3DDevice9 *device) {
 unsigned char *g_endSceneTramp = nullptr;
 
 // Naked detour installed at EndScene's entry (reached via the JMP we write over
-// the prologue). Saves state, calls the overlay with `this`, then jumps to the
-// trampoline (original 7 prologue bytes + JMP to EndScene+7).
+// the prologue, or through the swapped vtable slot). Saves state, calls the
+// overlay with `this`, then jumps to the trampoline (original 7 prologue bytes
+// + JMP to EndScene+7) or, for the vtable route, the original EndScene.
 __declspec(naked) static void endSceneDetour() {
     __asm__ volatile("pushal\n\t"
                      "pushfl\n\t"
@@ -102,13 +108,13 @@ __declspec(naked) static void endSceneDetour() {
                      "jmp *_g_endSceneTramp\n\t");
 }
 
-static void installEndSceneHook(void *endScene) {
+static bool installEndSceneHook(void *endScene) {
     unsigned char *fn = (unsigned char *)endScene;
 
     // Expect the standard SEH prologue: push 0x14 (6a 14) + mov eax, imm32 (b8..).
     // 7 position-independent bytes; refuse anything else rather than corrupt it.
     if (!(fn[0] == 0x6a && fn[2] == 0xb8)) {
-        return;
+        return false;
     }
 
     const int copyLen = 7;
@@ -118,7 +124,7 @@ static void installEndSceneHook(void *endScene) {
     );
 
     if (!g_endSceneTramp) {
-        return;
+        return false;
     }
 
     memcpy(g_endSceneTramp, fn, copyLen);
@@ -137,6 +143,7 @@ static void installEndSceneHook(void *endScene) {
 
     VirtualProtect(fn, copyLen, oldProtect, &oldProtect);
     FlushInstructionCache(GetCurrentProcess(), fn, copyLen);
+    return true;
 }
 
 static HRESULT WINAPI hookCreateDevice(
@@ -156,7 +163,12 @@ static HRESULT WINAPI hookCreateDevice(
         }
 
         void **vtable = *(void ***)*returnedDevice;
-        installEndSceneHook(vtable[VT_ENDSCENE]);
+
+        if (!installEndSceneHook(vtable[VT_ENDSCENE])) {
+            g_endSceneTramp = (unsigned char *)patchVtableSlot(
+                *returnedDevice, VT_ENDSCENE, (void *)endSceneDetour
+            );
+        }
     }
 
     return hr;

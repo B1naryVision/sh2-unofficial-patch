@@ -1,4 +1,6 @@
 #include "../core/d3dHook.h"
+#include "../core/hook.h"
+#include <cstring>
 #include <windows.h>
 
 // Index order must match the naked stubs below and d3d9.def. The set is
@@ -16,37 +18,100 @@ static const char *const kExportNames[] = {
 
 static const size_t kExportCount = sizeof(kExportNames) / sizeof(kExportNames[0]);
 
-static HMODULE s_realD3d9Instance = nullptr;
+static HMODULE s_chainedD3d9Instance = nullptr;
+static HMODULE s_systemD3d9Instance = nullptr;
 FARPROC g_d3d9Functions[kExportCount] = {nullptr};
 
-static void reportLoadFailure() {
-    MessageBoxA(
-        NULL,
-        "SH2 Unofficial Patch: failed to load the system d3d9.dll.\n"
-        "The patch is disabled and the game will likely fail to start.",
-        "SH2 Unofficial Patch", MB_OK | MB_ICONERROR
-    );
+static const char kChainFilename[] = "d3d9_chain.dll";
+
+static void reportLoadFailure(const char *message) {
+    MessageBoxA(NULL, message, "SH2 Unofficial Patch", MB_OK | MB_ICONERROR);
 }
 
-void loadRealD3d9Dll() {
+// A D3D9 wrapper (DXVK, ReShade, dgVoodoo) renamed to d3d9_chain.dll next to
+// us takes the place of the system library. See docs/features/dll-chaining.md.
+static HMODULE loadChainedD3d9() {
+    char path[MAX_PATH];
+    DWORD len = GetModuleFileNameA(g_patchModule, path, MAX_PATH);
+
+    if (len == 0 || len >= MAX_PATH) {
+        return nullptr;
+    }
+
+    char *lastSlash = strrchr(path, '\\');
+
+    if (!lastSlash || (size_t)(lastSlash - path) + sizeof(kChainFilename) + 1 > MAX_PATH) {
+        return nullptr;
+    }
+
+    strcpy(lastSlash + 1, kChainFilename);
+
+    if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) {
+        return nullptr;
+    }
+
+    HMODULE module = LoadLibraryA(path);
+
+    if (!module) {
+        reportLoadFailure(
+            "SH2 Unofficial Patch: d3d9_chain.dll is in the game folder but could not\n"
+            "be loaded. Falling back to the system d3d9.dll."
+        );
+    }
+
+    return module;
+}
+
+static HMODULE loadSystemD3d9() {
     char path[MAX_PATH];
     UINT len = GetSystemDirectoryA(path, MAX_PATH);
 
     if (len == 0 || len >= MAX_PATH - sizeof("\\d3d9.dll")) {
-        reportLoadFailure();
-        return;
+        return nullptr;
     }
 
     strcat_s(path, MAX_PATH, "\\d3d9.dll");
-    s_realD3d9Instance = LoadLibraryA(path);
+    return LoadLibraryA(path);
+}
 
-    if (!s_realD3d9Instance) {
-        reportLoadFailure();
+void loadRealD3d9Dll() {
+    s_chainedD3d9Instance = loadChainedD3d9();
+
+    // Every export but Direct3DCreate9 is a bare jmp through its slot, so a
+    // null slot is a jump to address 0. A wrapper only implements what games
+    // call; the system library fills in whatever it lacks.
+    bool missing = true;
+
+    if (s_chainedD3d9Instance) {
+        missing = false;
+
+        for (size_t i = 0; i < kExportCount; ++i) {
+            g_d3d9Functions[i] = GetProcAddress(s_chainedD3d9Instance, kExportNames[i]);
+
+            if (!g_d3d9Functions[i]) {
+                missing = true;
+            }
+        }
+    }
+
+    if (!missing) {
+        return;
+    }
+
+    s_systemD3d9Instance = loadSystemD3d9();
+
+    if (!s_systemD3d9Instance) {
+        reportLoadFailure(
+            "SH2 Unofficial Patch: failed to load the system d3d9.dll.\n"
+            "The patch is disabled and the game will likely fail to start."
+        );
         return;
     }
 
     for (size_t i = 0; i < kExportCount; ++i) {
-        g_d3d9Functions[i] = GetProcAddress(s_realD3d9Instance, kExportNames[i]);
+        if (!g_d3d9Functions[i]) {
+            g_d3d9Functions[i] = GetProcAddress(s_systemD3d9Instance, kExportNames[i]);
+        }
     }
 }
 
