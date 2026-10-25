@@ -2,6 +2,15 @@
 
 ---
 
+## [Unreleased]
+
+### [Fix] - Occasional Stuttering With the Intro Skip
+
+- **What the issue was:** Skipping the intro videos could make the game stutter now and then during play, because watching those videos had been quietly keeping the game's timing precise for the rest of the session.
+- **What we changed:** The patch now keeps the game's timing exactly as precise as it is after watching the intro, so play is as smooth as before, and the intro is still skipped.
+
+---
+
 ## [0.7.0]
 
 ### [Improvement] - Change Every Patch Setting From Inside the Game

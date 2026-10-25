@@ -11,7 +11,7 @@ CXXFLAGS = -m32 -O2 -std=c++17 -Wall -Wextra -Isrc
 STRIP    = -s
 LDFLAGS  = -shared -Wl,--enable-stdcall-fixup -Wl,--no-insert-timestamp \
            -Wl,--dynamicbase -Wl,--nxcompat $(STRIP) \
-           -static-libgcc -static-libstdc++ -lkernel32 -luser32 -lgdi32
+           -static-libgcc -static-libstdc++ -lkernel32 -luser32 -lgdi32 -lwinmm
 TARGET   = d3d9.dll
 DEF      = d3d9.def
 RC       = src/d3d9.rc

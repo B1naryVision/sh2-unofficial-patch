@@ -237,6 +237,9 @@ const PATCHES = [
    the bottom of the page. Keep it in step with CHANGELOG.md.
    ================================================================== */
 const HISTORY = [
+  { v:"next", date:"", items:[
+    "Fixed occasional stuttering caused by skipping the intro videos"
+  ]},
   { v:"0.7.0", date:"", items:[
     "Every patch setting is adjustable in game, while you play",
     "Games already in progress no longer clutter the multiplayer browser",
