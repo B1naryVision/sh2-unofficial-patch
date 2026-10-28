@@ -134,6 +134,13 @@ const PATCHES = [
     now:"Everyone sees a chat message listing the round-trip time to each player, so the lobby can decide together what to do about it.",
     how:"Type !ping into the in-game chat during a multiplayer match. Players without the patch still see the results — their own time shows as n/a until they install it."
   },
+  {
+    id:"patch-handshake", cat:"multiplayer", kind:"feature", version:"next", mp:"partial",
+    title:"See who has the patch, with !ver",
+    was:"There was no way to tell whether the other players had the patch, or which version, short of asking each of them.",
+    now:"Everyone sees a chat message listing each player's patch version and who is hosting. It is also the groundwork for optional game rules the host can switch on when everyone has the patch.",
+    how:"Type !ver into the in-game chat during a multiplayer match. Players without the patch, or with version 0.7 or older, show as \"0.7 or older\"."
+  },
 
   /* ---------- CONTROLS ------------------------------------------- */
   {
@@ -246,7 +253,8 @@ const PATCHES = [
 const HISTORY = [
   { v:"next", date:"", items:[
     "Fixed occasional stuttering caused by skipping the intro videos",
-    "Works alongside DXVK, ReShade and other graphics add-ons"
+    "Works alongside DXVK, ReShade and other graphics add-ons",
+    "See which patch version every player has with the !ver chat command"
   ]},
   { v:"0.7.0", date:"", items:[
     "Every patch setting is adjustable in game, while you play",

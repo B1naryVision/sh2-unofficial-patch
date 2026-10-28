@@ -26,6 +26,9 @@ SRCS = src/dllmain.cpp \
        src/core/hook.cpp \
        src/core/log.cpp \
        src/core/frameTick.cpp \
+       src/core/maintChannel.cpp \
+       src/core/chatCommand.cpp \
+       src/core/steamLobby.cpp \
        src/core/d3dHook.cpp \
        src/proxy/d3d9Proxy.cpp \
        src/patches/registry.cpp \
@@ -35,6 +38,7 @@ SRCS = src/dllmain.cpp \
        src/patches/mpConnectCompleteCrash.cpp \
        src/patches/lobbyInProgressFilter.cpp \
        src/patches/pingCommand.cpp \
+       src/patches/handshake.cpp \
        src/patches/endgameStats.cpp \
        src/patches/endgameStats/unitTracker.cpp \
        src/patches/endgameStats/session.cpp \

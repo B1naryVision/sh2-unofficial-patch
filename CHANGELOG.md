@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### [Feature] - See Which Patch Version Everyone Has With `!ver`
+
+- **What the issue was:** There was no way to tell whether the other players in a multiplayer game had the patch, or which version, so there was no safe way to ever offer optional game rules that need everyone to have it.
+- **What we changed:** The patch now quietly tells the other players in a Steam lobby which version you have. Type `!ver` in chat during a multiplayer game and everyone sees each player's version and who is hosting; players on version 0.7 or older, or without the patch, show as "0.7 or older". This is the groundwork for letting the host switch on optional rules in future. It changes nothing in the game itself, so it stays compatible with players who do not have the patch.
+
 ### [Fix] - Occasional Stuttering With the Intro Skip
 
 - **What the issue was:** Skipping the intro videos could make the game stutter now and then during play, because watching those videos had been quietly keeping the game's timing precise for the rest of the session.

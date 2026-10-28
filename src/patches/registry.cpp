@@ -4,6 +4,7 @@
 #include "autoMarket/autoMarket.h"
 #include "barracksCrash.h"
 #include "endgameStats.h"
+#include "handshake.h"
 #include "introSkip.h"
 #include "knightCatapultCrash.h"
 #include "lobbyInProgressFilter.h"
@@ -28,6 +29,7 @@ void applyUnofficialPatches() {
     installMpConnectCompleteCrashFix();
     installLobbyInProgressFilter();
     installPingCommand();
+    installHandshake();
     installEndgameStats();
     installBarracksCrashFix();
     installMapEdgeCrashFix();
