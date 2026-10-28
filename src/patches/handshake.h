@@ -11,6 +11,10 @@ static const uint32_t RULE_BALLISTA_AUTOFIRE = 1u << 0;
 
 static const uint32_t RULES_SUPPORTED = 0;
 
+// Bumped whenever the member-data format changes; a player on another protocol
+// is treated as supporting nothing.
+static const uint32_t HANDSHAKE_PROTOCOL = 1;
+
 enum PatchState {
     PATCH_NONE, // no key: unpatched, or 0.7.0 and older, which predate the handshake
     PATCH_FOUND,

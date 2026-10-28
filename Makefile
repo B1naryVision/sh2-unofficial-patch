@@ -39,6 +39,7 @@ SRCS = src/dllmain.cpp \
        src/patches/lobbyInProgressFilter.cpp \
        src/patches/pingCommand.cpp \
        src/patches/handshake.cpp \
+       src/patches/lobbyPanel.cpp \
        src/patches/endgameStats.cpp \
        src/patches/endgameStats/unitTracker.cpp \
        src/patches/endgameStats/session.cpp \

@@ -31,6 +31,7 @@ Two lists in one panel:
 | Stop selected troops | `StopTroops` | [stop-troops-hotkey.md](stop-troops-hotkey.md) |
 | Attack-move toggle | `AttackToggle` | [attack-move-hotkey.md](attack-move-hotkey.md) |
 | Auto-market panel | `AutoMarketPanel` | [auto-market.md](auto-market.md) |
+| Lobby patch panel | `LobbyPanel` | [lobby-panel.md](lobby-panel.md) |
 | This settings panel | `SettingsPanel` | this doc |
 
 | Option row | Ini key | Control | Feature |

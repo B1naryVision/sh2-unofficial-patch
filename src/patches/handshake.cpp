@@ -15,7 +15,6 @@
 // including players who join later, so there is no request, reply or timeout: a
 // member with no key is unpatched or on 0.7.0 or older.
 static const char *MEMBER_KEY = "sh2up";
-static const uint32_t PROTOCOL = 1;
 
 static const uint32_t REFRESH_MS = 1000;
 
@@ -87,7 +86,7 @@ static bool parseMemberValue(const char *value, LobbyPlayer *player) {
 static void publish(uint64_t lobby) {
     char value[LOBBY_MAX_VALUE];
 
-    snprintf(value, sizeof(value), "%u;%s;%x", PROTOCOL, PATCH_VERSION, RULES_SUPPORTED);
+    snprintf(value, sizeof(value), "%u;%s;%x", HANDSHAKE_PROTOCOL, PATCH_VERSION, RULES_SUPPORTED);
     lobbySetMemberData(MEMBER_KEY, value);
     s_publishedLobby = lobby;
 }
@@ -162,7 +161,7 @@ uint32_t handshakeCommonRules() {
     for (int i = 0; i < s_playerCount; ++i) {
         // Every failure mode narrows to nothing: a protocol we do not speak is as
         // good as no patch at all.
-        if (s_players[i].state != PATCH_FOUND || s_players[i].protocol != PROTOCOL) {
+        if (s_players[i].state != PATCH_FOUND || s_players[i].protocol != HANDSHAKE_PROTOCOL) {
             return 0;
         }
 

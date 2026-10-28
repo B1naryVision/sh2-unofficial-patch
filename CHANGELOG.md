@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### [Feature] - See Who Has the Patch Before the Match Starts
+
+- **What the issue was:** The only way to check other players' patch versions was `!ver`, and chat only works once a match has started, so you could not tell before pressing Start whether everyone had it.
+- **What we changed:** A small panel in the corner of the multiplayer lobby now lists every player, their patch version and who is hosting, and says whether everyone has the patch. It appears by itself in the lobby; press **`Ctrl+Shift+L`** to hide or show it (the key can be changed in the settings panel). It only shows on your own screen, so it stays compatible with players who do not have the patch.
+
 ### [Feature] - See Which Patch Version Everyone Has With `!ver`
 
 - **What the issue was:** There was no way to tell whether the other players in a multiplayer game had the patch, or which version, so there was no safe way to ever offer optional game rules that need everyone to have it.

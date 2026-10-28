@@ -141,6 +141,13 @@ const PATCHES = [
     now:"Everyone sees a chat message listing each player's patch version and who is hosting. It is also the groundwork for optional game rules the host can switch on when everyone has the patch.",
     how:"Type !ver into the in-game chat during a multiplayer match. Players without the patch, or with version 0.7 or older, show as \"0.7 or older\"."
   },
+  {
+    id:"lobby-panel", cat:"multiplayer", kind:"feature", version:"next", mp:"partial",
+    title:"See who has the patch, in the lobby",
+    was:"You could only check other players' patch versions once the match had started, too late to sort it out.",
+    now:"A small panel in the corner of the lobby lists every player, their patch version and who is hosting, and says whether everyone has the patch.",
+    how:"It appears by itself in the multiplayer lobby. Press Ctrl+Shift+L to hide or show it; the key can be changed in the settings panel (Ctrl+Shift+O)."
+  },
 
   /* ---------- CONTROLS ------------------------------------------- */
   {
@@ -254,7 +261,8 @@ const HISTORY = [
   { v:"next", date:"", items:[
     "Fixed occasional stuttering caused by skipping the intro videos",
     "Works alongside DXVK, ReShade and other graphics add-ons",
-    "See which patch version every player has with the !ver chat command"
+    "See which patch version every player has with the !ver chat command",
+    "A lobby panel shows who has the patch before the match starts"
   ]},
   { v:"0.7.0", date:"", items:[
     "Every patch setting is adjustable in game, while you play",

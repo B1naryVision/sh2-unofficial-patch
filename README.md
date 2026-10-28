@@ -67,6 +67,7 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [`!ping` chat command showing per-player latency](docs/features/ping-command.md) | `base+0x24d8e0`, `base+0x3d88c0` | Added in v0.7.0 |
 | [Configurable camera pan speed (opt-in)](docs/features/pan-speed.md) | `base+0x1f9d86` | Added in v0.7.0 |
 | [Patch handshake and `!ver` chat command showing everyone's patch version](docs/features/patch-handshake.md) | `base+0x26cd918` | Unreleased |
+| [Lobby panel listing every player's patch version (`Ctrl+Shift+L`)](docs/features/lobby-panel.md) | `base+0x5e2c64` | Unreleased |
 | [Chain-load a D3D9 wrapper (DXVK, ReShade, dgVoodoo) as `d3d9_chain.dll`](docs/features/dll-chaining.md) | — | Unreleased |
 
 ---

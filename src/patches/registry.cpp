@@ -8,6 +8,7 @@
 #include "introSkip.h"
 #include "knightCatapultCrash.h"
 #include "lobbyInProgressFilter.h"
+#include "lobbyPanel.h"
 #include "mapEdgeCrash.h"
 #include "mpAiEnable.h"
 #include "mpConnectCompleteCrash.h"
@@ -30,6 +31,7 @@ void applyUnofficialPatches() {
     installLobbyInProgressFilter();
     installPingCommand();
     installHandshake();
+    installLobbyPanel();
     installEndgameStats();
     installBarracksCrashFix();
     installMapEdgeCrashFix();

@@ -62,6 +62,7 @@ the game has created a device to read a backbuffer size from
 | `[hotkeys]` | `SettingsPanel` | `Ctrl+Shift+O` | Open the in-game settings panel, which rebinds the keys below and writes them back here ([settings-overlay.md](settings-overlay.md)); `None` removes the panel |
 | `[hotkeys]` | `StopTroops` | `H` | Stop selected troops ([stop-troops-hotkey.md](stop-troops-hotkey.md)) |
 | `[hotkeys]` | `AttackToggle` | `Mouse4` | Toggle attack-move stance ([attack-move-hotkey.md](attack-move-hotkey.md)) |
+| `[hotkeys]` | `LobbyPanel` | `Ctrl+Shift+L` | Show or hide the lobby patch panel ([lobby-panel.md](lobby-panel.md)); it appears by itself in the multiplayer lobby |
 | `[hotkeys]` | `AutoMarketPanel` | `` ` `` | Toggle the auto-market editor overlay ([auto-market.md](auto-market.md)); `None` disables the whole feature |
 | `[camera]` | `ZoomSpeedMultiplier` | `1.0` | Camera zoom speed factor ([zoom-speed.md](zoom-speed.md)); `1.0` leaves the game code untouched |
 | `[camera]` | `ZoomOutLimit` | `Vanilla` | `Auto` zooms out to the furthest usable distance for the map and camera angle ([zoom-limit.md](zoom-limit.md)); `Vanilla` leaves the game code untouched |

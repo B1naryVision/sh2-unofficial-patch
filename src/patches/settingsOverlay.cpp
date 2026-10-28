@@ -8,6 +8,7 @@
 #include "attackHotkey.h"
 #include "autoMarket/overlay.h"
 #include "lobbyInProgressFilter.h"
+#include "lobbyPanel.h"
 #include "panSpeed.h"
 #include "shiftRecruit.h"
 #include "siegeCampHotkey.h"
@@ -133,6 +134,13 @@ static HotkeyRow s_keyRows[] = {
      autoMarketOverlayBinding,
      autoMarketOverlaySetBinding,
      autoMarketOverlayInstalled,
+     true,
+     {}},
+    {"Lobby patch panel",
+     "LobbyPanel",
+     lobbyPanelBinding,
+     lobbyPanelSetBinding,
+     lobbyPanelInstalled,
      true,
      {}},
     {"This settings panel",
