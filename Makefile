@@ -43,6 +43,7 @@ SRCS = src/dllmain.cpp \
        src/patches/lobbyPanel.cpp \
        src/patches/matchRules.cpp \
        src/patches/ballistaAutoFire.cpp \
+       src/patches/disbandRefundGuard.cpp \
        src/patches/endgameStats.cpp \
        src/patches/endgameStats/unitTracker.cpp \
        src/patches/endgameStats/session.cpp \

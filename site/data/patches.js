@@ -270,7 +270,8 @@ const HISTORY = [
     "Works alongside DXVK, ReShade and other graphics add-ons",
     "See which patch version every player has with the !ver chat command",
     "A lobby panel shows who has the patch before the match starts",
-    "The host can switch on match rules, starting with ballista auto-fire"
+    "The host can switch on match rules, starting with ballista auto-fire",
+    "Rapid-clicking Disband no longer hands back extra peasants"
   ]},
   { v:"0.7.0", date:"", items:[
     "Every patch setting is adjustable in game, while you play",

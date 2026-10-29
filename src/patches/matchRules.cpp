@@ -6,6 +6,7 @@
 #include "../core/screens.h"
 #include "../core/steamLobby.h"
 #include "ballistaAutoFire.h"
+#include "disbandRefundGuard.h"
 #include "handshake.h"
 #include <cstdio>
 #include <cstring>
@@ -13,14 +14,22 @@
 
 // See docs/features/match-rules.md.
 //
+// Two kinds of rule. An *option* is the host's choice. A *fix* is a bug fix that
+// changes the simulation: never a choice, on whenever every player has it.
+//
 // Three phases, and only the last one changes the simulation:
-//   lobby   - the host's choice, narrowed to what everyone supports, is published
-//             as lobby data so every player's lobby panel shows it.
+//   lobby   - the host's choice plus every fix, narrowed to what everyone
+//             supports, is published as lobby data for every player's panel.
 //   start   - the host's client posts it as a chat line ending in a tag.
 //   execute - every client sees that line on the same lockstep tick (ChatChore::
 //             execute) and switches the tagged rules on there.
 static const uintptr_t NETWORK_RVA = 0x26cd7d8; // GameSpy::Network
 static const uintptr_t NET_HOST_PEER_OFF = 0x50; // the host's peer id, as this client knows it
+
+// S2Game (VA 0x11781d0) +0x40089: when set, S2Game::post executes a command at
+// once instead of queueing it for lockstep, so there is no other client to stay
+// in step with. Reads 0 in a multiplayer match.
+static const uintptr_t COMMANDS_IMMEDIATE_RVA = 0xd781d0 + 0x40089;
 
 static const char *LOBBY_RULES_KEY = "sh2up_rules";
 static const char *INI_SECTION = "matchrules";
@@ -35,20 +44,24 @@ static const wchar_t *TAG_PREFIX = L"[sh2up:";
 struct Rule {
     uint32_t bit;
     const char *label;
-    const char *iniKey;
-    bool (*available)();
+    bool fix;
+    const char *iniKey; // options only: where the host's choice is remembered
+    bool (*install)();
     void (*setEnabled)(bool);
 };
 
 static const Rule RULES[] = {
-    {RULE_BALLISTA_AUTOFIRE, "Ballista auto-fire", "BallistaAutoFire", ballistaAutoFireAvailable,
-     ballistaAutoFireSetEnabled},
+    {RULE_BALLISTA_AUTOFIRE, "Ballista auto-fire", false, "BallistaAutoFire",
+     installBallistaAutoFire, ballistaAutoFireSetEnabled},
+    {RULE_DISBAND_FIX, "Disband peasant fix", true, nullptr, installDisbandRefundGuard,
+     disbandRefundGuardSetEnabled},
 };
 
 static const int RULE_COUNT = (int)(sizeof(RULES) / sizeof(RULES[0]));
 
 static uint32_t s_supported = 0; // rules whose sites verified on this machine
-static uint32_t s_chosen = 0; // the host's choice, from the ini and the settings panel
+static uint32_t s_fixes = 0; // the fix rules among them
+static uint32_t s_chosen = 0; // the host's options, from the ini and the lobby panel
 static uint32_t s_proposed = 0; // what the lobby shows for the next match
 static uint32_t s_active = 0; // switched on in the current match
 static bool s_committed = false; // a rules line has executed in this match
@@ -58,6 +71,14 @@ static uint32_t s_lastRefreshMs = 0;
 static uint32_t s_published = 0xffffffff;
 static bool s_inSteamLobby = false; // cached by the refresh, which may call Steam
 static bool s_wasInLobbyScreen = false;
+
+static bool commandsImmediate() {
+    return *(uint8_t *)((uintptr_t)GetModuleHandleA(NULL) + COMMANDS_IMMEDIATE_RVA) != 0;
+}
+
+// What the host offers for the next match: its options plus every fix, then only
+// what everyone in the lobby can run.
+static uint32_t hostProposal() { return (s_chosen | s_fixes) & handshakeCommonRules(); }
 
 static uint32_t hostPeer() {
     return *(uint32_t *)((uintptr_t)GetModuleHandleA(NULL) + NETWORK_RVA + NET_HOST_PEER_OFF);
@@ -215,7 +236,7 @@ static void refreshLobby() {
     }
 
     if (lobbyIsLocalOwner()) {
-        proposed = s_chosen & handshakeCommonRules();
+        proposed = hostProposal();
 
         if (proposed != s_published) {
             snprintf(value, sizeof(value), "%x", proposed);
@@ -251,12 +272,36 @@ static void matchRulesTick() {
         cleanFpu(refreshLobby);
     }
 
+    // A match with nobody to stay in step with: a bug fix needs no agreement, so
+    // every fix is simply on. Everywhere else outside a Steam lobby (the menus),
+    // vanilla. Never while a lockstep match is on screen: a client that lost its
+    // Steam lobby mid-match must not switch a rule off while the others still run
+    // it.
+    if (!s_inSteamLobby && (!inGame || commandsImmediate())) {
+        uint32_t solo = 0;
+
+        if (inGame) {
+            solo = s_fixes;
+        }
+
+        if (s_active != solo) {
+            setActive(solo);
+        }
+
+        s_committed = false;
+        s_posted = false;
+        s_gameSeenMs = 0;
+        s_wasInLobbyScreen = inLobby;
+
+        return;
+    }
+
     // Back to vanilla only once this client has plainly left the match: on the
-    // way *into* the lobby screen, or with no Steam lobby at all. Edges, not
-    // levels, and never on the match screen merely detaching: a defeat screen or a
-    // menu on one client, or a lobby screen still attached on a slow one, must not
-    // switch a rule off while the others are simulating with it.
-    if ((inLobby && !s_wasInLobbyScreen) || !s_inSteamLobby) {
+    // way *into* the lobby screen. An edge, not a level, and never on the match
+    // screen merely detaching: a defeat screen or a menu on one client, or a lobby
+    // screen still attached on a slow one, must not switch a rule off while the
+    // others are simulating with it.
+    if (inLobby && !s_wasInLobbyScreen) {
         if (s_active) {
             setActive(0);
         }
@@ -296,6 +341,7 @@ int matchRulesView(MatchRuleView *out, int max) {
 
     for (int i = 0; i < RULE_COUNT && n < max; ++i) {
         out[n].label = RULES[i].label;
+        out[n].fix = RULES[i].fix;
         out[n].everyoneSupports = (common & RULES[i].bit) != 0;
         out[n].proposed = (s_proposed & RULES[i].bit) != 0;
         ++n;
@@ -313,7 +359,8 @@ bool matchRuleToggle(int index) {
 
     const Rule &rule = RULES[index];
 
-    if (!(handshakeCommonRules() & rule.bit)) {
+    // A fix is not the host's to switch off.
+    if (rule.fix || !(handshakeCommonRules() & rule.bit)) {
         return false;
     }
 
@@ -326,19 +373,25 @@ bool matchRuleToggle(int index) {
     }
 
     // Shown straight away; published to the lobby on the next refresh.
-    s_proposed = s_chosen & handshakeCommonRules();
+    s_proposed = hostProposal();
 
     return true;
 }
 
 void installMatchRules() {
-    if (installBallistaAutoFire()) {
-        s_supported |= RULE_BALLISTA_AUTOFIRE;
-    }
-
     for (int i = 0; i < RULE_COUNT; ++i) {
-        if (configInt(INI_SECTION, RULES[i].iniKey, 0) == 1) {
-            s_chosen |= RULES[i].bit;
+        const Rule &rule = RULES[i];
+
+        if (!rule.install()) {
+            continue;
+        }
+
+        s_supported |= rule.bit;
+
+        if (rule.fix) {
+            s_fixes |= rule.bit;
+        } else if (configInt(INI_SECTION, rule.iniKey, 0) == 1) {
+            s_chosen |= rule.bit;
         }
     }
 

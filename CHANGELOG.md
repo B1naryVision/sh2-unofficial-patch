@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### [Fix] - Rapid-Clicking Disband No Longer Hands Back Extra Peasants
+
+- **What the issue was:** Clicking Disband quickly on a group of soldiers gave back more peasants than there were soldiers, a free-peasant exploit, and fixing it for only some players in a match would have thrown the game out of sync.
+- **What we changed:** Each disbanded soldier now returns exactly one peasant. In multiplayer the fix switches itself on for any match where every player has a patch version that supports it, with nothing for the host to set, and the lobby panel shows it; with anyone missing it, the match keeps the old behaviour so it stays in sync. In single player it is always on.
+
 ### [Feature] - Host-Chosen Match Rules, Starting With Ballista Auto-Fire
 
 - **What the issue was:** Field ballistae stopped aiming and firing by themselves in an official update, and there was no way to bring that back for multiplayer without everyone in the match needing the same change.

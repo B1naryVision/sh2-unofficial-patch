@@ -1,8 +1,9 @@
 # Lobby Patch Panel
 
 **Status**: Implemented; playtested 2026-10-28 solo and with an unpatched player (shows in the
-lobby, hides in the match, toggle works, unpatched row reads `0.7 or older`). Not yet seen
-with a second patched player, though the data it shows is the handshake's, which has been.
+lobby, hides in the match, toggle works, unpatched row reads `0.7 or older`), and 2026-10-29
+with four patched players, including the host's rule switches and the read-only view as a
+joining player.
 **Config**: `[hotkeys] LobbyPanel` (default `Ctrl+Shift+L`) shows or hides the panel; it
 appears by itself whenever the multiplayer lobby screen is up.
 

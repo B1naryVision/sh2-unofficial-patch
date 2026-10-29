@@ -1,15 +1,39 @@
 # Match Rules — Host-Chosen Gameplay Changes
 
-**Status**: Implemented, **not yet playtested**. Do not release before the two-patched-player
-test below has passed: this is the first patch feature that can desync a match if it is wrong.
+**Status**: Implemented and playtested 2026-10-29: tests 1–3 below passed, test 3 with four
+patched players and with the tester both as host and as a joining player. Test 4 has been
+checked as far as the lobby (the panel marks the rule unavailable with an unpatched player
+present); the rest of it runs the same "nothing to post" path test 1 exercised.
 **Config**: the host clicks a rule in the [lobby panel](lobby-panel.md); the choice is
 remembered in `[matchrules]` in `sh2-unofficial-patch.ini` for the host's next lobby. Each
 rule defaults to `0` (vanilla). Deliberately **not** in the settings panel: these are
 settings of a match, not of a player.
 
-| Rule | Ini key | Bit | Feature |
-| --- | --- | --- | --- |
-| Ballista auto-fire | `BallistaAutoFire` | `0x1` | [ballista-auto-fire.md](ballista-auto-fire.md) |
+| Rule | Kind | Ini key | Bit | Feature |
+| --- | --- | --- | --- | --- |
+| Ballista auto-fire | option | `BallistaAutoFire` | `0x1` | [ballista-auto-fire.md](ballista-auto-fire.md) |
+| Disband peasant fix | fix | — | `0x2` | [disband-peasant-duplication.md](../bugs/disband-peasant-duplication.md) |
+
+## Options and fixes
+
+- **An option** is a gameplay change the host chooses. It is off unless the host clicks it
+  on, and the choice is remembered in `[matchrules]`.
+- **A fix** is a bug fix that changes the simulation, so it needs everyone to have it like an
+  option does. It is never a choice: the host's proposal always includes every fix that
+  everyone in the lobby supports, and the lobby panel shows it as `on (fix)` with no switch.
+  With anyone lacking it, it is `unavailable` and the match keeps the stock behaviour, which
+  is the same on every client and so stays in sync.
+- **In single player** every fix is simply on. The test is the byte `S2Game+0x40089`
+  (RVA `0xdb8259`). `S2Game::post` executes commands at once when it is set instead of
+  queueing them for lockstep, so there is no other client to stay in step with. It reads `0`
+  in a multiplayer match (dump). Fixes switch on when `GameScreen` attaches with that byte set
+  and no Steam lobby, and off again in the menus. If the byte turned out not to be set in
+  single player, the fix would just stay off there, which is safe.
+
+A fix still commits through the rules line in multiplayer. It changes the simulation, so
+switching it on is exactly as much a lockstep decision as an option. The host's game includes
+it in the line without being asked. That line is now posted whenever the proposal is
+non-zero, so with any fix available almost every patched match carries one.
 
 ---
 
@@ -76,10 +100,12 @@ The plan once said "only within the first few seconds". That was dropped: wall-c
 differs between clients and would make acceptance non-deterministic. "The first rules line
 from the host" is deterministic and serves the same purpose.
 
-**Unverified assumption:** that every client's `net+0x50` holds the host's peer id. The dumps
-so far are all from the host's side, where `net+0x50 == net+0xdc == 1`. A client that
-disagreed would reject a line the host accepted. That is a desync, so this must be checked in
-a client-side dump before release (test 3 below).
+**Assumption confirmed by playtest, not by dump:** every client's `net+0x50` holds the host's
+peer id. The dumps are all from the host's side, where `net+0x50 == net+0xdc == 1`. A client
+that disagreed would reject a line the host accepted and desync the match, and a four-player
+match with every client patched, played from both the host's and a joining player's seat, ran
+with the rule applied and no desync. If a future change ever touches how the host is
+identified, take a client-side dump to check it directly.
 
 ### Posting
 

@@ -48,6 +48,7 @@ static const char *STATUS_SOME = "Vanilla rules only - not everyone has it";
 static const char *HOST_TAG = "host";
 static const char *RULES_HEAD = "Match rules";
 static const char *RULE_ON = "on";
+static const char *RULE_FIX_ON = "on (fix)";
 static const char *RULE_OFF = "off";
 static const char *RULE_UNAVAILABLE = "unavailable";
 static const char *HOST_HINT = "Click a rule to switch it on or off";
@@ -134,6 +135,10 @@ static const char *statusText(Status status) {
 static const char *ruleStateText(const MatchRuleView &rule) {
     if (!rule.everyoneSupports) {
         return RULE_UNAVAILABLE;
+    }
+
+    if (rule.fix) {
+        return RULE_FIX_ON;
     }
 
     if (rule.proposed) {
@@ -352,7 +357,7 @@ static void paintPanel(HDC dc) {
 
         // Only the host can switch a rule, and only one everyone can run, so
         // only those get a button shape.
-        if (s_content.localIsHost && rule.everyoneSupports) {
+        if (s_content.localIsHost && rule.everyoneSupports && !rule.fix) {
             overlayPanelFrame(
                 dc, s_layout.ruleStateX - s_layout.buttonPad, y - 1,
                 s_layout.ruleStateX + s_layout.ruleStateW + s_layout.buttonPad,

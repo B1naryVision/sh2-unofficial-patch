@@ -14,6 +14,7 @@ void installMatchRules();
 // What the lobby panel shows for one rule.
 struct MatchRuleView {
     const char *label;
+    bool fix; // a bug fix: on whenever everyone supports it, never switchable
     bool everyoneSupports; // every player in the lobby can run it
     bool proposed; // the host has it on for the next match
 };
@@ -22,5 +23,5 @@ int matchRulesView(MatchRuleView *out, int max);
 
 // The host switches rule `index` (as listed by matchRulesView) for the next match
 // and saves it to the ini. False, and nothing changes, when this client is not
-// the lobby owner or the rule is not available to everyone in the lobby.
+// the lobby owner, the rule is a fix, or it is not available to everyone.
 bool matchRuleToggle(int index);

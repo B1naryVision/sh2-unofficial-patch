@@ -1,8 +1,10 @@
 # Disband Peasant Duplication (Rapid-Click Exploit)
 
-**Status:** Implemented, not yet enabled — requires broad patch adoption for multiplayer compatibility
+**Status:** An automatic [match fix](../features/match-rules.md#options-and-fixes): on in every
+multiplayer match where every player supports it, and always on in single player. Not yet
+playtested in this form.
 **Affects:** Stronghold 2 Steam v1.5.0 (32-bit, `Stronghold2.exe`)
-**Config:** none (excluded from the build; see [README](../../README.md) Roadmap)
+**Config:** none. A bug fix is never a choice.
 
 ---
 
@@ -262,12 +264,15 @@ player's campfire peasant pool), which the lockstep engine cross-checks. A
 patched client that refunds one peasant while an unpatched client refunds three
 for the same command sequence diverges immediately and desyncs both.
 
-This is the same classification as
-[ballista-auto-fire.md](../features/ballista-auto-fire.md) and
-[unit-cap-raise.md](../features/unit-cap-raise.md), and for the same reason the
-patch is **excluded from the build** until the patch has broad adoption. The
-`.cpp`/`.h` are not in `SRCS` and `installDisbandRefundGuard()` is not called
-from `registry.cpp`; enabling it is a two-line change once that changes.
+That is why it is a **match fix** (rule bit `0x2`): `installDisbandRefundGuard` only
+verifies both sites and prepares the three bytes, and
+`disbandRefundGuardSetEnabled` writes or restores them on the simulation thread. In
+multiplayer it is switched on through the host's rules line, on the same lockstep tick
+on every client, whenever every player in the lobby advertises it, without the host
+choosing anything. With anyone lacking it the match keeps the stock (exploitable)
+behaviour, which is at least the same on every client. In single player there is no
+one to stay in step with, so it is simply on. See
+[match-rules.md](../features/match-rules.md).
 
 It is worth noting the exploit itself is *not* a desync in stock play: every
 client runs the same duplicated refund from the same command stream, so

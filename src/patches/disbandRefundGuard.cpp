@@ -5,8 +5,9 @@
 
 // Makes the troop disband handler idempotent: a unit can only ever hand one
 // peasant back, no matter how many disband commands land on it before the
-// simulation removes it. Offsets and the reverse-engineering trail live in
-// docs/bugs/disband-peasant-duplication.md.
+// simulation removes it. A fix that changes the simulation, so it is switched on
+// per match by patches/matchRules.cpp only when every player has it. Offsets and
+// the reverse-engineering trail live in docs/bugs/disband-peasant-duplication.md.
 
 // Soldier::disband — vtable slot 0x15c, shared by all 20 troop classes. Sets
 // the actor's lifecycle state to 3 ("marked for removal") and then returns a
@@ -29,10 +30,15 @@ static const uint8_t EPILOGUE_STOCK[4] = {0x8b, 0xe5, 0x5d, 0xc3};
 // and state 4 both mean the unit is already on its way out, so the refund is
 // skipped entirely instead of running a second time.
 static const uintptr_t GUARD_RVA = 0xf6419; // the cmp's imm8, then the jcc
+static const uint8_t GUARD_STOCK[3] = {0x04, 0x74, 0x07};
 static const uint8_t GUARD_IMM = 0x03;
 static const uint8_t GUARD_JAE = 0x73;
 
-void installDisbandRefundGuard() {
+static uint8_t s_patched[3];
+static bool s_ready = false;
+static bool s_enabled = false;
+
+bool installDisbandRefundGuard() {
     uintptr_t base = (uintptr_t)GetModuleHandleA(NULL);
     uint8_t *body = (uint8_t *)(base + DISBAND_BODY_RVA);
     uint8_t *epilogue = (uint8_t *)(base + DISBAND_EPILOGUE_RVA);
@@ -40,29 +46,51 @@ void installDisbandRefundGuard() {
     // All-or-nothing: the rewritten branch hard-codes the distance to the
     // function's own epilogue, so both ends have to be the stock bytes.
     if (memcmp(body, BODY_STOCK, sizeof(BODY_STOCK)) != 0) {
-        return;
+        return false;
     }
 
     if (memcmp(epilogue, EPILOGUE_STOCK, sizeof(EPILOGUE_STOCK)) != 0) {
-        return;
+        return false;
     }
 
-    uint8_t *site = (uint8_t *)(base + GUARD_RVA);
     intptr_t rel = (intptr_t)DISBAND_EPILOGUE_RVA - (intptr_t)(GUARD_RVA + 3);
 
     if (rel < -128 || rel > 127) {
-        return;
+        return false;
     }
 
-    uint8_t patched[3] = {GUARD_IMM, GUARD_JAE, (uint8_t)rel};
+    s_patched[0] = GUARD_IMM;
+    s_patched[1] = GUARD_JAE;
+    s_patched[2] = (uint8_t)rel;
+    s_ready = true;
 
-    DWORD oldProtect;
-
-    if (!VirtualProtect(site, sizeof(patched), PAGE_EXECUTE_READWRITE, &oldProtect)) {
-        return;
-    }
-
-    memcpy(site, patched, sizeof(patched));
-    VirtualProtect(site, sizeof(patched), oldProtect, &oldProtect);
-    FlushInstructionCache(GetCurrentProcess(), site, sizeof(patched));
+    return true;
 }
+
+// Called on the simulation thread only, so no disband is half-way through the
+// three bytes being rewritten.
+void disbandRefundGuardSetEnabled(bool enabled) {
+    uintptr_t base = (uintptr_t)GetModuleHandleA(NULL);
+    uint8_t *site = (uint8_t *)(base + GUARD_RVA);
+    const uint8_t *bytes = GUARD_STOCK;
+    DWORD oldProtect = 0;
+
+    if (!s_ready || enabled == s_enabled) {
+        return;
+    }
+
+    if (enabled) {
+        bytes = s_patched;
+    }
+
+    if (!VirtualProtect(site, sizeof(s_patched), PAGE_EXECUTE_READWRITE, &oldProtect)) {
+        return;
+    }
+
+    memcpy(site, bytes, sizeof(s_patched));
+    VirtualProtect(site, sizeof(s_patched), oldProtect, &oldProtect);
+    FlushInstructionCache(GetCurrentProcess(), site, sizeof(s_patched));
+    s_enabled = enabled;
+}
+
+bool disbandRefundGuardAvailable() { return s_ready; }

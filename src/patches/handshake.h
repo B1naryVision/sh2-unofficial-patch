@@ -8,6 +8,7 @@
 // One bit per match rule. Never reuse a bit: an older build reads it as the old
 // rule.
 static const uint32_t RULE_BALLISTA_AUTOFIRE = 1u << 0;
+static const uint32_t RULE_DISBAND_FIX = 1u << 1;
 
 // Bumped whenever the member-data format changes; a player on another protocol
 // is treated as supporting nothing.
