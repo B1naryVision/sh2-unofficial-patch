@@ -24,6 +24,7 @@ static uint64_t s_publishedLobby = 0;
 static uint32_t s_lastRefreshMs = 0;
 static bool s_refreshed = false;
 static bool s_reportPending = false;
+static uint32_t s_supported = 0;
 
 static bool isDigit(char c) { return c >= '0' && c <= '9'; }
 
@@ -86,7 +87,7 @@ static bool parseMemberValue(const char *value, LobbyPlayer *player) {
 static void publish(uint64_t lobby) {
     char value[LOBBY_MAX_VALUE];
 
-    snprintf(value, sizeof(value), "%u;%s;%x", HANDSHAKE_PROTOCOL, PATCH_VERSION, RULES_SUPPORTED);
+    snprintf(value, sizeof(value), "%u;%s;%x", HANDSHAKE_PROTOCOL, PATCH_VERSION, s_supported);
     lobbySetMemberData(MEMBER_KEY, value);
     s_publishedLobby = lobby;
 }
@@ -139,6 +140,10 @@ static void refresh() {
     s_playerCount = count;
 }
 
+void handshakeSetSupportedRules(uint32_t rules) { s_supported = rules; }
+
+uint32_t handshakeSupportedRules() { return s_supported; }
+
 int handshakePlayers(LobbyPlayer *out, int max) {
     int count = s_playerCount;
 
@@ -152,7 +157,7 @@ int handshakePlayers(LobbyPlayer *out, int max) {
 }
 
 uint32_t handshakeCommonRules() {
-    uint32_t common = RULES_SUPPORTED;
+    uint32_t common = s_supported;
 
     if (s_playerCount == 0) {
         return 0;

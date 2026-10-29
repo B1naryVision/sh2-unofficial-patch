@@ -29,6 +29,7 @@ SRCS = src/dllmain.cpp \
        src/core/maintChannel.cpp \
        src/core/chatCommand.cpp \
        src/core/steamLobby.cpp \
+       src/core/screens.cpp \
        src/core/d3dHook.cpp \
        src/proxy/d3d9Proxy.cpp \
        src/patches/registry.cpp \
@@ -40,6 +41,8 @@ SRCS = src/dllmain.cpp \
        src/patches/pingCommand.cpp \
        src/patches/handshake.cpp \
        src/patches/lobbyPanel.cpp \
+       src/patches/matchRules.cpp \
+       src/patches/ballistaAutoFire.cpp \
        src/patches/endgameStats.cpp \
        src/patches/endgameStats/unitTracker.cpp \
        src/patches/endgameStats/session.cpp \

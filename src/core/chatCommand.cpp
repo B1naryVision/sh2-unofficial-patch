@@ -9,12 +9,21 @@ static const uintptr_t CHAT_SUBMIT_RVA = 0x24d8e0; // IngameChatPanel::sendTyped
 static const uintptr_t WSTRING_ASSIGN_RVA =
     0x73e0; // std::wstring::assign(const wstring&, pos, len)
 
+static const uintptr_t GAME_SCREEN_PTR_RVA = 0xec0de0; // registerWindow, GameScreen
+static const uintptr_t GAME_SCREEN_CHAT_OFF = 0xf5e68; // IngameChatPanel member
+
+static const uintptr_t CHAT_EXECUTE_SLOT_RVA = 0x5c7134; // ChatChore vtable 0x9c712c, slot 2
+static const uintptr_t CHAT_EXECUTE_RVA = 0x1e89f0; // ChatChore::execute
+static const uintptr_t CHORE_SENDER_OFF = 0x08; // sender's network peer id
+static const uintptr_t CHORE_TEXT_OFF = 0x0c; // std::wstring
+
 static const uintptr_t PANEL_TEXT_OFF = 0x2f8; // std::wstring holding the typed line
 static const uintptr_t PANEL_CARET_OFF = 0x334; // cleared alongside the text on send
 
 static const uint8_t CHAT_SUBMIT_BYTES[] = {0x55, 0x8b, 0xec, 0x6a, 0xff};
 
 static const int MAX_COMMANDS = 8;
+static const int MAX_OBSERVERS = 4;
 
 struct GameWString {
     union {
@@ -29,6 +38,7 @@ typedef void(__attribute__((thiscall)) * AssignFn)(
     void *dest, const GameWString *src, uint32_t pos, uint32_t len
 );
 typedef void(__attribute__((thiscall)) * ChatSubmitFn)(void *panel);
+typedef void(__attribute__((thiscall)) * ChoreExecuteFn)(void *chore);
 
 struct ChatCommand {
     const wchar_t *text;
@@ -41,6 +51,11 @@ static bool s_hookInstalled = false;
 static bool s_hookFailed = false;
 static bool s_posting = false;
 static void *s_panel = nullptr;
+static ChatObserverFn s_observers[MAX_OBSERVERS];
+static int s_observerCount = 0;
+static ChoreExecuteFn s_stockExecute = nullptr;
+static bool s_executeSwapped = false;
+static bool s_executeFailed = false;
 
 // Set by the C handler, read by the trampoline after it restores registers.
 uint8_t g_chatSwallowSubmit = 0;
@@ -115,6 +130,26 @@ static void clearPanelText(void *panel) {
 //
 // `panel+0x308` is the input's _Mysize, which the stock send uses to refuse an empty
 // line; the assign is what makes it non-zero, so it is no precondition here.
+// The panel is a member of GameScreen, which is registered once at startup, so it
+// can be found before the player has typed anything.
+static void *findPanel() {
+    uintptr_t screen = 0;
+
+    if (s_panel) {
+        return s_panel;
+    }
+
+    screen = *(uintptr_t *)(gameBase() + GAME_SCREEN_PTR_RVA);
+
+    if (!screen) {
+        return nullptr;
+    }
+
+    s_panel = (void *)(screen + GAME_SCREEN_CHAT_OFF);
+
+    return s_panel;
+}
+
 bool chatPost(const wchar_t *text, int length) {
     uintptr_t base = gameBase();
     AssignFn assign = (AssignFn)(base + WSTRING_ASSIGN_RVA);
@@ -126,7 +161,7 @@ bool chatPost(const wchar_t *text, int length) {
     uint8_t fpuBuffer[512 + 16];
     uint8_t *fpuState = (uint8_t *)(((uintptr_t)fpuBuffer + 15) & ~(uintptr_t)15);
 
-    if (!s_panel || !text || length <= 0) {
+    if (!findPanel() || !text || length <= 0) {
         return false;
     }
 
@@ -198,6 +233,67 @@ __declspec(naked) static void chatSubmitHook() {
                      "jmp *_g_chatSubmitResume\n\t"
                      ".LchatSwallow:\n\t"
                      "ret\n\t");
+}
+
+// Runs in place of ChatChore::execute (thiscall, no stack arguments): the chat
+// line as the simulation executes it. Observers run after the stock code has
+// shown it, so a rules line is visible before anything acts on it.
+static void __attribute__((thiscall)) chatExecuteHook(void *chore) {
+    const wchar_t *chars = nullptr;
+    uint32_t length = 0;
+    uint32_t sender = 0;
+
+    sender = *(uint32_t *)((uintptr_t)chore + CHORE_SENDER_OFF);
+    chars = readWString((const GameWString *)((uintptr_t)chore + CHORE_TEXT_OFF), &length);
+
+    // Copy before the stock call: nothing says the chore outlives it.
+    wchar_t copy[256];
+    int n = 0;
+
+    if (chars) {
+        for (; n < 255 && n < (int)length; ++n) {
+            copy[n] = chars[n];
+        }
+    }
+
+    copy[n] = 0;
+
+    s_stockExecute(chore);
+
+    if (!chars) {
+        return;
+    }
+
+    for (int i = 0; i < s_observerCount; ++i) {
+        s_observers[i](sender, copy, n);
+    }
+}
+
+// The slot holds a relocated absolute address, so compare against the rebuilt
+// one. It is the function's only reference, so the swap sees every execution.
+void registerChatObserver(ChatObserverFn fn) {
+    if (!fn || s_observerCount >= MAX_OBSERVERS || s_executeFailed) {
+        return;
+    }
+
+    if (!s_executeSwapped) {
+        uintptr_t base = gameBase();
+        uintptr_t *slot = (uintptr_t *)(base + CHAT_EXECUTE_SLOT_RVA);
+        DWORD oldProtect = 0;
+
+        if (*slot != base + CHAT_EXECUTE_RVA ||
+            !VirtualProtect(slot, sizeof(*slot), PAGE_READWRITE, &oldProtect)) {
+            s_executeFailed = true;
+            return;
+        }
+
+        s_stockExecute = (ChoreExecuteFn)(base + CHAT_EXECUTE_RVA);
+        *slot = (uintptr_t)&chatExecuteHook;
+        VirtualProtect(slot, sizeof(*slot), oldProtect, &oldProtect);
+        s_executeSwapped = true;
+    }
+
+    s_observers[s_observerCount++] = fn;
 }
 
 void registerChatCommand(const wchar_t *command, ChatCommandFn fn) {

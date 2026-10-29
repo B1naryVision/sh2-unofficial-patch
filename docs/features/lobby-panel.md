@@ -25,12 +25,20 @@ It answers "can we use patch-only rules in this match?" before anyone presses St
 [patch-handshake.md](patch-handshake.md)). The data is the handshake's lobby snapshot; the
 panel adds no network traffic of its own.
 
-It never takes input. The toggle key is polled on the frame tick, the same way as the
-stop-troops hotkey, so the panel needs no window subclass and cannot swallow a click meant
-for the lobby. Hiding it lasts until the game is restarted.
+The toggle key is polled on the frame tick, the same way as the stop-troops hotkey. Hiding
+the panel lasts until the game is restarted.
 
-Once match rules exist, this panel grows the host's rule switches (step 4 of the plan in
-[patch-handshake.md](patch-handshake.md#match-rules-the-plan)).
+Clicks go through a window subclass (`lobbyPanelWndProc`), installed from the first render
+callback like every panel's. Any click inside the panel is swallowed, so it never reaches
+lobby controls underneath, and keys are never touched. The settings panel is installed later,
+so its subclass sits outside this one and still takes all input while it is open.
+
+Below the players it lists every [match rule](match-rules.md): `on` / `off` for the next
+match, or `unavailable` when someone in the lobby cannot run it. **The host clicks a rule to
+switch it**; available rules get a button outline on the host's screen only. Everyone else's
+panel is read-only, and `matchRuleToggle` refuses a click from anyone but the lobby owner, or
+on a rule someone cannot run. The host's change shows at once and reaches the other players
+through lobby data within about a second.
 
 ---
 

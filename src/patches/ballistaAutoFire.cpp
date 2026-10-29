@@ -1,150 +1,153 @@
 #include "ballistaAutoFire.h"
+#include <cstdint>
 #include <cstring>
 #include <windows.h>
 
-void installBallistaAutoFire() {
-    uintptr_t base = (uintptr_t)GetModuleHandleA(NULL);
-    DWORD oldProtect;
+// Field ballistae (FireBallista::think, RVA 0x180c30) auto-target and fire like
+// tower ballistae. A match rule: it changes the simulation, so it is switched on
+// and off per match by patches/matchRules.cpp and never installed on its own.
+// Sites, bytes and the cave layout are in docs/features/ballista-auto-fire.md.
 
-    // Patch 1 — Code cave: validate manual-target cell before routing.
-    //   Site: 13 bytes at RVA 0x180c48 (JMP to cave + NOP×8).
-    //   Cave: 57 bytes, allocated at runtime with VirtualAlloc.
-    //
-    // Original code at 0x180c48: cmp byte [esi+0x308],0; jne 0x180f39
-    //   [this+0x308] set to 0x01 after first shot → jne always taken from tick 2
-    //   onward → manual-target handler exits → auto-fire fires once, then stops.
-    //
-    // Simple CMP [esi+0x198] fix (previous iteration) broke moved ballistae:
-    //   movement writes the destination cell to [this+0x198]; after arrival the
-    //   entity lookup in the manual handler finds the ballista at its own cell
-    //   (non-NULL) so [this+0x198] is never cleared → auto-fire blocked forever.
-    //
-    // Cave logic ([esi+0x30]=own X, [esi+0x34]=own Y, confirmed from 0x177b90):
-    //   [esi+0x198]==0              → no target, fall through to auto-fire
-    //   target X == [esi+0x30]
-    //     AND target Y == [esi+0x34] → movement destination: clear [esi+0x198],
-    //                                   fall through to auto-fire
-    //   otherwise                  → real manual target: jmp to manual handler
-    //
-    // Cave layout (57 bytes):
-    //   +00  83 be 98 01 00 00 00  cmp dword [esi+0x198],0
-    //   +07  74 2b                 jz  auto_fire (+0x34)
-    //   +09  0f b7 86 98 01 00 00  movzx eax,word [esi+0x198]  (target X)
-    //   +10  8b 4e 30              mov ecx,[esi+0x30]           (own X)
-    //   +13  39 c8                 cmp eax,ecx
-    //   +15  75 0e                 jne not_own_cell (+0x25)
-    //   +17  0f b7 86 9a 01 00 00  movzx eax,word [esi+0x19a]  (target Y)
-    //   +1e  8b 4e 34              mov ecx,[esi+0x34]           (own Y)
-    //   +21  39 c8                 cmp eax,ecx
-    //   +23  74 05                 je  is_own_cell (+0x2a)
-    //   +25  e9 [rel32]            jmp manual_handler (not_own_cell)
-    //   +2a  c7 86 98 01 00 00 00 00 00 00  mov dword [esi+0x198],0
-    //   +34  e9 [rel32]            jmp 0x180c55 (auto_fire)
-    //
-    // Before (site): 80 be 08 03 00 00 00  0f 85 e4 02 00 00
-    // After  (site): e9 [rel32 to cave]  + 90 90 90 90 90 90 90 90
-    {
-        unsigned char *cave = (unsigned char *)VirtualAlloc(
-            NULL, 57, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE
-        );
-        if (!cave) {
-            return;
-        }
+static const uintptr_t SITE_GATE_RVA = 0x180c48; // deployment-flag gate -> jmp to cave
+static const uintptr_t SITE_PLAYER_RVA = 0x180c71; // human-player je -> NOPs
+static const uintptr_t SITE_DEAD_RVA = 0x180c92; // dead [this+0xb4] je -> jmp short
+static const uintptr_t SITE_CALL_RVA = 0x180ef9; // cached-target call -> fresh search
 
-        static const unsigned char tmpl[57] = {
-            0x83, 0xbe, 0x98, 0x01, 0x00, 0x00, 0x00, // +00 cmp dword [esi+0x198],0
-            0x74, 0x2b, // +07 jz auto_fire
-            0x0f, 0xb7, 0x86, 0x98, 0x01, 0x00, 0x00, // +09 movzx eax,word[esi+0x198]
-            0x8b, 0x4e, 0x30, // +10 mov ecx,[esi+0x30]
-            0x39, 0xc8, // +13 cmp eax,ecx
-            0x75, 0x0e, // +15 jne not_own_cell
-            0x0f, 0xb7, 0x86, 0x9a, 0x01, 0x00, 0x00, // +17 movzx eax,word[esi+0x19a]
-            0x8b, 0x4e, 0x34, // +1e mov ecx,[esi+0x34]
-            0x39, 0xc8, // +21 cmp eax,ecx
-            0x74, 0x05, // +23 je is_own_cell
-            0xe9, 0x00, 0x00, 0x00, 0x00, // +25 jmp manual_handler (disp@+26)
-            0xc7, 0x86, 0x98, 0x01, 0x00, 0x00, // +2a mov dword[esi+0x198],0 ...
-            0x00, 0x00, 0x00, 0x00, //     ... imm32=0
-            0xe9, 0x00, 0x00, 0x00, 0x00 // +34 jmp return_site (disp@+35)
-        };
-        memcpy(cave, tmpl, 57);
+static const uintptr_t MANUAL_HANDLER_RVA = 0x180f39;
+static const uintptr_t AUTO_FIRE_RVA = 0x180c55; // the player check after the gate
+static const uintptr_t CACHED_TARGET_RVA = 0x17f8c0;
+static const uintptr_t FRESH_SEARCH_RVA = 0x177b90; // Ballista's search-and-fire
 
-        *(int *)(cave + 0x26) = (int)((base + 0x180f39) - ((uintptr_t)cave + 0x2a));
-        *(int *)(cave + 0x35) = (int)((base + 0x180c55) - ((uintptr_t)cave + 0x39));
+static const uint8_t GATE_STOCK[13] = {0x80, 0xbe, 0x08, 0x03, 0x00, 0x00, 0x00,
+                                       0x0f, 0x85, 0xe4, 0x02, 0x00, 0x00};
+static const uint8_t PLAYER_STOCK[6] = {0x0f, 0x84, 0xc2, 0x02, 0x00, 0x00};
+static const uint8_t DEAD_STOCK[1] = {0x74};
 
-        void *site = (void *)(base + 0x180c48);
-        uintptr_t cave_disp = (uintptr_t)cave - ((uintptr_t)site + 5);
-        unsigned char p[13] = {
-            0xe9,
-            (unsigned char)(cave_disp),
-            (unsigned char)(cave_disp >> 8),
-            (unsigned char)(cave_disp >> 16),
-            (unsigned char)(cave_disp >> 24),
-            0x90,
-            0x90,
-            0x90,
-            0x90,
-            0x90,
-            0x90,
-            0x90,
-            0x90
-        };
-        VirtualProtect(site, 13, PAGE_EXECUTE_READWRITE, &oldProtect);
-        memcpy(site, p, 13);
-        VirtualProtect(site, 13, oldProtect, &oldProtect);
-    }
+static const int CAVE_LEN = 57;
 
-    // Patch 2 — NOP the player-active je (6 bytes, RVA 0x180c71).
-    // FireBallista::think reads [this+0x58] (player index), looks it up in
-    // the player table at 0xae8bd8, and calls 0x415f20.  That function returns
-    // 0 for human players and 1 for AI.  For a human-owned ballista the je is
-    // always taken → manual-target handler → exits.  Ballista::think (tower)
-    // has no equivalent check.  NOP the je so execution always reaches the
-    // rotation check regardless of player type.
-    // Before: 0f 84 c2 02 00 00  (je +0x2c2 → 0x180f39)
-    {
-        static const unsigned char p[] = {0x90, 0x90, 0x90, 0x90, 0x90, 0x90};
-        void *site = (void *)(base + 0x180c71);
-        VirtualProtect(site, 6, PAGE_EXECUTE_READWRITE, &oldProtect);
-        memcpy(site, p, 6);
-        VirtualProtect(site, 6, oldProtect, &oldProtect);
-    }
+// Routes to the manual-target handler only for a real manual target; a
+// movement destination equal to the ballista's own cell is cleared instead.
+static const uint8_t CAVE_TEMPLATE[CAVE_LEN] = {
+    0x83, 0xbe, 0x98, 0x01, 0x00, 0x00, 0x00, // cmp dword [esi+0x198], 0
+    0x74, 0x2b, // jz auto_fire
+    0x0f, 0xb7, 0x86, 0x98, 0x01, 0x00, 0x00, // movzx eax, word [esi+0x198]
+    0x8b, 0x4e, 0x30, // mov ecx, [esi+0x30]
+    0x39, 0xc8, // cmp eax, ecx
+    0x75, 0x0e, // jne manual
+    0x0f, 0xb7, 0x86, 0x9a, 0x01, 0x00, 0x00, // movzx eax, word [esi+0x19a]
+    0x8b, 0x4e, 0x34, // mov ecx, [esi+0x34]
+    0x39, 0xc8, // cmp eax, ecx
+    0x74, 0x05, // je own_cell
+    0xe9, 0x00, 0x00, 0x00, 0x00, // manual: jmp manual handler
+    0xc7, 0x86, 0x98, 0x01, 0x00, 0x00, // own_cell: mov dword [esi+0x198], 0
+    0x00, 0x00, 0x00, 0x00, //
+    0xe9, 0x00, 0x00, 0x00, 0x00 // auto_fire: jmp back to the player check
+};
 
-    // Patch 3 — je → jmp short (1 byte, RVA 0x180c92).
-    // cmp dword [esi+0xb4], ebx precedes this.  [this+0xb4] is a float field
-    // initialised to 1536.0 in the constructor and never cleared.  The je
-    // (zero-flag branch) is never taken, so execution falls through to an
-    // epilogue that resets [this+0x352] and returns — bypassing the tick gate
-    // completely.  Change je to jmp short so execution always reaches the tick
-    // gate.  The preceding xor ebx,ebx is kept; bl=0 is required by the
-    // cmp byte [esi+0x352], bl inside the tick gate.
-    // Before: 74  (je)   After: eb  (jmp short)
-    {
-        static const unsigned char p[] = {0xeb};
-        void *site = (void *)(base + 0x180c92);
-        VirtualProtect(site, 1, PAGE_EXECUTE_READWRITE, &oldProtect);
-        memcpy(site, p, 1);
-        VirtualProtect(site, 1, oldProtect, &oldProtect);
-    }
+static const int CAVE_MANUAL_DISP = 0x26;
+static const int CAVE_RETURN_DISP = 0x35;
 
-    // Patch 4 — redirect fire-path CALL (5 bytes, RVA 0x180ef9).
-    // The tick gate reaches a fire path at 0x180ef3 on T%60==0 or when
-    // [this+0x352]==0.  The CALL at 0x180ef9 originally targeted 0x17f8c0
-    // (a cached-target retriever that never populates its cache, returning
-    // empty results).  Redirect to 0x177b90, the same proven fresh-search-
-    // and-fire function used by Ballista::think (tower).  Both share the same
-    // thiscall signature: ECX=this, [ESP+4]=result_buf, returns buf pointer.
-    // Before: e8 c2 e9 ff ff  (call 0x17f8c0)
-    // After:  e8 92 6c ff ff  (call 0x177b90)
-    {
-        void *site = (void *)(base + 0x180ef9);
-        uintptr_t disp = (uintptr_t)(base + 0x177b90) - (uintptr_t)site - 5;
-        unsigned char p[5] = {
-            0xe8, (unsigned char)(disp), (unsigned char)(disp >> 8), (unsigned char)(disp >> 16),
-            (unsigned char)(disp >> 24)
-        };
-        VirtualProtect(site, 5, PAGE_EXECUTE_READWRITE, &oldProtect);
-        memcpy(site, p, 5);
-        VirtualProtect(site, 5, oldProtect, &oldProtect);
-    }
+static uint8_t *s_cave = nullptr;
+static uint8_t s_gatePatched[13];
+static uint8_t s_callStock[5];
+static uint8_t s_callPatched[5];
+static bool s_ready = false;
+static bool s_enabled = false;
+
+static uintptr_t gameBase() { return (uintptr_t)GetModuleHandleA(NULL); }
+
+static void writeRel32(uint8_t *at, uintptr_t from, uintptr_t to) {
+    int32_t disp = (int32_t)(to - from);
+
+    memcpy(at, &disp, sizeof(disp));
 }
+
+static void writeCode(uintptr_t address, const uint8_t *bytes, size_t len) {
+    DWORD oldProtect = 0;
+
+    VirtualProtect((void *)address, len, PAGE_EXECUTE_READWRITE, &oldProtect);
+    memcpy((void *)address, bytes, len);
+    VirtualProtect((void *)address, len, oldProtect, &oldProtect);
+    FlushInstructionCache(GetCurrentProcess(), (void *)address, len);
+}
+
+bool installBallistaAutoFire() {
+    uintptr_t base = gameBase();
+
+    // The call's stock bytes encode the distance to its target, so rebuild them
+    // rather than trusting a literal.
+    s_callStock[0] = 0xe8;
+    writeRel32(s_callStock + 1, base + SITE_CALL_RVA + 5, base + CACHED_TARGET_RVA);
+
+    // All-or-nothing: every site must hold the stock bytes before any is touched.
+    if (memcmp((void *)(base + SITE_GATE_RVA), GATE_STOCK, sizeof(GATE_STOCK)) != 0) {
+        return false;
+    }
+
+    if (memcmp((void *)(base + SITE_PLAYER_RVA), PLAYER_STOCK, sizeof(PLAYER_STOCK)) != 0) {
+        return false;
+    }
+
+    if (memcmp((void *)(base + SITE_DEAD_RVA), DEAD_STOCK, sizeof(DEAD_STOCK)) != 0) {
+        return false;
+    }
+
+    if (memcmp((void *)(base + SITE_CALL_RVA), s_callStock, sizeof(s_callStock)) != 0) {
+        return false;
+    }
+
+    s_cave =
+        (uint8_t *)VirtualAlloc(NULL, CAVE_LEN, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+
+    if (!s_cave) {
+        return false;
+    }
+
+    memcpy(s_cave, CAVE_TEMPLATE, CAVE_LEN);
+    writeRel32(
+        s_cave + CAVE_MANUAL_DISP, (uintptr_t)s_cave + CAVE_MANUAL_DISP + 4,
+        base + MANUAL_HANDLER_RVA
+    );
+    writeRel32(
+        s_cave + CAVE_RETURN_DISP, (uintptr_t)s_cave + CAVE_RETURN_DISP + 4, base + AUTO_FIRE_RVA
+    );
+
+    memset(s_gatePatched, 0x90, sizeof(s_gatePatched));
+    s_gatePatched[0] = 0xe9;
+    writeRel32(s_gatePatched + 1, base + SITE_GATE_RVA + 5, (uintptr_t)s_cave);
+
+    s_callPatched[0] = 0xe8;
+    writeRel32(s_callPatched + 1, base + SITE_CALL_RVA + 5, base + FRESH_SEARCH_RVA);
+
+    s_ready = true;
+
+    return true;
+}
+
+// Called on the simulation thread only, between or during ticks, so no
+// FireBallista::think is half-way through the bytes being rewritten.
+void ballistaAutoFireSetEnabled(bool enabled) {
+    static const uint8_t PLAYER_NOPS[6] = {0x90, 0x90, 0x90, 0x90, 0x90, 0x90};
+    static const uint8_t DEAD_JMP[1] = {0xeb};
+    uintptr_t base = gameBase();
+
+    if (!s_ready || enabled == s_enabled) {
+        return;
+    }
+
+    if (enabled) {
+        writeCode(base + SITE_GATE_RVA, s_gatePatched, sizeof(s_gatePatched));
+        writeCode(base + SITE_PLAYER_RVA, PLAYER_NOPS, sizeof(PLAYER_NOPS));
+        writeCode(base + SITE_DEAD_RVA, DEAD_JMP, sizeof(DEAD_JMP));
+        writeCode(base + SITE_CALL_RVA, s_callPatched, sizeof(s_callPatched));
+    } else {
+        writeCode(base + SITE_GATE_RVA, GATE_STOCK, sizeof(GATE_STOCK));
+        writeCode(base + SITE_PLAYER_RVA, PLAYER_STOCK, sizeof(PLAYER_STOCK));
+        writeCode(base + SITE_DEAD_RVA, DEAD_STOCK, sizeof(DEAD_STOCK));
+        writeCode(base + SITE_CALL_RVA, s_callStock, sizeof(s_callStock));
+    }
+
+    s_enabled = enabled;
+}
+
+bool ballistaAutoFireAvailable() { return s_ready; }

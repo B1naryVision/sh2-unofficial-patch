@@ -1,6 +1,7 @@
 # Ballista Auto-Fire Restore
 
-**Status:** Implemented, not yet enabled — requires broad patch adoption for multiplayer compatibility  
+**Status:** A host-chosen [match rule](match-rules.md) (`[matchrules] BallistaAutoFire`):
+switched on per match only when every player supports it. Never installed on its own.  
 **Affects:** Stronghold 2 Steam v1.5.0 (32-bit, `Stronghold2.exe`)
 
 ---
@@ -85,11 +86,24 @@ The fire path at `0x180ef3` calls `0x17f8c0` to retrieve a cached target and fir
 
 ## Fix
 
-Four patches are required.
+Four patches are required. Since it became a match rule, `installBallistaAutoFire` only
+verifies every site against its stock bytes (all-or-nothing) and prepares the patched bytes
+and the cave; `ballistaAutoFireSetEnabled` writes or restores all four together, on the
+simulation thread. The call's stock bytes encode a displacement, so they are rebuilt from
+the two RVAs rather than compared as a literal.
 
-**Patch 1 — NOP the deployment-flag `jne` (6 bytes, RVA `0x180c4f`)**
+**Patch 1 — Route the deployment-flag gate through a cave (13 bytes, RVA `0x180c48`)**
 
-NOP out the 6-byte `jne +0x2e4` so execution always falls through to the player check. This prevents the post-first-shot suppression.
+An earlier version simply NOPed the 6-byte `jne +0x2e4`. That broke ballistae that had been
+moved: movement writes the destination cell to `[this+0x198]`, so after arrival the manual-
+target handler finds the ballista at its own cell and auto-fire stays blocked. The site
+(`cmp byte [esi+0x308], 0` / `jne`) is replaced by `jmp cave` + 8 NOPs. The 57-byte cave
+(`VirtualAlloc`, allocated once at install):
+
+- `[esi+0x198] == 0` → no target: back to `0x180c55` (auto-fire);
+- target cell `== ([esi+0x30], [esi+0x34])`, the ballista's own cell → a movement
+  destination: clear `[esi+0x198]`, then back to `0x180c55`;
+- otherwise a real manual target → `jmp 0x180f39` (manual-target handler).
 
 **Patch 2 — NOP the player-active `je` (6 bytes, RVA `0x180c71`)**
 
@@ -105,7 +119,7 @@ Redirect the CALL from `0x17f8c0` (the broken cached-target retriever) to `0x177
 
 | # | VA (ImageBase 0x400000) | RVA | Size | Before | After |
 | --- | --- | --- | --- | --- | --- |
-| 1 | `0x580c4f` | `base+0x180c4f` | 6 bytes | `0f 85 e4 02 00 00` (jne `+0x2e4`) | `90 90 90 90 90 90` (NOP×6) |
+| 1 | `0x580c48` | `base+0x180c48` | 13 bytes | `80 be 08 03 00 00 00 0f 85 e4 02 00 00` | `e9 <cave>` + `90`×8 |
 | 2 | `0x580c71` | `base+0x180c71` | 6 bytes | `0f 84 c2 02 00 00` (je `+0x2c2`) | `90 90 90 90 90 90` (NOP×6) |
 | 3 | `0x580c92` | `base+0x180c92` | 1 byte | `74` (je) | `eb` (jmp short) |
 | 4 | `0x580ef9` | `base+0x180ef9` | 5 bytes | `e8 c2 e9 ff ff` (CALL `0x57f8c0`) | `e8 92 6c ff ff` (CALL `0x577b90`) |
@@ -118,9 +132,9 @@ Displacement arithmetic for patch 4: next IP = `0x180efe`; target = `0x177b90`; 
 
 Stronghold 2 multiplayer runs a deterministic lockstep simulation: both clients execute the same game logic on the same shared state each tick. Field ballista auto-fire modifies that shared state (enemy unit health). If one client fires and the other does not, the simulation diverges and the engine detects a desync, crashing both clients.
 
-**Both players must have the patch installed.** Playing against an unpatched client will cause a desync crash.
-
-Players without the patch will also be at a mechanical disadvantage: their field ballistae will not auto-fire.
+**Requires all clients.** That is why it is a [match rule](match-rules.md): the host can only
+switch it on when every player in the lobby advertises it. It is switched on for every client
+on the same lockstep tick, and with anyone lacking it the match stays vanilla.
 
 ---
 

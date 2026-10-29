@@ -1,7 +1,8 @@
 # Patch Handshake — Who Has Which Patch Version
 
-**Status**: Implemented; playtested 2026-10-28 with patched and unpatched players. Advertises **no match rules** yet
-(`RULES_SUPPORTED = 0`); it exists so that rules can be added safely later.
+**Status**: Implemented; playtested 2026-10-28 with patched and unpatched players. Advertises the
+[match rules](match-rules.md) whose sites verified on this machine
+(`handshakeSetSupportedRules`).
 **Config**: none — always active.
 
 ---
@@ -153,7 +154,9 @@ touched. The ruleset it computes is `0` (vanilla) whenever any player lacks the 
 
 ## Match rules: the plan
 
-Agreed design (2026-10-25); none of this is built yet.
+Agreed design (2026-10-25). Built as [match-rules.md](match-rules.md), which records where the
+implementation departed from this plan: host switches in the settings panel, and no
+wall-clock acceptance window.
 
 1. **Host picks rules in a lobby overlay panel** (chat does not exist in the lobby — it is a
    lockstep command). One row per rule, one column per player showing their version. A rule
@@ -170,5 +173,5 @@ Agreed design (2026-10-25); none of this is built yet.
    lobby owner's player slot, only within the first few seconds of the match; anything later
    is ignored.
 4. **Every rule patch becomes reversible** (`enable` / `disable`, byte-verified both ways), is
-   switched off again when the session ends, and is advertised in `RULES_SUPPORTED` only once
+   switched off again when the session ends, and is advertised only once
    that works. Ballista auto-fire is first.

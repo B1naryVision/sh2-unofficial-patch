@@ -3,8 +3,10 @@
 #include "../core/frameTick.h"
 #include "../core/keybindWidget.h"
 #include "../core/overlayPanel.h"
+#include "../core/screens.h"
 #include "../core/steamLobby.h"
 #include "handshake.h"
+#include "matchRules.h"
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -16,10 +18,8 @@
 // slot swap: it runs every frame the lobby is on screen and only then, and it is
 // a function boundary, so the x87 stack is empty and the panel quad's float work
 // is legal there. Painting and the texture stay on the render callback.
-static const uintptr_t LOBBY_SCREEN_PTR_RVA = 0xec5f28; // registerWindow("scenario lobby screen")
 static const uintptr_t LOBBY_DRAW_SLOT_RVA = 0x5e2c64; // Pane vtable 0x9e2c54, slot 4 (draw)
 static const uintptr_t LOBBY_DRAW_RVA = 0x29f650; // ScenarioLobbyScreen::draw
-static const uintptr_t PANE_PARENT_OFF = 0x80; // non-null only for the screen on display
 
 static const COLORREF COL_BG = RGB(26, 26, 34);
 static const COLORREF COL_EDGE = RGB(90, 90, 110);
@@ -39,12 +39,20 @@ static const int D_MARGIN = 10;
 static const int D_COL_GAP = 16;
 static const int D_ROW_PAD = 3;
 static const int D_MIN_W = 220;
+static const int D_BUTTON_PAD = 6; // around a rule's state, where the host clicks
 
 static const char *TITLE = "Unofficial Patch";
 static const char *STATUS_WAIT = "Waiting for the Steam lobby...";
 static const char *STATUS_ALL = "Everyone has the patch";
 static const char *STATUS_SOME = "Vanilla rules only - not everyone has it";
 static const char *HOST_TAG = "host";
+static const char *RULES_HEAD = "Match rules";
+static const char *RULE_ON = "on";
+static const char *RULE_OFF = "off";
+static const char *RULE_UNAVAILABLE = "unavailable";
+static const char *HOST_HINT = "Click a rule to switch it on or off";
+
+static const int MAX_RULES = 8;
 
 enum Status { STATUS_WAITING, STATUS_EVERYONE, STATUS_NOT_EVERYONE };
 
@@ -53,6 +61,9 @@ struct Content {
     int count;
     LobbyPlayer players[LOBBY_MAX_MEMBERS];
     Status status;
+    int ruleCount;
+    MatchRuleView rules[MAX_RULES];
+    bool localIsHost;
     int scale;
     int renderW;
     int renderH;
@@ -64,6 +75,12 @@ struct Layout {
     int titleY;
     int rowsTop;
     int statusY;
+    int rulesHeadY;
+    int rulesTop;
+    int hintY;
+    int ruleStateX;
+    int ruleStateW;
+    int buttonPad;
     int nameX;
     int versionX;
     int hostX;
@@ -76,6 +93,8 @@ static bool s_visible = false; // lowered while the content is rebuilt
 static bool s_hidden = false; // the player pressed the toggle
 static bool s_built = false;
 
+static WNDPROC s_origWndProc = nullptr;
+
 static Hotkey s_hotkey = {'L', HK_CTRL | HK_SHIFT};
 static bool s_installed = false;
 
@@ -83,16 +102,6 @@ typedef void(__attribute__((thiscall)) * DrawFn)(void *self, uint32_t arg);
 static DrawFn s_stockDraw = nullptr;
 
 static uintptr_t gameBase() { return (uintptr_t)GetModuleHandleA(NULL); }
-
-static bool lobbyScreenUp() {
-    uintptr_t screen = *(uintptr_t *)(gameBase() + LOBBY_SCREEN_PTR_RVA);
-
-    if (!screen) {
-        return false;
-    }
-
-    return *(uintptr_t *)(screen + PANE_PARENT_OFF) != 0;
-}
 
 static bool playerCompatible(const LobbyPlayer &p) {
     return p.state == PATCH_FOUND && p.protocol == HANDSHAKE_PROTOCOL;
@@ -122,6 +131,18 @@ static const char *statusText(Status status) {
     return STATUS_WAIT;
 }
 
+static const char *ruleStateText(const MatchRuleView &rule) {
+    if (!rule.everyoneSupports) {
+        return RULE_UNAVAILABLE;
+    }
+
+    if (rule.proposed) {
+        return RULE_ON;
+    }
+
+    return RULE_OFF;
+}
+
 static void readContent(Content &c) {
     memset(&c, 0, sizeof(c));
     c.count = handshakePlayers(c.players, LOBBY_MAX_MEMBERS);
@@ -138,6 +159,13 @@ static void readContent(Content &c) {
         }
     }
 
+    for (int i = 0; i < c.count; ++i) {
+        if (c.players[i].isLocal && c.players[i].isOwner) {
+            c.localIsHost = true;
+        }
+    }
+
+    c.ruleCount = matchRulesView(c.rules, MAX_RULES);
     c.scale = overlayScalePercent();
     c.renderW = 1920;
     c.renderH = 1080;
@@ -180,6 +208,9 @@ static void buildLayout() {
     int hostW = asciiWidth(dc, HOST_TAG);
     int textW = asciiWidth(dc, statusText(s_content.status));
     int titleW = 0;
+    int ruleLabelW = asciiWidth(dc, RULES_HEAD);
+    int ruleStateW = 0;
+    int hintW = asciiWidth(dc, HOST_HINT);
     int panelW = 0;
     int panelH = 0;
     char version[40];
@@ -197,6 +228,11 @@ static void buildLayout() {
         versionW = maxInt(versionW, asciiWidth(dc, version));
     }
 
+    for (int i = 0; i < s_content.ruleCount; ++i) {
+        ruleLabelW = maxInt(ruleLabelW, asciiWidth(dc, s_content.rules[i].label));
+        ruleStateW = maxInt(ruleStateW, asciiWidth(dc, ruleStateText(s_content.rules[i])));
+    }
+
     s_layout.lineH = overlayPanelLineHeight(body);
     SelectObject(dc, title);
     titleW = asciiWidth(dc, TITLE);
@@ -211,12 +247,28 @@ static void buildLayout() {
     s_layout.nameX = margin;
     s_layout.versionX = s_layout.nameX + nameW + gap;
     s_layout.hostX = s_layout.versionX + versionW + gap;
+    s_layout.rulesHeadY = s_layout.statusY + s_layout.lineH + overlayScaleBy(10, scale);
+    s_layout.rulesTop = s_layout.rulesHeadY + s_layout.rowH;
+    s_layout.buttonPad = overlayScaleBy(D_BUTTON_PAD, scale);
+    s_layout.ruleStateX = s_layout.nameX + ruleLabelW + gap + s_layout.buttonPad;
+    s_layout.ruleStateW = ruleStateW;
+    s_layout.hintY = s_layout.rulesTop + s_content.ruleCount * s_layout.rowH;
 
     panelW = s_layout.hostX + hostW + margin;
+    panelW = maxInt(panelW, s_layout.ruleStateX + ruleStateW + s_layout.buttonPad + margin);
     panelW = maxInt(panelW, margin + textW + margin);
     panelW = maxInt(panelW, margin + titleW + margin);
     panelW = maxInt(panelW, overlayScaleBy(D_MIN_W, scale));
     panelH = s_layout.statusY + s_layout.lineH + margin;
+
+    if (s_content.ruleCount > 0) {
+        panelH = s_layout.hintY + margin;
+    }
+
+    if (s_content.ruleCount > 0 && s_content.localIsHost) {
+        panelW = maxInt(panelW, margin + hintW + margin);
+        panelH = s_layout.hintY + s_layout.lineH + margin;
+    }
 
     if (panelW > s_content.renderW) {
         panelW = s_content.renderW;
@@ -277,6 +329,41 @@ static void paintPanel(HDC dc) {
     overlayPanelText(
         dc, s_layout.nameX, s_layout.statusY, statusText(s_content.status), statusColor
     );
+
+    if (s_content.ruleCount == 0) {
+        return;
+    }
+
+    overlayPanelText(dc, s_layout.nameX, s_layout.rulesHeadY, RULES_HEAD, COL_TITLE);
+
+    for (int i = 0; i < s_content.ruleCount; ++i) {
+        const MatchRuleView &rule = s_content.rules[i];
+        int y = s_layout.rulesTop + i * s_layout.rowH;
+        COLORREF stateColor = COL_DIM;
+
+        if (!rule.everyoneSupports) {
+            stateColor = COL_BAD;
+        } else if (rule.proposed) {
+            stateColor = COL_OK;
+        }
+
+        overlayPanelText(dc, s_layout.nameX, y, rule.label, COL_NAME);
+        overlayPanelText(dc, s_layout.ruleStateX, y, ruleStateText(rule), stateColor);
+
+        // Only the host can switch a rule, and only one everyone can run, so
+        // only those get a button shape.
+        if (s_content.localIsHost && rule.everyoneSupports) {
+            overlayPanelFrame(
+                dc, s_layout.ruleStateX - s_layout.buttonPad, y - 1,
+                s_layout.ruleStateX + s_layout.ruleStateW + s_layout.buttonPad,
+                y + s_layout.rowH - 1, COL_EDGE
+            );
+        }
+    }
+
+    if (s_content.localIsHost) {
+        overlayPanelText(dc, s_layout.nameX, s_layout.hintY, HOST_HINT, COL_DIM);
+    }
 }
 
 // Runs in place of ScenarioLobbyScreen::draw (thiscall, one stack argument).
@@ -300,6 +387,72 @@ static void __attribute__((thiscall)) lobbyDrawHook(void *self, uint32_t arg) {
     s_visible = true;
 }
 
+static bool panelOnScreen() { return s_visible && !s_hidden && lobbyScreenUp(); }
+
+// The rule whose row contains panel point (x, y), or -1.
+static int ruleAt(int x, int y) {
+    int right = s_layout.ruleStateX + s_layout.ruleStateW + s_layout.buttonPad;
+
+    if (x < s_layout.nameX || x >= right) {
+        return -1;
+    }
+
+    for (int i = 0; i < s_content.ruleCount; ++i) {
+        int top = s_layout.rulesTop + i * s_layout.rowH;
+
+        if (y >= top && y < top + s_layout.rowH) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+// Clicks on the panel never reach the lobby beneath it. A host's click on a rule
+// switches it; matchRuleToggle refuses everyone else, and rules someone cannot run.
+static LRESULT CALLBACK lobbyPanelWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+    bool click = msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP || msg == WM_LBUTTONDBLCLK ||
+                 msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP;
+
+    if (click && panelOnScreen()) {
+        int lx = 0;
+        int ly = 0;
+
+        if (overlayPanelMapPoint(
+                s_panel, hwnd, (short)LOWORD(lparam), (short)HIWORD(lparam), lx, ly
+            )) {
+            if (msg == WM_LBUTTONDOWN) {
+                int rule = ruleAt(lx, ly);
+
+                if (rule >= 0) {
+                    matchRuleToggle(rule);
+                }
+            }
+
+            return 0;
+        }
+    }
+
+    return CallWindowProcW(s_origWndProc, hwnd, msg, wparam, lparam);
+}
+
+// From the first render callback, as every panel does: the device window exists
+// by then, and registration order then decides subclass order. The settings
+// panel is installed later, so it sits outside this one and sees input first.
+static void ensureSubclass() {
+    if (s_origWndProc) {
+        return;
+    }
+
+    HWND hwnd = (HWND)d3dDeviceWindow();
+
+    if (!hwnd) {
+        return;
+    }
+
+    s_origWndProc = (WNDPROC)SetWindowLongPtrW(hwnd, GWLP_WNDPROC, (LONG_PTR)lobbyPanelWndProc);
+}
+
 static void lobbyPanelTick() {
     static bool prevDown = false;
     bool down = hotkeyHeld(s_hotkey);
@@ -312,6 +465,8 @@ static void lobbyPanelTick() {
 }
 
 static void lobbyPanelRender(IDirect3DDevice9 *device) {
+    ensureSubclass();
+
     if (!s_visible || s_hidden || !lobbyScreenUp()) {
         return;
     }

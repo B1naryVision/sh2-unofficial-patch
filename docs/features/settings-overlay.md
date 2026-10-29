@@ -44,6 +44,9 @@ Two lists in one panel:
 | Started games in the list | `[multiplayer] HideInProgressLobbies` | Show all / Hide started | [in-progress-lobbies.md](../bugs/in-progress-lobbies.md) |
 | Panel size | `[ui] Scale` | slider, Auto–300% | [ui-scale.md](ui-scale.md) |
 
+`[matchrules]` is deliberately not here either: those are settings of a match, chosen by the
+host in the [lobby panel](lobby-panel.md), not personal settings.
+
 The `[preset:NAME]` sections are deliberately not here: they are auto-market
 data rather than settings, and the auto-market editor already has a preset
 picklist of its own.

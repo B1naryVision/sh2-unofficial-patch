@@ -142,6 +142,13 @@ const PATCHES = [
     how:"Type !ver into the in-game chat during a multiplayer match. Players without the patch, or with version 0.7 or older, show as \"0.7 or older\"."
   },
   {
+    id:"match-rules", cat:"multiplayer", kind:"feature", version:"next", mp:"all", optIn:true,
+    title:"Ballista auto-fire, as a match rule",
+    was:"Field ballistae stopped aiming and firing by themselves in an official update, which left knight rushes very hard to stop.",
+    now:"The host can switch it back on for a match. It only takes effect when every player has the patch, and a chat message at the start tells everyone it is on.",
+    how:"As host, click Ballista auto-fire in the lobby panel to switch it on. Everyone's lobby panel shows whether it is on, or unavailable because someone does not have the patch."
+  },
+  {
     id:"lobby-panel", cat:"multiplayer", kind:"feature", version:"next", mp:"partial",
     title:"See who has the patch, in the lobby",
     was:"You could only check other players' patch versions once the match had started, too late to sort it out.",
@@ -262,7 +269,8 @@ const HISTORY = [
     "Fixed occasional stuttering caused by skipping the intro videos",
     "Works alongside DXVK, ReShade and other graphics add-ons",
     "See which patch version every player has with the !ver chat command",
-    "A lobby panel shows who has the patch before the match starts"
+    "A lobby panel shows who has the patch before the match starts",
+    "The host can switch on match rules, starting with ballista auto-fire"
   ]},
   { v:"0.7.0", date:"", items:[
     "Every patch setting is adjustable in game, while you play",

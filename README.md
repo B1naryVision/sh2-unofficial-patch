@@ -68,6 +68,7 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [Configurable camera pan speed (opt-in)](docs/features/pan-speed.md) | `base+0x1f9d86` | Added in v0.7.0 |
 | [Patch handshake and `!ver` chat command showing everyone's patch version](docs/features/patch-handshake.md) | `base+0x26cd918` | Unreleased |
 | [Lobby panel listing every player's patch version (`Ctrl+Shift+L`)](docs/features/lobby-panel.md) | `base+0x5e2c64` | Unreleased |
+| [Host-chosen match rules, starting with field ballista auto-fire](docs/features/match-rules.md) | `base+0x5c7134`, `base+0x180c48`, `base+0x180c71`, `base+0x180c92`, `base+0x180ef9` | Unreleased |
 | [Chain-load a D3D9 wrapper (DXVK, ReShade, dgVoodoo) as `d3d9_chain.dll`](docs/features/dll-chaining.md) | — | Unreleased |
 
 ---

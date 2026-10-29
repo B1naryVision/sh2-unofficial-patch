@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### [Feature] - Host-Chosen Match Rules, Starting With Ballista Auto-Fire
+
+- **What the issue was:** Field ballistae stopped aiming and firing by themselves in an official update, and there was no way to bring that back for multiplayer without everyone in the match needing the same change.
+- **What we changed:** The host can now switch on extra match rules by clicking them in the lobby panel, starting with field ballistae that aim and fire by themselves like tower ballistae. A rule only takes effect when every player in the lobby has a patch version that supports it — everyone's lobby panel shows which rules are on, and a rule someone cannot use is marked unavailable and cannot be switched on. When the match starts, a chat message tells everyone which rules are in play. With anyone missing the patch, the match is played with the normal rules.
+
 ### [Feature] - See Who Has the Patch Before the Match Starts
 
 - **What the issue was:** The only way to check other players' patch versions was `!ver`, and chat only works once a match has started, so you could not tell before pressing Start whether everyone had it.

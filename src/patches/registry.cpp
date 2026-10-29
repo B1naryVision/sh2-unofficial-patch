@@ -10,6 +10,7 @@
 #include "lobbyInProgressFilter.h"
 #include "lobbyPanel.h"
 #include "mapEdgeCrash.h"
+#include "matchRules.h"
 #include "mpAiEnable.h"
 #include "mpConnectCompleteCrash.h"
 #include "panSpeed.h"
@@ -30,6 +31,7 @@ void applyUnofficialPatches() {
     installMpConnectCompleteCrashFix();
     installLobbyInProgressFilter();
     installPingCommand();
+    installMatchRules();
     installHandshake();
     installLobbyPanel();
     installEndgameStats();
