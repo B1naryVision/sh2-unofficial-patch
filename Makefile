@@ -37,6 +37,7 @@ SRCS = src/dllmain.cpp \
        src/patches/pingCommand.cpp \
        src/patches/endgameStats.cpp \
        src/patches/endgameStats/unitTracker.cpp \
+       src/patches/endgameStats/killTracker.cpp \
        src/patches/endgameStats/session.cpp \
        src/patches/endgameStats/collect.cpp \
        src/patches/endgameStats/overlay.cpp \
@@ -52,9 +53,20 @@ SRCS = src/dllmain.cpp \
        src/patches/siegeCampHotkey.cpp \
        src/patches/autoMarket/autoMarket.cpp \
        src/patches/autoMarket/overlay.cpp \
-       src/patches/settingsOverlay.cpp
+       src/patches/settingsOverlay.cpp \
+       src/replay/choreCodec.cpp \
+       src/replay/prngGuard.cpp \
+       src/replay/replayCommon.cpp \
+       src/replay/replayPlayer.cpp \
+       src/replay/replayRecorder.cpp \
+       src/replay/replayRetime.cpp \
+       src/replay/replaySession.cpp \
+       src/replay/replayTrace.cpp \
+       src/replay/replayViewer.cpp \
+       src/replay/replayVision.cpp \
+       src/replay/spectatorGuard.cpp
 
-HDRS = $(wildcard src/*.h src/core/*.h src/proxy/*.h src/patches/*.h src/patches/endgameStats/*.h src/patches/autoMarket/*.h)
+HDRS = $(wildcard src/*.h src/core/*.h src/proxy/*.h src/patches/*.h src/patches/endgameStats/*.h src/patches/autoMarket/*.h src/replay/*.h)
 
 DEPLOY_PATH = /mnt/c/Games/Steam/steamapps/common/Stronghold\ 2/
 

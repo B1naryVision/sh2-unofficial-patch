@@ -5,6 +5,9 @@
 #include "../core/keybindWidget.h"
 #include "../core/optionWidget.h"
 #include "../core/overlayPanel.h"
+#include "../replay/replaySession.h"
+#include "../replay/replayViewer.h"
+#include "../replay/replayVision.h"
 #include "attackHotkey.h"
 #include "autoMarket/overlay.h"
 #include "lobbyInProgressFilter.h"
@@ -135,6 +138,20 @@ static HotkeyRow s_keyRows[] = {
      autoMarketOverlayInstalled,
      true,
      {}},
+    {"Replay panel",
+     "ReplayPanel",
+     replayViewerBinding,
+     replayViewerSetBinding,
+     replayViewerInstalled,
+     true,
+     {}},
+    {"Replay free view",
+     "ReplayFreeView",
+     replayFreeViewBinding,
+     replayFreeViewSetBinding,
+     replayFreeViewInstalled,
+     true,
+     {}},
     {"This settings panel",
      "SettingsPanel",
      settingsBinding,
@@ -239,6 +256,14 @@ static int lobbyFilterGet() { return lobbyFilterEnabled() ? 1 : 0; }
 
 static void lobbyFilterSet(int v) { lobbyFilterSetEnabled(v != 0); }
 
+static int recordMpGet() { return replaySessionRecordMultiplayer() ? 1 : 0; }
+
+static void recordMpSet(int v) { replaySessionSetRecordMultiplayer(v != 0); }
+
+static int keepReplaysGet() { return replaySessionMaxReplays(); }
+
+static void keepReplaysSet(int v) { replaySessionSetMaxReplays(v); }
+
 static int recruitGet() { return shiftRecruitMultiplier(); }
 
 static void recruitSet(int v) { shiftRecruitSetMultiplier(v); }
@@ -273,6 +298,7 @@ static const char *const CHOICE_LIMIT[] = {"Vanilla", "Auto"};
 static const char *const INI_LIMIT[] = {"Vanilla", "Auto"};
 static const char *const CHOICE_SIEGE[] = {"Jump at once", "Open first"};
 static const char *const CHOICE_LOBBY[] = {"Show all", "Hide started"};
+static const char *const CHOICE_RECORD[] = {"Off", "On"};
 static const char *const INI_BOOL[] = {"0", "1"};
 
 static OptionRow s_optRows[] = {
@@ -376,6 +402,40 @@ static OptionRow s_optRows[] = {
      lobbyFilterFailed,
      nullptr,
      nullptr,
+     false,
+     {}},
+    {"Multiplayer replays",
+     "replay",
+     "RecordMultiplayer",
+     OPTION_CHOICE,
+     0,
+     1,
+     1,
+     CHOICE_RECORD,
+     INI_BOOL,
+     2,
+     recordMpGet,
+     recordMpSet,
+     neverFails,
+     nullptr,
+     nullptr,
+     false,
+     {}},
+    {"Replays to keep",
+     "replay",
+     "MaxReplays",
+     OPTION_SLIDER,
+     REPLAY_KEEP_MIN,
+     REPLAY_KEEP_MAX,
+     1,
+     nullptr,
+     nullptr,
+     0,
+     keepReplaysGet,
+     keepReplaysSet,
+     neverFails,
+     iniPlain,
+     iniPlain,
      false,
      {}},
     {"Panel size",

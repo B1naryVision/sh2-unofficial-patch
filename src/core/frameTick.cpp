@@ -12,7 +12,7 @@ static const uintptr_t FRAME_BODY_RVA = 0x300c0;
 // switched on from the settings panel register at install time even when they
 // are off, so the count is the number of tick-using patches, not the number
 // currently doing anything.
-static const int MAX_TICKS = 16;
+static const int MAX_TICKS = 32;
 
 static FrameTickFn s_ticks[MAX_TICKS];
 static int s_tickCount = 0;
