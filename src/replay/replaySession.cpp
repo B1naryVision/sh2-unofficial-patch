@@ -424,9 +424,9 @@ static bool acquireRecordingBuffers() {
 // Everything a sidecar is built from, taken on the game thread. The recording
 // buffers are append-only and their counts are published after the data they
 // cover, so a writer on another thread that reads only up to these counts
-// never sees a torn entry. (The last iterator-1 entry's render-gate byte can
-// still gain a bit while a job's later updates run; a periodic sidecar may
-// lack it, the final one never does.)
+// never sees a torn entry. (The last iterator-1 entry's render-gate byte and
+// later-update cursors can still grow while that job's later updates run; a
+// periodic sidecar may lack them, the final one never does.)
 struct BundleInput {
     ReplayRecorderLogView log;
     const ReplayBoundaryEntry *boundaries;
@@ -434,6 +434,7 @@ struct BundleInput {
     const ReplayPrngEntry *prng;
     uint32_t prngCount, prngDropped;
     const uint8_t *gates;
+    const ReplayPrngUpdates *updates;
     const ReplayMonasteryClock *clocks;
     uint32_t clockCount;
     const uint32_t *tile;
@@ -458,6 +459,7 @@ static void takeSnapshot(bool complete, uint32_t endReason, BundleInput *in) {
     replayTraceBoundaryView(&in->boundaries, &in->boundaryCount, &in->boundaryDropped, &in->hooks);
     prngGuardRecordView(&in->prng, &in->prngCount, &in->prngDropped);
     in->gates = prngGuardRecordGates();
+    in->updates = prngGuardRecordUpdates();
     prngGuardRecordClocks(&in->clocks, &in->clockCount);
     in->haveTile = replayTileOrderView(&in->tile, &in->tileWords, &in->tileLists);
     in->haveFly = replayFlyStateView(&in->fly, &in->flyCount);
@@ -651,21 +653,23 @@ static bool writeBundle(const BundleInput &in) {
     if (prngUsable) {
         ReplayPrngFileHeader ph = {};
         memcpy(ph.magic, "SH2RPRN", 8);
-        ph.version = 4;
+        ph.version = REPLAY_PRNG_VERSION;
         ph.entrySize = sizeof(ReplayPrngEntry);
         ph.entryCount = in.prngCount;
         ph.epochTick = log.epochTick;
         ph.firstRelative = in.prng[0].relativeTick;
         ph.lastRelative = in.prng[in.prngCount - 1].relativeTick;
         const uint32_t footer[2] = {REPLAY_CLOCK_MAGIC, in.clockCount};
+        const uint32_t perEntry = sizeof(ReplayPrngEntry) + 1 + sizeof(ReplayPrngUpdates);
         writerSection(
             w, "PRNG",
-            sizeof(ph) + in.prngCount * (sizeof(ReplayPrngEntry) + 1) + sizeof(footer) +
+            sizeof(ph) + in.prngCount * perEntry + sizeof(footer) +
                 in.clockCount * sizeof(ReplayMonasteryClock)
         );
         writerPut(w, &ph, sizeof(ph));
         writerPut(w, in.prng, in.prngCount * sizeof(ReplayPrngEntry));
         writerPut(w, in.gates, in.prngCount);
+        writerPut(w, in.updates, in.prngCount * sizeof(ReplayPrngUpdates));
         writerPut(w, footer, sizeof(footer));
         writerPut(w, in.clocks, in.clockCount * sizeof(ReplayMonasteryClock));
         ++sections;

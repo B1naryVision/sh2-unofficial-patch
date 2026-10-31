@@ -150,14 +150,15 @@ uint32_t replayFlyFieldOffset(uint32_t vtableRva);
 // header or any (class, field) outside replayFlyFieldKnown.
 uint32_t replayValidateFlyState(const void *data, uint32_t bytes);
 
-// PRNG: a ReplayPrngFileHeader (v2..v4), its entries, v3+ one render-gate byte
-// per entry, v4 a {'MCLK', count} footer and count Monastery clocks. Entries
-// must be strictly increasing in relative tick and clocks strictly increasing
-// in slot.
+// PRNG: a ReplayPrngFileHeader (v2..v5), its entries, v3+ one render-gate byte
+// per entry, v5 one ReplayPrngUpdates per entry (1..8 updates), v4+ a
+// {'MCLK', count} footer and count Monastery clocks. Entries must be strictly
+// increasing in relative tick and clocks strictly increasing in slot.
 struct ReplayPrngLayout {
     ReplayPrngFileHeader header;
     const ReplayPrngEntry *entries;
     const uint8_t *gates; // null before v3
+    const ReplayPrngUpdates *updates; // null before v5
     const ReplayMonasteryClock *clocks;
     uint32_t clockCount;
 };

@@ -517,7 +517,14 @@ static std::vector<uint8_t> prngImage(uint32_t version, uint32_t entries, uint32
         v.insert(v.end(), entries, 1);
     }
 
-    if (version == 4) {
+    if (version >= 5) {
+        for (uint32_t i = 0; i < entries; ++i) {
+            ReplayPrngUpdates u = {5, {(uint16_t)(i + 10), (uint16_t)(i + 20), 0, 0, 0, 0, 0}};
+            put(v, u);
+        }
+    }
+
+    if (version >= 4) {
         putWord(v, REPLAY_CLOCK_MAGIC);
         putWord(v, clocks);
 
@@ -559,7 +566,33 @@ static void testPrng() {
     v.pop_back();
     CHECK(!replayValidatePrng(v.data(), (uint32_t)v.size(), REPLAY_PRNG_CAPACITY, &layout));
 
+    v = prngImage(REPLAY_PRNG_VERSION + 1, 10, 0);
+    CHECK(!replayValidatePrng(v.data(), (uint32_t)v.size(), REPLAY_PRNG_CAPACITY, &layout));
+
+    // v4 has no later-update cursors: playback restores once per job.
+    v = prngImage(4, 10, 2);
+    CHECK(replayValidatePrng(v.data(), (uint32_t)v.size(), REPLAY_PRNG_CAPACITY, &layout));
+    CHECK(!layout.updates);
+
+    // v5: one ReplayPrngUpdates per entry between the gates and the clocks.
+    v = prngImage(5, 10, 2);
+    CHECK(replayValidatePrng(v.data(), (uint32_t)v.size(), REPLAY_PRNG_CAPACITY, &layout));
+    CHECK(layout.updates && layout.clockCount == 2 && layout.gates);
+    CHECK(layout.updates[3].updates == 5 && layout.updates[3].startCursor[0] == 13);
+    CHECK(layout.updates[3].startCursor[1] == 23);
+    CHECK(layout.clocks[1].slot == 3);
+
+    const uint32_t updatesAt = sizeof(ReplayPrngFileHeader) + 10 * (sizeof(ReplayPrngEntry) + 1);
+    const uint16_t badCounts[] = {0, REPLAY_PRNG_UPDATES_MAX + 1};
+
+    for (uint16_t bad : badCounts) {
+        v = prngImage(5, 10, 2);
+        memcpy(&v[updatesAt + 4 * sizeof(ReplayPrngUpdates)], &bad, 2);
+        CHECK(!replayValidatePrng(v.data(), (uint32_t)v.size(), REPLAY_PRNG_CAPACITY, &layout));
+    }
+
     v = prngImage(5, 10, 0);
+    v.resize(updatesAt + 9 * sizeof(ReplayPrngUpdates)); // the updates block cut short
     CHECK(!replayValidatePrng(v.data(), (uint32_t)v.size(), REPLAY_PRNG_CAPACITY, &layout));
 
     v = prngImage(4, 10, 0);
@@ -575,7 +608,7 @@ static void testPrng() {
 // nothing crashes or hangs. Each image is copied to an exact-size heap block so
 // a read one byte past the end is caught.
 static void fuzzValidators() {
-    static const char *const TAGS[] = {"CMDS", "TILE", "EXOR", "FLYS", "PRNG"};
+    static const char *const TAGS[] = {"CMDS", "TILE", "EXOR", "FLYS", "PRNG", "PRNG"};
     std::vector<uint8_t> exor;
     putWord(exor, REPLAY_EXOR_MAGIC);
     putWord(exor, 1);
@@ -584,8 +617,12 @@ static void fuzzValidators() {
     putWord(exor, 1);
     putWord(exor, 9);
     const std::vector<std::vector<uint8_t>> seeds = {
-        commandLog(5, 40), tileOrder({{0, 2, 7, 9}, {1, 2, 1, 2}}), exor,
-        flyState(2, 0x5a8f34, 0xcc), prngImage(4, 6, 3)
+        commandLog(5, 40),
+        tileOrder({{0, 2, 7, 9}, {1, 2, 1, 2}}),
+        exor,
+        flyState(2, 0x5a8f34, 0xcc),
+        prngImage(4, 6, 3),
+        prngImage(5, 6, 3)
     };
     const std::vector<uint8_t> file = bundle(seeds, TAGS);
     uint32_t rng = 12345;

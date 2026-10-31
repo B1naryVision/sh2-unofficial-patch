@@ -48,6 +48,7 @@ static const uint32_t MAX_PRNG_TICKS = REPLAY_PRNG_CAPACITY;
 // Recording. Allocated by prngGuardAcquireRecord.
 static ReplayPrngEntry *s_record = nullptr;
 static uint8_t *s_recordGates = nullptr;
+static ReplayPrngUpdates *s_recordUpdates = nullptr;
 static uint32_t s_recordCount = 0;
 static uint32_t s_dropped = 0;
 static ReplayMonasteryClock s_recordClocks[REPLAY_CLOCK_MAX];
@@ -57,9 +58,16 @@ static bool s_clocksCaptured = false;
 // Playback. Allocated by prngGuardLoadBytes.
 static ReplayPrngEntry *s_stream = nullptr;
 static uint8_t *s_streamGates = nullptr;
+static ReplayPrngUpdates *s_streamUpdates = nullptr; // null for a v2..v4 stream
 static uint32_t s_streamCount = 0;
 static uint32_t s_streamPos = 0;
 static bool s_streamHasGates = false;
+// The stream entry of the job now running, or NO_ENTRY when the stream has
+// none for it; its later updates restore from this entry's ReplayPrngUpdates.
+static const uint32_t NO_ENTRY = 0xffffffffu;
+static uint32_t s_jobEntry = NO_ENTRY;
+static uint32_t s_updatesRestored = 0;
+static uint32_t s_updatesCorrected = 0;
 static bool s_applying = false;
 static ReplayMonasteryClock s_streamClocks[REPLAY_CLOCK_MAX];
 static uint32_t s_streamClockCount = 0;
@@ -83,10 +91,8 @@ static bool s_clocksPending = false;
 // one job are neither captured nor restored.
 static const uintptr_t SHEEP_DRAWN_FLAG_RVA = 0xeb6b08; // VA 0x12b6b08, byte
 static uint32_t s_gatePos = 0; // playback scan position in s_stream
-static bool s_gateHaveRel = false;
-static uint32_t s_gateRel = 0, s_gateSub = 0;
 static uint8_t s_pendingGates = 0; // recording: bits of the job not yet appended
-static bool s_curGatesValid = false; // playback: s_curGates belongs to s_gateRel
+static bool s_curGatesValid = false; // playback: s_curGates belongs to s_updateRel
 static uint8_t s_curGates = 0;
 
 static uintptr_t s_exeBase = 0;
@@ -98,8 +104,10 @@ static uint32_t s_openRelative = 0;
 static uint16_t s_openStart = 0;
 static uint16_t s_openStart0 = 0;
 static uint16_t s_simEndSample = 0;
-static bool s_haveLastRelative = false;
-static uint32_t s_lastRelative = 0;
+// Which simulation update of its job is running: 0 for the first, then 1, 2,
+// ... while the relative job stays the same.
+static bool s_haveUpdateRel = false;
+static uint32_t s_updateRel = 0, s_updateIndex = 0;
 
 // Trampoline state must have external linkage: MinGW GAS cannot resolve local
 // static symbols named from naked inline assembly.
@@ -216,13 +224,9 @@ static void epochClocks(bool recording) {
     }
 }
 
-// Every simulation update, duplicates of a job included.
-static void renderGates(uint32_t relative, bool recording) {
-    const uint32_t sub = (s_gateHaveRel && relative == s_gateRel) ? s_gateSub + 1 : 0;
-    s_gateHaveRel = true;
-    s_gateRel = relative;
-    s_gateSub = sub;
-
+// Every simulation update, duplicates of a job included. `sub` is the update's
+// index within its job.
+static void renderGates(uint32_t relative, uint32_t sub, bool recording) {
     if (sub >= 8) {
         return;
     }
@@ -259,6 +263,48 @@ static void renderGates(uint32_t relative, bool recording) {
     }
 }
 
+// A job's later updates (sub >= 1). Frames render between a job's updates, and
+// how many depends on the Game Speed, so each update gets its own recorded
+// start: the job's entry is appended at the first update's SIM_DONE, before
+// any later update begins.
+static void laterUpdate(uint32_t relative, uint32_t sub, bool recording) {
+    if (sub >= REPLAY_PRNG_UPDATES_MAX) {
+        return;
+    }
+
+    uint16_t *cursor = iter1Cursor();
+
+    if (!cursor) {
+        return;
+    }
+
+    if (recording && s_recordCount && s_record[s_recordCount - 1].relativeTick == relative) {
+        ReplayPrngUpdates &u = s_recordUpdates[s_recordCount - 1];
+        u.startCursor[sub - 1] = *cursor;
+        // Published after the cursor, for a reader of the record in progress.
+        __atomic_store_n(&u.updates, (uint16_t)(sub + 1), __ATOMIC_RELEASE);
+    }
+
+    if (!s_applying || !s_streamUpdates || s_jobEntry == NO_ENTRY) {
+        return;
+    }
+
+    const ReplayPrngUpdates &u = s_streamUpdates[s_jobEntry];
+
+    if (sub >= u.updates) {
+        return;
+    }
+
+    const uint16_t recorded = u.startCursor[sub - 1];
+
+    if (*cursor != recorded) {
+        *cursor = recorded;
+        ++s_updatesCorrected;
+    }
+
+    ++s_updatesRestored;
+}
+
 extern "C" void prngGuardTickEntry() {
     const uint32_t epoch = activeEpoch();
 
@@ -274,18 +320,24 @@ extern "C" void prngGuardTickEntry() {
 
     const uint32_t relative = now - epoch;
     const bool recording = replayRecorderIsRecording() && s_record;
-    epochClocks(recording);
-    renderGates(relative, recording);
+    uint32_t sub = 0;
 
-    // One capture and at most one restore per relative job. MP normally runs
-    // five simulation updates per job (one at byte-counter rollover); restoring
-    // again would rewind the cursor into the job's own draws.
-    if (s_haveLastRelative && relative == s_lastRelative) {
+    if (s_haveUpdateRel && relative == s_updateRel) {
+        sub = s_updateIndex + 1;
+    }
+
+    s_haveUpdateRel = true;
+    s_updateRel = relative;
+    s_updateIndex = sub;
+    epochClocks(recording);
+    renderGates(relative, sub, recording);
+
+    if (sub > 0) {
+        laterUpdate(relative, sub, recording);
         return;
     }
 
-    s_haveLastRelative = true;
-    s_lastRelative = relative;
+    s_jobEntry = NO_ENTRY;
     uint16_t *cursor = iter1Cursor();
 
     if (!cursor) {
@@ -300,6 +352,7 @@ extern "C" void prngGuardTickEntry() {
 
         if (s_streamPos < s_streamCount && s_stream[s_streamPos].relativeTick == relative) {
             *cursor = s_stream[s_streamPos].startCursor;
+            s_jobEntry = s_streamPos;
             ++s_streamPos;
         }
     }
@@ -344,6 +397,7 @@ extern "C" void prngGuardSimDone() {
 
     const uint16_t *cursor0 = iter0Cursor();
     s_recordGates[s_recordCount] = s_pendingGates;
+    s_recordUpdates[s_recordCount] = {1, {}};
     ReplayPrngEntry &e = s_record[s_recordCount];
     e.relativeTick = s_openRelative;
     e.startCursor = s_openStart;
@@ -478,7 +532,14 @@ bool prngGuardAcquireRecord() {
             (uint8_t *)VirtualAlloc(NULL, MAX_PRNG_TICKS, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     }
 
-    if (!s_record || !s_recordGates) {
+    if (s_recordGates && !s_recordUpdates) {
+        s_recordUpdates = (ReplayPrngUpdates *)VirtualAlloc(
+            NULL, MAX_PRNG_TICKS * sizeof(ReplayPrngUpdates), MEM_COMMIT | MEM_RESERVE,
+            PAGE_READWRITE
+        );
+    }
+
+    if (!s_record || !s_recordGates || !s_recordUpdates) {
         prngGuardReleaseRecord();
         return false;
     }
@@ -492,8 +553,7 @@ void prngGuardResetRecord() {
     s_clocksCaptured = false;
     s_dropped = 0;
     s_pendingGates = 0;
-    s_gateHaveRel = false;
-    s_haveLastRelative = false;
+    s_haveUpdateRel = false;
     s_openTick = false;
 }
 
@@ -509,6 +569,11 @@ void prngGuardReleaseRecord() {
         VirtualFree(s_recordGates, 0, MEM_RELEASE);
         s_recordGates = nullptr;
     }
+
+    if (s_recordUpdates) {
+        VirtualFree(s_recordUpdates, 0, MEM_RELEASE);
+        s_recordUpdates = nullptr;
+    }
 }
 
 void prngGuardClearStream() {
@@ -518,6 +583,7 @@ void prngGuardClearStream() {
     s_streamHasGates = false;
     s_streamClockCount = 0;
     s_clocksPending = false;
+    s_jobEntry = NO_ENTRY;
 
     if (s_stream) {
         VirtualFree(s_stream, 0, MEM_RELEASE);
@@ -527,6 +593,11 @@ void prngGuardClearStream() {
     if (s_streamGates) {
         VirtualFree(s_streamGates, 0, MEM_RELEASE);
         s_streamGates = nullptr;
+    }
+
+    if (s_streamUpdates) {
+        VirtualFree(s_streamUpdates, 0, MEM_RELEASE);
+        s_streamUpdates = nullptr;
     }
 }
 
@@ -546,8 +617,15 @@ uint32_t prngGuardLoadBytes(const void *data, uint32_t bytes) {
         layout.gates
             ? (uint8_t *)VirtualAlloc(NULL, count, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE)
             : nullptr;
+    const size_t updateBytes = count * sizeof(ReplayPrngUpdates);
 
-    if (!s_stream || (layout.gates && !s_streamGates)) {
+    if (layout.updates) {
+        s_streamUpdates = (ReplayPrngUpdates *)VirtualAlloc(
+            NULL, updateBytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE
+        );
+    }
+
+    if (!s_stream || (layout.gates && !s_streamGates) || (layout.updates && !s_streamUpdates)) {
         prngGuardClearStream();
         return 0;
     }
@@ -558,6 +636,10 @@ uint32_t prngGuardLoadBytes(const void *data, uint32_t bytes) {
         memcpy(s_streamGates, layout.gates, count);
     }
 
+    if (layout.updates) {
+        memcpy(s_streamUpdates, layout.updates, updateBytes);
+    }
+
     memcpy(s_streamClocks, layout.clocks, layout.clockCount * sizeof(ReplayMonasteryClock));
     s_streamClockCount = layout.clockCount;
     s_clocksPending = layout.clockCount != 0;
@@ -565,11 +647,13 @@ uint32_t prngGuardLoadBytes(const void *data, uint32_t bytes) {
     s_streamCount = count;
     s_streamPos = 0;
     s_gatePos = 0;
-    s_gateHaveRel = false;
     s_curGatesValid = false;
-    // A stream is loaded before its match starts, so any duplicate-tick memory
+    // A stream is loaded before its match starts, so any update-index memory
     // belongs to an earlier match in this process.
-    s_haveLastRelative = false;
+    s_haveUpdateRel = false;
+    s_jobEntry = NO_ENTRY;
+    s_updatesRestored = 0;
+    s_updatesCorrected = 0;
     s_applying = true;
     return s_streamCount;
 }
@@ -586,3 +670,10 @@ void prngGuardRecordClocks(const ReplayMonasteryClock **entries, uint32_t *count
 }
 
 const uint8_t *prngGuardRecordGates() { return s_recordGates; }
+
+const ReplayPrngUpdates *prngGuardRecordUpdates() { return s_recordUpdates; }
+
+void prngGuardRestoreStats(uint32_t *restored, uint32_t *corrected) {
+    *restored = s_updatesRestored;
+    *corrected = s_updatesCorrected;
+}

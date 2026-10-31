@@ -112,7 +112,7 @@ Little-endian, packed. A 144-byte header (`ReplayBundleHeader` in
 | Section | Contents |
 |---------|----------|
 | `CMDS` | The command log: every command the match admitted, in the game's own wire encoding, each scheduled at the job it executed live. |
-| `PRNG` | The shared random-number cursor, once per simulation job. |
+| `PRNG` | The shared random-number cursor at the start of every simulation update (format v5; v2–v4 hold one per job). |
 | `TILE` | The order of each tile and region occupancy list at the checkpoint. |
 | `EXOR` | Per-job execution-order plans, for jobs where a player's command ran before an autonomous one. |
 | `FLYS` | Damage values of projectiles in flight at the checkpoint. |
@@ -173,8 +173,14 @@ exactly as the live one did. Most of the replay code exists to make that true.
 4. **Random cursor.** One of the game's two random-number iterators is shared
    between simulation and rendering (sound, particles and screen effects draw
    from it once per frame). A spectator renders different frames from a player,
-   so the cursor is recorded once per simulation job, to be restored at the
-   same point during playback.
+   so the cursor is recorded at the entry of every simulation update, to be
+   restored at the same point during playback. Once per job was not enough:
+   multiplayer runs five updates per job (six across the update counter's
+   rollover), and how many frames render between them depends on the Game
+   Speed. A replay watched faster than it was played gave the AI's draws in a
+   job's later updates different values, diverged, and held at the recorded
+   end with the match unfinished. Recordings in the measured matches moved the
+   cursor between jobs' simulation windows in 99% of jobs, by 5-10 draws.
 5. **Sidecar writes.** The sidecar is rebuilt and written atomically (temp file
    plus rename) every 10 seconds, with the interval growing as it gets bigger
    (up to 60 seconds), once more when the match ends, and once when the game
@@ -193,7 +199,7 @@ exactly as the live one did. Most of the replay code exists to make that true.
    nothing behind, and its pending checkpoint is cancelled so it can never fire
    in the next match or during a playback.
 6. **Buffers.** The command log (16 MB), the execution witness (16 MB), the
-   random-cursor record (6.5 MB) and the retimer's working storage (about
+   random-cursor record (14.5 MB) and the retimer's working storage (about
    8 MB) are allocated when a match starts recording and freed when it ends.
    Playback allocates the log and cursor stream of the replay it loads and
    frees them when it ends.
@@ -228,8 +234,12 @@ the last job whose timing is fully known, so everything kept is exact.
    after the load, sampled by the player itself; it shares no state with the
    recorder.
 3. **Determinism guards** (`prngGuard.cpp`). Hooks inside the simulation tick
-   put the recorded random cursor back at the start of each job, so render-side
-   draws in between cannot shift the simulation's rolls. The checkpoint's
+   put the recorded random cursor back at the start of each simulation update,
+   so render-side draws in between cannot shift the simulation's rolls at any
+   Game Speed. A v2–v4 sidecar only restores the first update of each job and
+   so stays exact only at the speed it was recorded at. Debug builds show
+   "RNG updates restored N, corrected M" in the replay panel; `corrected`
+   counts later updates whose live cursor had been moved by rendering. The checkpoint's
    occupancy-list order, projectile damage and iterator-0 cursor are written
    back at the playback epoch. The Monastery prayer-stage clock (`+0x164`),
    which the constructor never initialises and the serializer never saves, is
@@ -300,7 +310,7 @@ survivors in the validation battle, but treat the counts as best-effort.
 | `src/replay/choreCodec.*` | Reuses the game's own command codec to encode and rebuild commands. |
 | `src/replay/replayRetime.*` | Moves commands to their execution job; builds order plans. |
 | `src/replay/replayPlayer.*` | Schedules and injects commands during playback; restores checkpoint state. |
-| `src/replay/prngGuard.*` | Records and restores the shared random cursor per job. |
+| `src/replay/prngGuard.*` | Records and restores the shared random cursor per simulation update. |
 | `src/replay/spectatorGuard.*` | Blocks viewer input during playback. |
 | `src/replay/replayViewer.*` | The replay panel, pause and game speed. |
 | `src/replay/replayVision.*` | Ally vision and free view. |

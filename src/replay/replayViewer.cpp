@@ -11,6 +11,7 @@
 #include "../patches/endgameStats/killTracker.h"
 #include "../patches/endgameStats/session.h"
 #include "../patches/endgameStats/unitTracker.h"
+#include "prngGuard.h"
 #include "replayCommon.h"
 #include "replayPlayer.h"
 #include "spectatorGuard.h"
@@ -401,6 +402,16 @@ static std::vector<Row> buildRows() {
     _snwprintf(speed, 48, L"Game speed  %ld", (long)s_speed);
     speed[47] = 0;
     rows.push_back(makeRow(RowKind::Slider, speed, CLR_KEY));
+#ifdef DEBUG
+    // Corrections are later updates that would have drawn from a cursor moved
+    // by frames the recording did not render; they rise with the speed gap.
+    uint32_t restored = 0, corrected = 0;
+    prngGuardRestoreStats(&restored, &corrected);
+    wchar_t prng[64];
+    _snwprintf(prng, 64, L"RNG updates restored %u, corrected %u", restored, corrected);
+    prng[63] = 0;
+    rows.push_back(makeRow(RowKind::Note, prng, CLR_NOTE));
+#endif
     rows.push_back(makeRow(RowKind::Gap, L"", CLR_LABEL));
 
     if (!s_playerCount) {

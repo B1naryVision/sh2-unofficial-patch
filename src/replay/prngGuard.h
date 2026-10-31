@@ -13,8 +13,11 @@
 // pickers draw from the same cursor on a frame-driven schedule. A human session
 // and a spectator playback render different frames, so the cursor would drift
 // and the simulation's draws would land elsewhere in the table. The cursor is
-// therefore recorded once per simulation job and put back at the same point
-// during playback.
+// therefore recorded at the entry of every simulation update and put back at
+// the same point during playback. Once per job is not enough: MP runs about
+// five updates per job, and how many frames render between them depends on
+// the Game Speed, so a replay watched faster than it was played gave the AI's
+// draws in a job's later updates different values and diverged.
 //
 // The simulation tick body is `FUN_0076aca0` (RVA 0x36aca0). It bumps the tick
 // counter, serializes iterator 0, runs five simulation subsystem updates and
@@ -54,11 +57,23 @@ struct ReplayPrngEntry {
     uint16_t simEndCursor0;
 };
 
+// v5, one per entry after the render-gate bytes: the job's later updates.
+// `updates` is how many simulation updates the job ran (capped at
+// REPLAY_PRNG_UPDATES_MAX), and `startCursor[k - 1]` is iterator 1 at the
+// entry of update k, for 1 <= k < updates. Update 0 is the entry's own
+// startCursor.
+static const uint32_t REPLAY_PRNG_UPDATES_MAX = 8;
+struct ReplayPrngUpdates {
+    uint16_t updates;
+    uint16_t startCursor[REPLAY_PRNG_UPDATES_MAX - 1];
+};
+
 struct ReplayPrngFileHeader {
     char magic[8]; // "SH2RPRN"
-    uint32_t version; // 4 -- v3 appends one render-gate byte per entry after
+    uint32_t version; // 5 -- v3 appends one render-gate byte per entry after
                       // the entries (bit k = Sheep drawn flag at the job's
-                      // k-th update); v4 appends the Monastery clocks
+                      // k-th update); v4 appends the Monastery clocks; v5
+                      // inserts a ReplayPrngUpdates per entry before them
     uint32_t entrySize; // sizeof(ReplayPrngEntry)
     uint32_t entryCount;
     uint32_t epochTick; // the recording process's epoch
@@ -81,6 +96,8 @@ static const uint32_t REPLAY_CLOCK_MAX = 4096;
 
 static_assert(sizeof(ReplayPrngEntry) == 12, "prng entry wire format changed");
 static_assert(sizeof(ReplayPrngFileHeader) == 36, "prng file header changed");
+static_assert(sizeof(ReplayPrngUpdates) == 16, "prng updates wire format changed");
+static const uint32_t REPLAY_PRNG_VERSION = 5;
 
 // Jobs the iterator-1 record holds (about 19 hours at the ~7.4 jobs/s of a
 // live multiplayer match).
@@ -107,3 +124,10 @@ void prngGuardRecordView(const ReplayPrngEntry **entries, uint32_t *count, uint3
 void prngGuardRecordClocks(const ReplayMonasteryClock **entries, uint32_t *count);
 // One render-gate byte per recorded entry.
 const uint8_t *prngGuardRecordGates();
+// One ReplayPrngUpdates per recorded entry.
+const ReplayPrngUpdates *prngGuardRecordUpdates();
+
+// Playback: restores made at the entry of a job's later updates, and how many
+// of those found the live cursor somewhere other than the recorded value (a
+// draw the simulation would otherwise have taken from the wrong place).
+void prngGuardRestoreStats(uint32_t *restored, uint32_t *corrected);

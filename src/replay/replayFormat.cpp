@@ -252,7 +252,7 @@ bool replayValidatePrng(
 
     memcpy(&h, data, sizeof(h));
 
-    if (memcmp(h.magic, "SH2RPRN", 8) != 0 || h.version < 2 || h.version > 4 ||
+    if (memcmp(h.magic, "SH2RPRN", 8) != 0 || h.version < 2 || h.version > REPLAY_PRNG_VERSION ||
         h.entrySize != sizeof(ReplayPrngEntry) || h.entryCount == 0 || h.entryCount > maxEntries ||
         h.droppedTicks != 0) {
         return false;
@@ -260,7 +260,10 @@ bool replayValidatePrng(
 
     const uint8_t *p = (const uint8_t *)data;
     const uint32_t gateBytes = h.version >= 3 ? h.entryCount : 0;
-    const uint32_t end = sizeof(h) + h.entryCount * sizeof(ReplayPrngEntry) + gateBytes;
+    const uint32_t gatesAt = sizeof(h) + h.entryCount * sizeof(ReplayPrngEntry);
+    const uint32_t updatesAt = gatesAt + gateBytes;
+    const uint32_t updateBytes = h.version >= 5 ? h.entryCount * sizeof(ReplayPrngUpdates) : 0;
+    const uint32_t end = updatesAt + updateBytes;
 
     if (bytes < end) {
         return false;
@@ -274,10 +277,19 @@ bool replayValidatePrng(
         }
     }
 
+    const ReplayPrngUpdates *updates =
+        updateBytes ? (const ReplayPrngUpdates *)(p + updatesAt) : nullptr;
+
+    for (uint32_t i = 0; updates && i < h.entryCount; ++i) {
+        if (updates[i].updates == 0 || updates[i].updates > REPLAY_PRNG_UPDATES_MAX) {
+            return false;
+        }
+    }
+
     const ReplayMonasteryClock *clocks = nullptr;
     uint32_t clockCount = 0;
 
-    if (h.version == 4) {
+    if (h.version >= 4) {
         uint32_t footer[2] = {};
 
         if (bytes - end < sizeof(footer)) {
@@ -306,7 +318,8 @@ bool replayValidatePrng(
 
     out->header = h;
     out->entries = entries;
-    out->gates = gateBytes ? p + sizeof(h) + h.entryCount * sizeof(ReplayPrngEntry) : nullptr;
+    out->gates = gateBytes ? p + gatesAt : nullptr;
+    out->updates = updates;
     out->clocks = clocks;
     out->clockCount = clockCount;
     return true;
