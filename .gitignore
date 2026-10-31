@@ -35,3 +35,6 @@ CLAUDE.md
 
 # Tool build output
 tools/win/*.exe
+
+# Host test binary (make test)
+tests/replay-tests

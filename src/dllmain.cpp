@@ -1,7 +1,6 @@
 #include "core/hook.h"
 #include "core/log.h"
 #include "patches/registry.h"
-#include "replay/replaySession.h"
 #include "proxy/d3d9Proxy.h"
 #include <windows.h>
 
@@ -19,12 +18,10 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID) {
         loadRealD3d9Dll();
         applyUnofficialPatches();
     }
-    else if (ul_reason_for_call == DLL_PROCESS_DETACH) {
-        // Closing the game mid-match: keep what the replay recorder has.
-        replaySessionOnProcessExit();
 #ifdef DEBUG
+    else if (ul_reason_for_call == DLL_PROCESS_DETACH) {
         logFlush("patch_debug.txt");
-#endif
     }
+#endif
     return TRUE;
 }

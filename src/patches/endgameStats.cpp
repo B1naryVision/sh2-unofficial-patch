@@ -104,19 +104,6 @@ extern "C" void endgameStatsReset() {
 // main menu, so the main-menu hook below never fires and the overlay used to
 // stay up over the new mission.
 static void endgameScreenTick() {
-    // A save load (a replay starts as one) replaces the match wholesale. A
-    // pause-menu load never passes the main menu, so drop the previous
-    // match's kills here for the replay panel. World::LoadGame is counted by
-    // the replay session's hook (replay/replaySession.h).
-    static uint32_t seenLoads = 0;
-    ReplaySessionStatus replay;
-    replaySessionGetStatus(&replay);
-
-    if (replay.loads != seenLoads) {
-        seenLoads = replay.loads;
-        resetKillCounts();
-    }
-
     if (!s_endgameScreen) {
         return;
     }

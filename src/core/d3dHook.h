@@ -17,8 +17,9 @@ void installD3DHook(IDirect3D9 *d3d);
 // Registers a callback invoked every frame from inside the game's EndScene
 // (scene still open, so it may draw). Runs on the render thread. Register
 // before the device is created (i.e. from an install function in DllMain).
+// False when the registry is full (also reported with OutputDebugString).
 typedef void (*D3DRenderFn)(IDirect3DDevice9 *device);
-void registerD3DRender(D3DRenderFn fn);
+bool registerD3DRender(D3DRenderFn fn);
 
 // Backbuffer dimensions, captured once per frame in the EndScene dispatcher.
 // Returns false until the first frame has been rendered. Readable from any

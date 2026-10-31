@@ -12,13 +12,14 @@
 // Pause and exit. `P` toggles a pause and the ESC menu (stock popup) pauses
 // while it is open. Pausing skips whole simulation updates in the main loop
 // (the stock pause flag would desync the job counter); see replayViewer.cpp.
-// Leaving the match from that menu ends the playback (replayPlayerControl(0)),
-// which releases the spectator guard.
+// Leaving the match from that menu ends the playback (the replay session does
+// that), which releases the spectator guard.
 //
 // Content follows the end-of-game statistics screen (title, gold, honour,
 // popularity, troops, siege, gold and honour by source, units recruited), plus
 // units killed per type, refreshed live, plus a Game Speed slider that
-// writes the stock tick-rate setting (Stronghold2.exe+0xe46518).
+// writes the stock tick-rate setting (Stronghold2.exe+0xe46518). The setting
+// is put back when the playback ends.
 //
 // Sources: player object fields (endgameStats/gameOffsets.h, the same offsets
 // the endgame overlay reads), the unitTracker and killTracker tallies.
@@ -38,26 +39,7 @@ bool replayViewerInstalled();
 // key, or mouse input over the visible panel).
 bool replayViewerHandleMessage(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 
-// Viewer state snapshot, for tests and tooling.
-struct ReplayViewerStatus {
-    uint32_t visible;
-    uint32_t players;
-    uint32_t rows;
-    uint32_t speed;       // last value read from the tick-rate setting
-    uint32_t polls;       // data refreshes since install
-    uint32_t speedWrites; // slider writes applied on the game thread
-    uint32_t panelW, panelH;
-    // Backbuffer coordinates of the panel and the slider track (for probes
-    // that post real mouse input).
-    uint32_t panelX, panelY;
-    uint32_t sliderL, sliderR, sliderMidY;
-    uint32_t paused;   // simulation updates are being skipped
-    uint32_t menuOpen; // a Dragonfly popup (the ESC menu) is up in the match
-};
-void replayViewerGetStatus(ReplayViewerStatus *out);
 void replayViewerRequestToggle();
-// Same as pressing P during playback: toggles the viewer's pause.
-void replayViewerRequestPause();
 
 // True while an in-match popup (the ESC menu) is up during playback. The
 // spectator guard lets mouse buttons through then, so the menu is usable.

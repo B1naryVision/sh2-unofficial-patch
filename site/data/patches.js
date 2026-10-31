@@ -257,6 +257,13 @@ const PATCHES = [
     was:"The patch and graphics add-ons such as DXVK, ReShade or dgVoodoo all need the same file name in the game folder, so you could only have one of them.",
     now:"The patch can now load one of those add-ons for you, so you can use both at once.",
     how:"Rename the add-on's d3d9.dll to d3d9_chain.dll and put it in the game folder next to the patch's d3d9.dll. That's all there is to it — take the file away again to go back to normal."
+  },
+  {
+    id:"multiplayer-replays", cat:"multiplayer", kind:"feature", version:"next", mp:"solo", optIn:true,
+    title:"Watch your multiplayer matches again",
+    was:"The game has no replays, so once a multiplayer match was over there was no way to see it again.",
+    now:"Every multiplayer match you play can be saved as a replay and watched later from a spectator's seat, with live stats for every player, a speed slider and a free camera.",
+    how:"Switch on Multiplayer replays in the settings panel (Ctrl+Shift+O). After a match, open Load and pick the save called replay-... . Press ] for the stats panel, P to pause and F for free view. To share a replay, send both the save and the .s2replay file next to it. The patch keeps your 10 newest replays and never deletes one someone sent you. It is still experimental: recording saves the game a moment after the match starts, which can cause a short pause."
   }
 ];
 
@@ -271,7 +278,8 @@ const HISTORY = [
     "See which patch version every player has with the !ver chat command",
     "A lobby panel shows who has the patch before the match starts",
     "The host can switch on match rules, starting with ballista auto-fire",
-    "Rapid-clicking Disband no longer hands back extra peasants"
+    "Rapid-clicking Disband no longer hands back extra peasants",
+    "Record and watch multiplayer replays (opt-in, experimental)"
   ]},
   { v:"0.7.0", date:"", items:[
     "Every patch setting is adjustable in game, while you play",
@@ -328,7 +336,9 @@ const SETTINGS = [
     ["SettingsPanel","Ctrl+Shift+O","Opens the panel where you can change all of these keys in game."],
     ["StopTroops","H","Stops the troops you have selected."],
     ["AttackToggle","Mouse4","Turns the Attack stance on and off for selected troops."],
-    ["AutoMarketPanel","Backtick","Opens the automatic buying and selling panel."]
+    ["AutoMarketPanel","Backtick","Opens the automatic buying and selling panel."],
+    ["ReplayPanel","RBracket","Shows or hides the stats panel while you watch a replay."],
+    ["ReplayFreeView","F","Free camera while you watch a replay."]
   ]},
   { group:"Camera", rows:[
     ["ZoomSpeedMultiplier","1.0","How fast the mouse wheel zooms. 2.5 is two and a half times normal."],
@@ -339,7 +349,9 @@ const SETTINGS = [
     ["SiegeCampJumpOnSecondPress","1","1 opens the panel first and travels on a second press. 0 restores the old jump-at-once behaviour."],
     ["Scale","Auto","Size of the patch's panels, as a percentage between 50 and 300."],
     ["HideInProgressLobbies","1","Hides games that have already started from the multiplayer list."],
-    ["RecruitmentShiftMultiplier","20","How many units a Shift-click queues. 0 turns the feature off."]
+    ["RecruitmentShiftMultiplier","20","How many units a Shift-click queues. 0 turns the feature off."],
+    ["RecordMultiplayer","0","1 records every multiplayer match as a replay you can watch from the Load menu."],
+    ["MaxReplays","10","How many of your own replays to keep. The oldest are deleted first; replays someone sent you are never touched."]
   ]}
 ];
 

@@ -71,6 +71,7 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [Disband peasant duplication fix, on automatically when every player has it](docs/bugs/disband-peasant-duplication.md) | `base+0xf6419` | Unreleased |
 | [Host-chosen match rules, starting with field ballista auto-fire](docs/features/match-rules.md) | `base+0x5c7134`, `base+0x180c48`, `base+0x180c71`, `base+0x180c92`, `base+0x180ef9` | Unreleased |
 | [Chain-load a D3D9 wrapper (DXVK, ReShade, dgVoodoo) as `d3d9_chain.dll`](docs/features/dll-chaining.md) | — | Unreleased |
+| [Multiplayer replays with a spectator panel and kill counts (opt-in)](docs/features/multiplayer-replays.md) | `base+0x2ac60`, `base+0x2a2e0`, `base+0x37efb0`, `base+0x367a03`, `base+0x36aca0` | Unreleased |
 
 ---
 
@@ -223,6 +224,8 @@ If an antivirus product flags a release, see [docs/antivirus-false-positive.md](
 ---
 
 ## Acknowledgements
+
+**Seth** — Contributor, creating the **Watch Your Multiplayer Matches Again** feature.
 
 **TheSettler** — Primary multiplayer co-tester, invaluable in verifying that each release stays fully compatible with vanilla Stronghold 2 installs. Also a key source of ideas for improvements to the game.
 

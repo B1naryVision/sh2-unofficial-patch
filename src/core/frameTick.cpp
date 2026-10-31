@@ -47,9 +47,14 @@ __declspec(naked) static void frameTickHook() {
 // Register at install time. The hook is written on the first registration, and
 // writing it from any other thread would rewrite six bytes of the main loop
 // while the game thread is executing them.
-void registerFrameTick(FrameTickFn fn) {
-    if (!fn || s_tickCount >= MAX_TICKS) {
-        return;
+bool registerFrameTick(FrameTickFn fn) {
+    if (!fn) {
+        return false;
+    }
+
+    if (s_tickCount >= MAX_TICKS) {
+        OutputDebugStringA("sh2-unofficial-patch: frame tick registry full (MAX_TICKS), callback dropped\n");
+        return false;
     }
 
     s_ticks[s_tickCount++] = fn;
@@ -61,4 +66,6 @@ void registerFrameTick(FrameTickFn fn) {
         g_frameTickReturn = site + 6;
         installHook((void *)site, reinterpret_cast<void *>(frameTickHook), 6);
     }
+
+    return true;
 }

@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include "replayFormat.h"
+
 // Helpers shared by the replay modules.
 
 // World+4 (RVA 0xd781d4): the engine's own "a game is running" flag.
@@ -20,28 +22,14 @@ bool replayScreenPopupOn();
 void replayCaptureTileOrder();
 // False when nothing was captured. `wordCount` excludes the 3-word file header.
 bool replayTileOrderView(const uint32_t **words, uint32_t *wordCount, uint32_t *lists);
-// Writes `tileorder.bin` ({'TORD', 1, lists} + words); bytes written or 0.
-uint32_t replayTileOrderSave(const char *path);
 
-// Per-shot projectile damage at the checkpoint. The shooter stores each
-// Arrow's / Axe's / Spear's damage in the projectile, but their serializers
-// (RVA 0xcf2c0 / 0xd4cb0 / 0xd5d60) skip that field, so a checkpoint load gives
-// every missile in flight its constructor default (Arrow 750.0) and the first
-// hit lands with the wrong damage (a hunter's 3000 arrow into a Bear hit for
-// 750). Captured in the same frame as the checkpoint save; the
-// player writes the values back at its epoch, matching each projectile by its
-// FlyMgr (RVA 0x6e8800) slot, handle serial (+0x7a) and class.
-struct ReplayFlyField {
-    uint16_t slot;      // index in the FlyMgr slot vector = handle low word (+0x78)
-    uint16_t serial;    // handle high word (+0x7a)
-    uint32_t vtableRva; // the projectile's class
-    uint32_t offset;    // the unserialized field
-    uint32_t value;     // its live bits
-};
-static const uint32_t REPLAY_FLY_MAGIC = 0x53594C46u; // "FLYS", {magic, 1, count} + entries
-static const uint32_t REPLAY_FLY_MAX = 4096;
-// True for exactly the (class, field) pairs above; the player refuses others.
-bool replayFlyFieldKnown(uint32_t vtableRva, uint32_t offset);
+// Per-shot projectile damage at the checkpoint (ReplayFlyField, replayFormat.h).
+// Their serializers (RVA 0xcf2c0 / 0xd4cb0 / 0xd5d60) skip that field, so a
+// checkpoint load gives every missile in flight its constructor default (Arrow
+// 750.0) and the first hit lands with the wrong damage. Captured in the same
+// frame as the checkpoint save; the player writes the values back at its epoch,
+// matching each projectile by its FlyMgr (RVA 0x6e8800) slot, handle serial
+// (+0x7a) and class.
 void replayCaptureFlyState();
 // False when nothing was captured (count 0 is a valid capture).
 bool replayFlyStateView(const ReplayFlyField **entries, uint32_t *count);

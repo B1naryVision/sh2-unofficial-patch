@@ -1,14 +1,15 @@
 #include "replayVision.h"
 
-#include "replayCommon.h"
-#include "replayViewer.h"
-#include "spectatorGuard.h"
 #include "../core/config.h"
 #include "../core/d3dHook.h"
 #include "../core/frameTick.h"
 #include "../core/keybindWidget.h"
 #include "../core/observerContext.h"
 #include "../core/readableMemory.h"
+#include "replayCommon.h"
+#include "replayTrace.h"
+#include "replayViewer.h"
+#include "spectatorGuard.h"
 
 #include <cstdint>
 #include <cstring>
@@ -38,10 +39,10 @@
 //       drawn only for allies.
 static const uintptr_t ALLIED_RVA = 0x219e0;
 static const uintptr_t ALLY_SITES[] = {
-    0xfb5f3,  0x10f018, 0x10f0de,           // Assassin / Outlaw
+    0xfb5f3,  0x10f018, 0x10f0de, // Assassin / Outlaw
     0x111806, 0x111869, 0x1118e9, 0x11199e, // Thief
-    0x1f6287,                               // building interiors
-    0xc6f9f,  0xc7b76,                      // ManTrap, KillingPit
+    0x1f6287, // building interiors
+    0xc6f9f,  0xc7b76, // ManTrap, KillingPit
 };
 static const int ALLY_SITE_COUNT = (int)(sizeof(ALLY_SITES) / sizeof(ALLY_SITES[0]));
 
@@ -54,7 +55,7 @@ static const int ALLY_SITE_COUNT = (int)(sizeof(ALLY_SITES) / sizeof(ALLY_SITES[
 //   StockPile vt+0x84 0x4b1970 (goods shown): the same flag and test.
 static const uintptr_t ENEMY_RVA = 0x21a30;
 static const uintptr_t ENEMY_SITES[] = {
-    0xdfb5,  // building draw loop
+    0xdfb5, // building draw loop
     0xb19d4, // stock pile goods
 };
 static const int ENEMY_SITE_COUNT = (int)(sizeof(ENEMY_SITES) / sizeof(ENEMY_SITES[0]));
@@ -120,9 +121,11 @@ static bool callsTarget(uintptr_t base, uintptr_t rva, uintptr_t target) {
 static void redirectCall(uintptr_t base, uintptr_t rva, void *thunk) {
     uint8_t *site = (uint8_t *)(base + rva);
     DWORD old = 0;
+
     if (!VirtualProtect(site, 5, PAGE_EXECUTE_READWRITE, &old)) {
         return; // this site keeps calling the stock function
     }
+
     const int32_t rel = (int32_t)((uintptr_t)thunk - (uintptr_t)site - 5);
     memcpy(site + 1, &rel, 4);
     VirtualProtect(site, 5, old, &old);
@@ -134,45 +137,60 @@ static void patchAllySites() {
     const uintptr_t base = (uintptr_t)GetModuleHandleA(NULL);
     const uintptr_t allied = base + ALLIED_RVA;
     const uintptr_t enemy = base + ENEMY_RVA;
+
     for (int i = 0; i < ALLY_SITE_COUNT; ++i) {
         if (!callsTarget(base, ALLY_SITES[i], allied)) {
             return; // unknown build: ally vision stays off
         }
     }
+
     for (int i = 0; i < ENEMY_SITE_COUNT; ++i) {
         if (!callsTarget(base, ENEMY_SITES[i], enemy)) {
             return;
         }
     }
+
     g_allyVisionReal = allied;
     g_enemyVisionReal = enemy;
+
     for (int i = 0; i < ALLY_SITE_COUNT; ++i) {
         redirectCall(base, ALLY_SITES[i], (void *)&allyVisionThunk);
     }
+
     for (int i = 0; i < ENEMY_SITE_COUNT; ++i) {
         redirectCall(base, ENEMY_SITES[i], (void *)&enemyVisionThunk);
     }
+
     s_allyPatched = true;
 }
 
 static bool freeViewStockBytes() {
     const uintptr_t base = (uintptr_t)GetModuleHandleA(NULL);
-    return !memcmp((const void *)(base + FREE_VIEW_ON_RVA), FREE_VIEW_ON_STOCK,
-                   sizeof(FREE_VIEW_ON_STOCK)) &&
-           !memcmp((const void *)(base + FREE_VIEW_OFF_RVA), FREE_VIEW_OFF_STOCK,
-                   sizeof(FREE_VIEW_OFF_STOCK));
+    return !memcmp(
+               (const void *)(base + FREE_VIEW_ON_RVA), FREE_VIEW_ON_STOCK,
+               sizeof(FREE_VIEW_ON_STOCK)
+           ) &&
+           !memcmp(
+               (const void *)(base + FREE_VIEW_OFF_RVA), FREE_VIEW_OFF_STOCK,
+               sizeof(FREE_VIEW_OFF_STOCK)
+           );
 }
 
 // The game screen's world pane, or 0 when there is no in-match game screen.
 static uintptr_t worldPane(uintptr_t base) {
     const uintptr_t screen = *(const volatile uintptr_t *)(base + GAME_SCREEN_PTR_RVA);
+
     if (!screen || !observerReadable((const void *)screen, 4)) {
         return 0;
     }
+
     const uintptr_t vt = *(const uintptr_t *)screen;
-    if (vt != base + GAME_SCREEN_VT_RVA || *(const uintptr_t *)(vt + 0x80) != base + SCREEN_WORLD_PANE_RVA) {
+
+    if (vt != base + GAME_SCREEN_VT_RVA ||
+        *(const uintptr_t *)(vt + 0x80) != base + SCREEN_WORLD_PANE_RVA) {
         return 0;
     }
+
     const uintptr_t pane = ((WorldPaneFn)(base + SCREEN_WORLD_PANE_RVA))(screen);
     return observerReadable((const void *)(pane + CAMERA_MODE_OFFSET), 4) ? pane : 0;
 }
@@ -188,23 +206,32 @@ static void setFreeView(uintptr_t base, uintptr_t pane, bool on) {
 
 static void visionTick() {
     const bool playing = spectatorGuardActive();
-    g_allyVisionOn = playing && s_allyEnabled ? 1 : 0;
+    // Ally vision is a map hack in a live match. The guard is never up in a
+    // networked session, and this does not rely on that alone.
+    g_allyVisionOn = playing && s_allyEnabled && !replayTraceSessionIsNetworked() ? 1 : 0;
     const bool request = InterlockedExchange(&s_freeViewRequest, 0) != 0;
+
     if (!playing || !s_freeViewReady || !replayInGame()) {
         return;
     }
+
     const uintptr_t base = (uintptr_t)GetModuleHandleA(NULL);
+
     // The ESC menu is the way out of a replay: give the HUD back first so the
     // match is never left in free view.
     if (replayViewerMenuOpen()) {
         const uintptr_t pane = worldPane(base);
+
         if (pane && freeViewOn(pane)) {
             setFreeView(base, pane, false);
         }
+
         return;
     }
+
     if (request) {
         const uintptr_t pane = worldPane(base);
+
         if (pane) {
             setFreeView(base, pane, !freeViewOn(pane));
         }
@@ -220,8 +247,10 @@ static LRESULT CALLBACK visionWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
         if (!(lparam & (1 << 30))) { // ignore auto-repeat
             InterlockedExchange(&s_freeViewRequest, 1);
         }
+
         return 0;
     }
+
     return CallWindowProcW(s_origWndProc, hwnd, msg, wparam, lparam);
 }
 
@@ -229,36 +258,38 @@ static void ensureSubclass(IDirect3DDevice9 *) {
     if (s_origWndProc) {
         return;
     }
+
     HWND hwnd = (HWND)d3dDeviceWindow();
+
     if (!hwnd) {
         return;
     }
+
     s_origWndProc = (WNDPROC)SetWindowLongPtrW(hwnd, GWLP_WNDPROC, (LONG_PTR)visionWndProc);
 }
 
-Hotkey replayFreeViewBinding() {
-    return s_freeViewKey;
-}
+Hotkey replayFreeViewBinding() { return s_freeViewKey; }
 
-void replayFreeViewSetBinding(const Hotkey &hk) {
-    s_freeViewKey = hk;
-}
+void replayFreeViewSetBinding(const Hotkey &hk) { s_freeViewKey = hk; }
 
-bool replayFreeViewInstalled() {
-    return s_freeViewReady;
-}
+bool replayFreeViewInstalled() { return s_freeViewReady; }
 
 void installReplayVision() {
     s_allyEnabled = configInt("replay", "AllyVision", 1) != 0;
     s_freeViewKey = hotkeyLoad("hotkeys", "ReplayFreeView", s_freeViewKey);
+
     if (s_allyEnabled) {
         patchAllySites();
     }
+
     s_freeViewReady = freeViewStockBytes();
+
     if (!s_allyPatched && !s_freeViewReady) {
         return;
     }
+
     registerFrameTick(visionTick);
+
     if (s_freeViewReady) {
         registerD3DRender(ensureSubclass);
     }

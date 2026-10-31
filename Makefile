@@ -67,6 +67,7 @@ SRCS = src/dllmain.cpp \
        src/replay/choreCodec.cpp \
        src/replay/prngGuard.cpp \
        src/replay/replayCommon.cpp \
+       src/replay/replayFormat.cpp \
        src/replay/replayPlayer.cpp \
        src/replay/replayRecorder.cpp \
        src/replay/replayRetime.cpp \
@@ -125,7 +126,25 @@ $(TOOL_TEST): tools/win/test_s2mEditable.cpp $(TOOL_SRC)
 
 tool-test: $(TOOL_TEST)
 
-clean:
-	rm -f $(TARGET) $(RES) $(TOOL) $(TOOL_RES) $(TOOL_TEST)
+# Host-side tests of the pure replay code (the retimer and every sidecar
+# parser), built natively under AddressSanitizer and UBSan so an out-of-bounds
+# read fails the run. tests/host/windows.h stands in for the two Win32 calls the
+# retimer makes. Not shipped.
+TEST_BIN  = tests/replay-tests
+TEST_SRCS = tests/replayTests.cpp src/replay/replayFormat.cpp src/replay/replayRetime.cpp
+HOSTCXX   = g++
 
-.PHONY: all debug deploy tool tool-test clean
+$(TEST_BIN): $(TEST_SRCS) $(HDRS) tests/host/windows.h
+	$(HOSTCXX) -std=c++17 -O1 -g -Wall -Wextra -fsanitize=address,undefined \
+	    -fno-sanitize-recover=all -Itests/host -Isrc -o $@ $(TEST_SRCS)
+
+# Run with address-space randomization off: GCC 9's AddressSanitizer runtime
+# intermittently spins in "AddressSanitizer:DEADLYSIGNAL" when the kernel's
+# mmap randomization lands a mapping where it wants its shadow memory.
+test: $(TEST_BIN)
+	setarch $$(uname -m) -R ./$(TEST_BIN)
+
+clean:
+	rm -f $(TARGET) $(RES) $(TOOL) $(TOOL_RES) $(TOOL_TEST) $(TEST_BIN)
+
+.PHONY: all debug deploy tool tool-test test clean

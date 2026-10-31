@@ -1,5 +1,12 @@
 #include "registry.h"
 #include "../core/config.h"
+#include "../replay/prngGuard.h"
+#include "../replay/replayPlayer.h"
+#include "../replay/replaySession.h"
+#include "../replay/replayTrace.h"
+#include "../replay/replayViewer.h"
+#include "../replay/replayVision.h"
+#include "../replay/spectatorGuard.h"
 #include "attackHotkey.h"
 #include "autoMarket/autoMarket.h"
 #include "barracksCrash.h"
@@ -21,14 +28,6 @@
 #include "stopTroopsHotkey.h"
 #include "zoomLimit.h"
 #include "zoomSpeed.h"
-#include "../replay/prngGuard.h"
-#include "../replay/replayPlayer.h"
-#include "../replay/replayRecorder.h"
-#include "../replay/replaySession.h"
-#include "../replay/replayTrace.h"
-#include "../replay/replayViewer.h"
-#include "../replay/replayVision.h"
-#include "../replay/spectatorGuard.h"
 
 void applyUnofficialPatches() {
     loadConfig();
@@ -54,13 +53,10 @@ void applyUnofficialPatches() {
     installAutoMarket();
     installSiegeCampHotkey();
 
-    // Multiplayer replays (src/replay/).
-    // Order matters: the command trace feeds the recorder; the recorder's
-    // frame tick samples the match epoch before the player's reads it; the
-    // viewer and the session come last. Every hook is stock-byte verified
-    // and each module installs all of its sites or none.
+    // Multiplayer replays (src/replay/). Every hook is stock-byte verified
+    // and each module installs all of its sites or none. The session comes
+    // last: it refuses to record unless the modules before it are in.
     installReplayTrace();
-    installReplayRecorder();
     installReplayPlayer();
     installPrngGuard();
     installSpectatorGuard();

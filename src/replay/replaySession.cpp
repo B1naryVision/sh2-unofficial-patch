@@ -1,17 +1,21 @@
 #include "replaySession.h"
 
-#include "choreCodec.h"
+#include "../core/config.h"
+#include "../core/exeBase.h"
+#include "../core/frameTick.h"
+#include "../core/gameWString.h"
+#include "../core/hook.h"
+#include "../patches/endgameStats/killTracker.h"
 #include "prngGuard.h"
 #include "replayCommon.h"
+#include "replayFormat.h"
 #include "replayPlayer.h"
 #include "replayRecorder.h"
 #include "replayRetime.h"
 #include "replayTrace.h"
 #include "replayViewer.h"
-#include "../core/config.h"
-#include "../core/frameTick.h"
-#include "../core/hook.h"
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <cwchar>
@@ -19,8 +23,6 @@
 
 // See replaySession.h for the contract. Ghidra VAs use ImageBase 0x400000;
 // everything below is an RVA applied to the live module base.
-
-static const uintptr_t WORLD_IN_GAME_RVA = 0xd781d0 + 4; // World+4, "a game is running"
 
 // void __thiscall World::LoadGame(std::wstring, int), RVA 0x2ac60 (callers:
 // main-menu save list 0x67d4bc, pause-menu load 0x65ec...).
@@ -32,79 +34,11 @@ static const uint8_t LOAD_GAME_STOCK[] = {0x55, 0x8b, 0xec, 0x6a, 0xff};
 
 // Periodic sidecar rewrite. The whole file is rebuilt each time, so the
 // interval grows by FLUSH_MS per FLUSH_SCALE_BYTES already written (10 s up to
-// 4 MB, 40 s at the 16 MB of a two-hour 8-player match): the rewrite runs on
-// the game thread, and in lockstep a long frame stalls every player.
+// 4 MB, 40 s at the 16 MB of a two-hour 8-player match).
 static const DWORD FLUSH_MS = 10000;
 static const uint32_t FLUSH_SCALE_BYTES = 4u * 1024u * 1024u;
 static const DWORD FLUSH_MAX_MS = 60000;
-// Recorder fingerprint witness interval for session recordings (jobs). The
-// witness is diagnostic; 64 keeps its cost negligible.
-static uint32_t s_fingerprintInterval = 64;
 static const uint32_t ARM_DELAY_FRAMES = 30;
-
-// Sidecar format. Little-endian, packed; sections follow the header as
-// {tag, bytes, data}. The body hash covers every byte after the header, so a
-// torn or foreign file is refused rather than half-replayed.
-#pragma pack(push, 1)
-struct ReplayBundleHeader {
-    char magic[8];           // "S2REPLAY"
-    uint32_t version;        // 1
-    uint32_t headerSize;
-    uint32_t flags;          // BUNDLE_*
-    uint32_t endReason;      // END_*
-    uint64_t checkpointHash; // FNV-1a 64 of the .sh2 bytes
-    uint32_t checkpointSize;
-    uint32_t sectionCount;
-    uint32_t bodyBytes;
-    uint32_t bodyHash;       // FNV-1a 32 of the body
-    uint32_t mpPhase;        // NetGameMgr+4 byte at the checkpoint
-    uint32_t netMode;        // 2 = recorded in a networked session
-    uint32_t classCount;
-    uint32_t epochTick;
-    uint32_t endRelative;    // last job the recording saw, relative to the epoch
-    uint32_t commandCount;
-    uint32_t injectedCount;
-    uint32_t retimedCount;
-    // Injected commands never executed live. They are left out of CMDS.
-    uint32_t unretimedCount;
-    uint32_t execPlans;
-    uint32_t exeImageSize;
-    uint32_t exeTimeStamp;
-    uint64_t recordedUtc;    // FILETIME
-    uint64_t updatedUtc;     // FILETIME of this write
-    uint32_t cutCommands;    // BUNDLE_TRUNCATED: recorded commands left out past the end
-    uint32_t reserved[7];
-};
-struct ReplayBundleSection {
-    uint32_t tag;
-    uint32_t bytes;
-};
-#pragma pack(pop)
-static_assert(sizeof(ReplayBundleHeader) == 144, "replay bundle header changed");
-
-static const uint32_t BUNDLE_COMPLETE = 1u << 0;    // written when the match ended
-static const uint32_t BUNDLE_RETIMED = 1u << 1;     // execution schedule applied
-static const uint32_t BUNDLE_MP_TIMING = 1u << 2;   // replay with MP job cadence
-static const uint32_t BUNDLE_TILE_ORDER = 1u << 3;
-static const uint32_t BUNDLE_PRNG = 1u << 4;
-// The recording went on past what the sidecar keeps (a buffer filled up):
-// commands are exact through endRelative and the replay ends there.
-static const uint32_t BUNDLE_TRUNCATED = 1u << 5;
-// reserved[0] = RandomIter #0 cursor before (low 16) / after (high 16) the
-// checkpoint save; playback's first job should start from "after".
-static const uint32_t BUNDLE_ITER0_AT_SAVE = 1u << 6;
-
-enum : uint32_t {
-    END_RECORDING = 0,   // periodic snapshot of a match still in progress
-    END_LEFT_MATCH = 1,  // the match ended (menu exit, desync drop, game over exit)
-    END_STOPPED = 2,     // the recorder was stopped (tooling)
-    END_PROCESS_EXIT = 3,
-    END_CRASH = 4,
-    END_REPLACED = 5,    // a save was loaded over the recorded match
-    END_WIN = 6,         // the local player's victory screen came up
-    END_LOSE = 7,        // the local player's defeat screen came up
-    END_CAPACITY = 8,    // the recording buffers were nearly full (see recordingFull)
-};
 
 // Headroom left in each recording buffer when recordingFull() stops the
 // recording: far more than one frame's jobs can add.
@@ -118,65 +52,54 @@ static const uint32_t HEADROOM_PRNG_JOBS = 4096;
 // (the screen activates a job or so after the last recorded job).
 static const uint32_t OUTCOME_HOLD_SLACK = 64;
 
-static uint32_t tag4(const char *s) {
-    return (uint32_t)(uint8_t)s[0] | (uint32_t)(uint8_t)s[1] << 8 |
-           (uint32_t)(uint8_t)s[2] << 16 | (uint32_t)(uint8_t)s[3] << 24;
-}
-
 // ── State ───────────────────────────────────────────────────────────────────
 
-static bool s_recordMp = true;
+enum SessionMode : uint32_t {
+    SESSION_IDLE = 0,
+    SESSION_RECORDING = 1,
+    SESSION_PLAYBACK = 2,
+};
+
+// Off until mid-match checkpoints are validated across more live matches
+// (docs/features/multiplayer-replays.md, Known Issues).
+static bool s_recordMp = false;
 static bool s_recordSp = false;
 static int s_maxReplays = REPLAY_KEEP_DEFAULT;
-static uint32_t s_mode = REPLAY_SESSION_IDLE;
+static uint32_t s_mode = SESSION_IDLE;
 static bool s_prevInGame = false;
-static uint32_t s_hooks = 0;
+// Every replay module installed: recording is refused otherwise, because a
+// recording that this build could not play back is worse than none.
+static bool s_canRecord = false;
 
 // Recording.
 static wchar_t s_savePath[MAX_PATH] = L"";
 static wchar_t s_sidecarPath[MAX_PATH] = L"";
-static char s_sidecarUtf8[MAX_PATH * 3] = "";
 static bool s_armConfirmed = false;
+static bool s_exitWritten = false;
 static uint64_t s_checkpointHash = 0;
 static uint32_t s_checkpointSize = 0;
 static uint64_t s_recordedUtc = 0;
 static uint32_t s_mpPhase = 0;
 static uint32_t s_netMode = 0;
 static DWORD s_lastFlush = 0;
+// The writer lock (see "Periodic writes on a worker thread").
 static volatile LONG s_writing = 0;
+static volatile LONG s_lastFlushBytes = 0;
 
 // Playback.
 static uint32_t s_endRelative = 0;
-static uint32_t s_playEndReason = 0;   // the sidecar's END_*
-static bool s_sessionPlayback = false; // armed by our load hook (vs. tooling)
+static uint32_t s_playEndReason = 0; // the sidecar's REPLAY_END_*
 
 // Victory/defeat screen activation (replaySessionNoteOutcome), 1 win 2 lose.
 // The screen hook only latches it; the frame tick acts on it.
 static volatile LONG s_pendingOutcome = 0;
-// Why the last playback finished: 0 not yet, 1 end hold, 2 win, 3 lose screen,
-// 4 left the match without an end screen.
-static uint32_t s_playbackEnded = 0;
 // The victory/defeat screen clears World+4, and its OnActivate is not ordered
 // against our frame tick, so a fall of World+4 waits this many frames for the
 // outcome before it is treated as a plain exit. 0 = no fall pending.
 static const uint32_t OUTCOME_GRACE_FRAMES = 30;
 static uint32_t s_fallFrames = 0;
 
-// Status.
-static uint32_t s_recordings = 0, s_flushes = 0, s_flushFailures = 0;
-static uint32_t s_lastFlushBytes = 0, s_lastFlushMs = 0, s_lastEndReason = 0;
-static uint32_t s_lastRetimed = 0, s_lastUnretimed = 0, s_lastExecPlans = 0;
-static uint32_t s_lastRetimeFail = 0;
-static uint32_t s_commandBudget = 0; // tooling: stop recording after this many commands
-static uint32_t s_loads = 0, s_lastLoadResult = REPLAY_LOAD_NONE, s_playbacks = 0;
-
 // ── Small helpers ───────────────────────────────────────────────────────────
-
-static uintptr_t exeBase() { return (uintptr_t)GetModuleHandleA(NULL); }
-
-static bool inGame() {
-    return *(const volatile uint32_t *)(exeBase() + WORLD_IN_GAME_RVA) != 0;
-}
 
 static void exeIdentity(uint32_t *imageSize, uint32_t *timeStamp) {
     const uintptr_t base = exeBase();
@@ -192,57 +115,49 @@ static uint64_t nowFileTime() {
     return (uint64_t)ft.dwHighDateTime << 32 | ft.dwLowDateTime;
 }
 
-static uint32_t fnv32(uint32_t hash, const void *data, uint32_t bytes) {
-    const uint8_t *p = (const uint8_t *)data;
-    for (uint32_t i = 0; i < bytes; ++i) {
-        hash ^= p[i];
-        hash *= 16777619u;
-    }
-    return hash;
-}
-
-// FNV-1a 64 of a whole file; false when it cannot be read.
+// FNV-1a 64 of a whole file; false when it cannot be read. Game thread only.
 static bool hashFile(const wchar_t *path, uint64_t *hash, uint32_t *size) {
-    HANDLE f = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
-                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    HANDLE f = CreateFileW(
+        path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL, NULL
+    );
+
     if (f == INVALID_HANDLE_VALUE) {
         return false;
     }
+
     static uint8_t chunk[65536];
     uint64_t h = 14695981039346656037ull;
     uint32_t total = 0;
     DWORD got = 0;
     bool ok = true;
+
     for (;;) {
         if (!ReadFile(f, chunk, sizeof(chunk), &got, NULL)) {
             ok = false;
             break;
         }
+
         if (!got) {
             break;
         }
+
         for (DWORD i = 0; i < got; ++i) {
             h ^= chunk[i];
             h *= 1099511628211ull;
         }
+
         total += got;
     }
+
     CloseHandle(f);
     *hash = h;
     *size = total;
     return ok && total > 0;
 }
 
-static size_t wlen(const wchar_t *s) {
-    size_t n = 0;
-    while (s[n]) {
-        ++n;
-    }
-    return n;
-}
-
 static bool endsWithSh2(const wchar_t *path) {
-    const size_t n = wlen(path);
+    const size_t n = wcslen(path);
     return n > 4 && path[n - 4] == L'.' && (path[n - 3] | 0x20) == L's' &&
            (path[n - 2] | 0x20) == L'h' && path[n - 1] == L'2';
 }
@@ -251,10 +166,12 @@ static bool endsWithSh2(const wchar_t *path) {
 // `*.sh2` search would also match `x.sh2replay` and list it as a save.
 static bool sidecarFor(const wchar_t *save, wchar_t *out, size_t cap) {
     static const wchar_t EXT[] = L".s2replay";
-    const size_t n = wlen(save);
+    const size_t n = wcslen(save);
+
     if (!endsWithSh2(save) || n - 4 + (sizeof(EXT) / sizeof(EXT[0])) > cap) {
         return false;
     }
+
     memcpy(out, save, (n - 4) * sizeof(wchar_t));
     memcpy(out + n - 4, EXT, sizeof(EXT));
     return true;
@@ -265,31 +182,92 @@ static bool sidecarFor(const wchar_t *save, wchar_t *out, size_t cap) {
 static bool savesDirectory(wchar_t *out, size_t cap) {
     typedef HRESULT(WINAPI * GetFolderFn)(HWND, int, HANDLE, DWORD, LPWSTR);
     HMODULE shell = GetModuleHandleA("shell32.dll");
+
     if (!shell) {
         shell = LoadLibraryA("shell32.dll");
     }
-    GetFolderFn getFolder = shell ? (GetFolderFn)(void *)GetProcAddress(shell, "SHGetFolderPathW") : nullptr;
+
+    GetFolderFn getFolder =
+        shell ? (GetFolderFn)(void *)GetProcAddress(shell, "SHGetFolderPathW") : nullptr;
     wchar_t docs[MAX_PATH];
+
     if (!getFolder || getFolder(NULL, 5 /* CSIDL_PERSONAL */, NULL, 0, docs) != 0) {
         return false;
     }
+
     static const wchar_t TAIL[] = L"\\Stronghold 2\\Saves";
-    const size_t n = wlen(docs);
+    const size_t n = wcslen(docs);
+
     if (n + sizeof(TAIL) / sizeof(TAIL[0]) > cap) {
         return false;
     }
+
     memcpy(out, docs, n * sizeof(wchar_t));
     memcpy(out + n, TAIL, sizeof(TAIL));
     return GetFileAttributesW(out) != INVALID_FILE_ATTRIBUTES;
+}
+
+// 32 random bits from the OS generator (advapi32!SystemFunction036, resolved
+// at runtime so the import table does not grow), else a mix of clocks and ids.
+static uint32_t randomWord() {
+    typedef BOOLEAN(WINAPI * GenRandomFn)(PVOID, ULONG);
+    HMODULE advapi = LoadLibraryA("advapi32.dll");
+    GenRandomFn gen =
+        advapi ? (GenRandomFn)(void *)GetProcAddress(advapi, "SystemFunction036") : nullptr;
+    uint32_t value = 0;
+
+    if (gen && gen(&value, sizeof(value))) {
+        return value;
+    }
+
+    LARGE_INTEGER counter;
+    QueryPerformanceCounter(&counter);
+    const uint64_t mix[] = {
+        (uint64_t)counter.QuadPart, nowFileTime(), GetTickCount(),
+        (uint64_t)GetCurrentProcessId() << 32 | GetCurrentThreadId(), (uint64_t)(uintptr_t)&value
+    };
+    return replayFnv32(REPLAY_FNV32_SEED, mix, sizeof(mix));
+}
+
+// Identifies replays this install recorded, so retention never deletes one that
+// was copied in: a received file keeps its sender's write time and would look
+// oldest. Random, generated once and kept in [replay] RecorderId; when the ini
+// cannot be written it lasts for this process only, which errs toward keeping
+// files. Never 0. Game thread only.
+static uint32_t localRecorderId() {
+    static uint32_t s_id = 0;
+
+    if (s_id) {
+        return s_id;
+    }
+
+    char text[16] = "";
+
+    if (configString("replay", "RecorderId", text, sizeof(text))) {
+        s_id = (uint32_t)strtoul(text, nullptr, 16);
+    }
+
+    if (!s_id) {
+        do {
+            s_id = randomWord();
+        } while (!s_id);
+
+        snprintf(text, sizeof(text), "%08lx", (unsigned long)s_id);
+        configSetString("replay", "RecorderId", text);
+    }
+
+    return s_id;
 }
 
 // `replay-1.31.26-905pm-k3`: local date and 12-hour time, plus two random
 // base-36 characters so two matches started in the same minute never collide.
 static bool newReplayPath(wchar_t *out, size_t cap) {
     wchar_t dir[MAX_PATH];
+
     if (!savesDirectory(dir, MAX_PATH)) {
         return false;
     }
+
     SYSTEMTIME t;
     GetLocalTime(&t);
     const int hour12 = t.wHour % 12 == 0 ? 12 : t.wHour % 12;
@@ -297,31 +275,40 @@ static bool newReplayPath(wchar_t *out, size_t cap) {
     LARGE_INTEGER counter;
     QueryPerformanceCounter(&counter);
     uint32_t seed = (uint32_t)counter.QuadPart ^ GetTickCount() ^ (GetCurrentProcessId() << 16);
+
     for (int attempt = 0; attempt < 64; ++attempt) {
         seed = seed * 1664525u + 1013904223u;
         const wchar_t a = DIGITS[(seed >> 8) % 36], b = DIGITS[(seed >> 20) % 36];
-        _snwprintf(out, cap, L"%ls\\replay-%u.%u.%02u-%u%02u%ls-%lc%lc.sh2", dir, t.wMonth, t.wDay,
-                   t.wYear % 100, hour12, t.wMinute, t.wHour < 12 ? L"am" : L"pm", a, b);
+        _snwprintf(
+            out, cap, L"%ls\\replay-%u.%u.%02u-%u%02u%ls-%lc%lc.sh2", dir, t.wMonth, t.wDay,
+            t.wYear % 100, hour12, t.wMinute, t.wHour < 12 ? L"am" : L"pm", a, b
+        );
         out[cap - 1] = 0;
         wchar_t side[MAX_PATH];
-        if (GetFileAttributesW(out) == INVALID_FILE_ATTRIBUTES &&
-            sidecarFor(out, side, MAX_PATH) && GetFileAttributesW(side) == INVALID_FILE_ATTRIBUTES) {
+
+        if (GetFileAttributesW(out) == INVALID_FILE_ATTRIBUTES && sidecarFor(out, side, MAX_PATH) &&
+            GetFileAttributesW(side) == INVALID_FILE_ATTRIBUTES) {
             return true;
         }
     }
+
     return false;
 }
 
-// Keeps at most `keep` replays in Saves, deleting the oldest first. A replay
-// is a `replay-*.s2replay` sidecar and the `.sh2` save beside it; its age is
-// the save's last write (the checkpoint, written once at match start), or the
-// sidecar's when the save is gone. Nothing without a sidecar is ever touched,
-// so an ordinary save that happens to be named `replay-...` is safe.
+// Keeps at most `keep` of this install's replays in Saves, deleting the oldest
+// first. A replay is a `replay-*.s2replay` sidecar and the `.sh2` save beside
+// it, and only one whose header carries localRecorderId() is a candidate: a
+// replay someone sent, an older-format one, or anything unreadable is never
+// touched. Age is the header's recording time, not a file time, which a copy
+// preserves. Nothing without a sidecar is ever touched either, so an ordinary
+// save that happens to be named `replay-...` is safe.
 static void pruneReplays(int keep) {
     wchar_t dir[MAX_PATH];
-    if (keep < 0 || !savesDirectory(dir, MAX_PATH) || wlen(dir) + 40 > MAX_PATH) {
+
+    if (keep < 0 || !savesDirectory(dir, MAX_PATH) || wcslen(dir) + 40 > MAX_PATH) {
         return;
     }
+
     wchar_t pattern[MAX_PATH];
     _snwprintf(pattern, MAX_PATH, L"%ls\\replay-*.s2replay", dir);
     pattern[MAX_PATH - 1] = 0;
@@ -330,43 +317,74 @@ static void pruneReplays(int keep) {
         wchar_t name[MAX_PATH];
         uint64_t age;
     };
-    static Entry entries[512];
+    static const int MAX_ENTRIES = 512;
+    Entry *entries = (Entry *)VirtualAlloc(
+        NULL, MAX_ENTRIES * sizeof(Entry), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE
+    );
+
+    if (!entries) {
+        return;
+    }
+
+    const uint32_t me = localRecorderId();
     int count = 0;
     WIN32_FIND_DATAW fd;
     HANDLE find = FindFirstFileW(pattern, &fd);
+
     if (find == INVALID_HANDLE_VALUE) {
+        VirtualFree(entries, 0, MEM_RELEASE);
         return;
     }
+
     do {
-        const size_t n = wlen(fd.cFileName);
+        const size_t n = wcslen(fd.cFileName);
         static const size_t EXT = 9; // ".s2replay"
+
         if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || n <= EXT ||
-            _wcsicmp(fd.cFileName + n - EXT, L".s2replay") != 0 || count >= 512 ||
-            wlen(dir) + n + 2 > MAX_PATH) {
+            _wcsicmp(fd.cFileName + n - EXT, L".s2replay") != 0 || count >= MAX_ENTRIES ||
+            wcslen(dir) + n + 2 > MAX_PATH) {
             continue;
         }
+
+        wchar_t side[MAX_PATH];
+        _snwprintf(side, MAX_PATH, L"%ls\\%ls", dir, fd.cFileName);
+        side[MAX_PATH - 1] = 0;
+        HANDLE f = CreateFileW(
+            side, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL
+        );
+
+        if (f == INVALID_HANDLE_VALUE) {
+            continue;
+        }
+
+        ReplayBundleHeader h = {};
+        DWORD got = 0;
+        const bool read = ReadFile(f, &h, sizeof(h), &got, NULL) && got == sizeof(h);
+        CloseHandle(f);
+
+        if (!read || memcmp(h.magic, "S2REPLAY", 8) != 0 || h.headerSize != sizeof(h) ||
+            !(h.flags & REPLAY_BUNDLE_RECORDER_ID) || h.reserved[1] != me) {
+            continue;
+        }
+
         Entry &e = entries[count];
         memcpy(e.name, fd.cFileName, (n - EXT) * sizeof(wchar_t));
         e.name[n - EXT] = 0;
-        e.age = (uint64_t)fd.ftLastWriteTime.dwHighDateTime << 32 | fd.ftLastWriteTime.dwLowDateTime;
-        wchar_t save[MAX_PATH];
-        _snwprintf(save, MAX_PATH, L"%ls\\%ls.sh2", dir, e.name);
-        save[MAX_PATH - 1] = 0;
-        WIN32_FILE_ATTRIBUTE_DATA a;
-        if (GetFileAttributesExW(save, GetFileExInfoStandard, &a)) {
-            e.age = (uint64_t)a.ftLastWriteTime.dwHighDateTime << 32 | a.ftLastWriteTime.dwLowDateTime;
-        }
+        e.age = h.recordedUtc;
         ++count;
     } while (FindNextFileW(find, &fd));
+
     FindClose(find);
 
     while (count > keep) {
         int oldest = 0;
+
         for (int i = 1; i < count; ++i) {
             if (entries[i].age < entries[oldest].age) {
                 oldest = i;
             }
         }
+
         wchar_t path[MAX_PATH];
         _snwprintf(path, MAX_PATH, L"%ls\\%ls.sh2", dir, entries[oldest].name);
         path[MAX_PATH - 1] = 0;
@@ -376,32 +394,89 @@ static void pruneReplays(int keep) {
         DeleteFileW(path);
         entries[oldest] = entries[--count];
     }
+
+    VirtualFree(entries, 0, MEM_RELEASE);
 }
 
-static void toUtf8(const wchar_t *in, char *out, int cap) {
-    if (WideCharToMultiByte(CP_UTF8, 0, in, -1, out, cap, NULL, NULL) <= 0) {
-        out[0] = 0;
+// ── Recording buffers ───────────────────────────────────────────────────────
+
+static void releaseRecordingBuffers() {
+    replayRecorderRelease();
+    replayTraceRelease();
+    prngGuardReleaseRecord();
+    replayRetimeRelease();
+}
+
+// All or none: the command log, the execution witness, the iterator-1 record
+// and the retimer's working storage.
+static bool acquireRecordingBuffers() {
+    if (replayRecorderAcquire() && replayTraceAcquire() && prngGuardAcquireRecord() &&
+        replayRetimeAcquire()) {
+        return true;
     }
+
+    releaseRecordingBuffers();
+    return false;
 }
 
-// ── Retiming (replayRetime.cpp) ───────────────────────────────────────────
+// ── Sidecar writer ──────────────────────────────────────────────────────────
 
-static ReplayRetimeResult s_retime;
+// Everything a sidecar is built from, taken on the game thread. The recording
+// buffers are append-only and their counts are published after the data they
+// cover, so a writer on another thread that reads only up to these counts
+// never sees a torn entry. (The last iterator-1 entry's render-gate byte can
+// still gain a bit while a job's later updates run; a periodic sidecar may
+// lack it, the final one never does.)
+struct BundleInput {
+    ReplayRecorderLogView log;
+    const ReplayBoundaryEntry *boundaries;
+    uint32_t boundaryCount, boundaryDropped, hooks;
+    const ReplayPrngEntry *prng;
+    uint32_t prngCount, prngDropped;
+    const uint8_t *gates;
+    const ReplayMonasteryClock *clocks;
+    uint32_t clockCount;
+    const uint32_t *tile;
+    uint32_t tileWords, tileLists;
+    bool haveTile;
+    const ReplayFlyField *fly;
+    uint32_t flyCount;
+    bool haveFly;
+    uint32_t now;
+    uint32_t iter0Before, iter0After;
+    bool complete;
+    uint32_t endReason;
+    uint64_t checkpointHash;
+    uint32_t checkpointSize, mpPhase, netMode;
+    uint64_t recordedUtc;
+    uint32_t recorderId;
+    wchar_t sidecarPath[MAX_PATH];
+};
 
-static void buildSchedule(const ReplayRecorderLogView &log, uint32_t limitTick) {
-    const ReplayBoundaryEntry *b = nullptr;
-    uint32_t count = 0, dropped = 0, hooks = 0;
-    replayTraceBoundaryView(&b, &count, &dropped, &hooks);
-    replayRetime(log.bytes, log.used, log.epochTick, b, count, dropped, hooks, limitTick,
-                 &s_retime);
-    s_lastRetimeFail = s_retime.failReason;
+static void takeSnapshot(bool complete, uint32_t endReason, BundleInput *in) {
+    replayRecorderLogView(&in->log);
+    replayTraceBoundaryView(&in->boundaries, &in->boundaryCount, &in->boundaryDropped, &in->hooks);
+    prngGuardRecordView(&in->prng, &in->prngCount, &in->prngDropped);
+    in->gates = prngGuardRecordGates();
+    prngGuardRecordClocks(&in->clocks, &in->clockCount);
+    in->haveTile = replayTileOrderView(&in->tile, &in->tileWords, &in->tileLists);
+    in->haveFly = replayFlyStateView(&in->fly, &in->flyCount);
+    in->now = replayTraceCurrentSimulationTick();
+    replayRecorderIter0AtSave(&in->iter0Before, &in->iter0After);
+    in->complete = complete;
+    in->endReason = endReason;
+    in->checkpointHash = s_checkpointHash;
+    in->checkpointSize = s_checkpointSize;
+    in->mpPhase = s_mpPhase;
+    in->netMode = s_netMode;
+    in->recordedUtc = s_recordedUtc;
+    in->recorderId = localRecorderId();
+    memcpy(in->sidecarPath, s_sidecarPath, sizeof(in->sidecarPath));
 }
 
 static uint32_t minLimit(uint32_t limit, uint32_t tick) {
     return !limit || tick < limit ? tick : limit;
 }
-
-// ── Sidecar writer ──────────────────────────────────────────────────────────
 
 struct BundleWriter {
     HANDLE file;
@@ -412,27 +487,32 @@ struct BundleWriter {
     uint32_t staged;
 };
 static BundleWriter s_writer;
+static ReplayRetimeResult s_retime;
 
 static void writerFlushStage(BundleWriter &w) {
     if (!w.staged || !w.ok) {
         w.staged = 0;
         return;
     }
+
     DWORD wrote = 0;
     w.ok = WriteFile(w.file, w.stage, w.staged, &wrote, NULL) && wrote == w.staged;
     w.staged = 0;
 }
 
 static void writerPut(BundleWriter &w, const void *data, uint32_t bytes) {
-    w.hash = fnv32(w.hash, data, bytes);
+    w.hash = replayFnv32(w.hash, data, bytes);
     w.bytes += bytes;
     const uint8_t *p = (const uint8_t *)data;
+
     while (bytes && w.ok) {
         uint32_t room = sizeof(w.stage) - w.staged;
+
         if (!room) {
             writerFlushStage(w);
             continue;
         }
+
         const uint32_t take = bytes < room ? bytes : room;
         memcpy(w.stage + w.staged, p, take);
         w.staged += take;
@@ -442,104 +522,107 @@ static void writerPut(BundleWriter &w, const void *data, uint32_t bytes) {
 }
 
 static void writerSection(BundleWriter &w, const char *tag, uint32_t bytes) {
-    const ReplayBundleSection s = {tag4(tag), bytes};
+    const ReplayBundleSection s = {replayTag(tag), bytes};
     writerPut(w, &s, sizeof(s));
 }
 
 // Writes the whole sidecar to `<path>.tmp` and renames it over the previous
-// one, so a crash mid-write leaves the last good sidecar in place.
-static bool writeBundle(bool complete, uint32_t endReason) {
-    if (InterlockedCompareExchange(&s_writing, 1, 0) != 0) {
-        return false;
-    }
-    const DWORD started = GetTickCount();
-    const bool durable = complete || endReason != END_RECORDING;
-    ReplayRecorderLogView log = {};
-    replayRecorderLogView(&log);
-    const ReplayPrngEntry *prng = nullptr;
-    uint32_t prngCount = 0, prngDropped = 0;
-    prngGuardRecordView(&prng, &prngCount, &prngDropped);
+// one, so a crash mid-write leaves the last good sidecar in place. The caller
+// holds the writer lock.
+static bool writeBundle(const BundleInput &in) {
+    const bool durable = in.complete || in.endReason != REPLAY_END_RECORDING;
+    const ReplayRecorderLogView &log = in.log;
 
     // The last job the sidecar can be exact through, 0 = the whole recording.
     // recordingFull() ends the recording before any buffer fills; these cuts
     // are the fallback, so a lost tail never costs the rest of the match.
     uint32_t limit = 0;
+
     if (log.dropped) {
-        limit = minLimit(limit, log.firstDroppedTick > log.epochTick ? log.firstDroppedTick - 1
-                                                                     : log.epochTick);
+        limit = minLimit(
+            limit, log.firstDroppedTick > log.epochTick ? log.firstDroppedTick - 1 : log.epochTick
+        );
     }
-    if (prngDropped && prngCount) {
-        limit = minLimit(limit, log.epochTick + prng[prngCount - 1].relativeTick);
+
+    if (in.prngDropped && in.prngCount) {
+        limit = minLimit(limit, log.epochTick + in.prng[in.prngCount - 1].relativeTick);
     }
-    if (endReason == END_CAPACITY) {
+
+    if (in.endReason == REPLAY_END_CAPACITY) {
         // Cut before the commands still in flight, so the replay ends exact.
-        const uint32_t now = replayTraceCurrentSimulationTick();
-        limit = minLimit(limit, now > log.epochTick ? now - 1 : log.epochTick);
+        limit = minLimit(limit, in.now > log.epochTick ? in.now - 1 : log.epochTick);
     }
-    buildSchedule(log, limit);
+
+    replayRetime(
+        log.bytes, log.used, log.epochTick, in.boundaries, in.boundaryCount, in.boundaryDropped,
+        in.hooks, limit, &s_retime
+    );
     const bool truncated = s_retime.endTick != 0;
-    const uint32_t *tile = nullptr;
-    uint32_t tileWords = 0, tileLists = 0;
-    const bool haveTile = replayTileOrderView(&tile, &tileWords, &tileLists);
 
     ReplayBundleHeader h = {};
     memcpy(h.magic, "S2REPLAY", 8);
     h.version = 1;
     h.headerSize = sizeof(h);
-    h.endReason = endReason;
-    h.checkpointHash = s_checkpointHash;
-    h.checkpointSize = s_checkpointSize;
-    h.mpPhase = s_mpPhase;
-    h.netMode = s_netMode;
+    h.endReason = in.endReason;
+    h.checkpointHash = in.checkpointHash;
+    h.checkpointSize = in.checkpointSize;
+    h.mpPhase = in.mpPhase;
+    h.netMode = in.netMode;
     h.classCount = log.classCount;
     h.epochTick = log.epochTick;
-    // The last job the simulation actually ran. The job counter itself keeps
-    // advancing under a single-player pause (ESC menu) while nothing is
-    // simulated, so it overshoots; the iterator-1 record is one entry per
-    // simulated job.
-    const uint32_t now = replayTraceCurrentSimulationTick();
-    h.endRelative = prngCount ? prng[prngCount - 1].relativeTick
-                              : (now > log.epochTick ? now - log.epochTick : 0);
+    // The last job the simulation actually ran. The job counter keeps advancing
+    // under a single-player pause (ESC menu) while nothing is simulated, so it
+    // overshoots; the iterator-1 record is one entry per simulated job.
+    h.endRelative = in.prngCount ? in.prng[in.prngCount - 1].relativeTick
+                                 : (in.now > log.epochTick ? in.now - log.epochTick : 0);
+
     if (truncated) {
-        const uint32_t end = s_retime.endTick > log.epochTick ? s_retime.endTick - log.epochTick : 0;
+        const uint32_t end =
+            s_retime.endTick > log.epochTick ? s_retime.endTick - log.epochTick : 0;
         h.endRelative = end < h.endRelative ? end : h.endRelative;
         h.cutCommands = s_retime.cutEvents;
     }
+
     h.commandCount = s_retime.events;
     h.injectedCount = s_retime.injected;
     h.retimedCount = s_retime.retimed;
     h.unretimedCount = s_retime.unretimed;
     h.execPlans = s_retime.planJobs;
     exeIdentity(&h.exeImageSize, &h.exeTimeStamp);
-    h.recordedUtc = s_recordedUtc;
+    h.recordedUtc = in.recordedUtc;
     h.updatedUtc = nowFileTime();
-    h.flags = (complete ? BUNDLE_COMPLETE : 0) | (s_retime.planWords ? BUNDLE_RETIMED : 0) |
-              (s_netMode == 2 ? BUNDLE_MP_TIMING : 0) | (haveTile ? BUNDLE_TILE_ORDER : 0) |
-              (prngCount && (!prngDropped || truncated) ? BUNDLE_PRNG : 0) |
-              (truncated ? BUNDLE_TRUNCATED : 0);
-    uint32_t iter0Before = 0, iter0After = 0;
-    replayRecorderIter0AtSave(&iter0Before, &iter0After);
-    if (iter0Before <= 0xffff && iter0After <= 0xffff) {
-        h.flags |= BUNDLE_ITER0_AT_SAVE;
-        h.reserved[0] = iter0Before | (iter0After << 16);
+    const bool prngUsable = in.prngCount && (!in.prngDropped || truncated);
+    h.flags = (in.complete ? REPLAY_BUNDLE_COMPLETE : 0) |
+              (s_retime.planWords ? REPLAY_BUNDLE_RETIMED : 0) |
+              (in.netMode == 2 ? REPLAY_BUNDLE_MP_TIMING : 0) |
+              (in.haveTile ? REPLAY_BUNDLE_TILE_ORDER : 0) | (prngUsable ? REPLAY_BUNDLE_PRNG : 0) |
+              (truncated ? REPLAY_BUNDLE_TRUNCATED : 0);
+
+    if (in.iter0Before <= 0xffff && in.iter0After <= 0xffff) {
+        h.flags |= REPLAY_BUNDLE_ITER0_AT_SAVE;
+        h.reserved[0] = in.iter0Before | (in.iter0After << 16);
     }
 
+    h.flags |= REPLAY_BUNDLE_RECORDER_ID;
+    h.reserved[1] = in.recorderId;
+
     wchar_t tmp[MAX_PATH + 8];
-    const size_t n = wlen(s_sidecarPath);
-    memcpy(tmp, s_sidecarPath, n * sizeof(wchar_t));
+    const size_t n = wcslen(in.sidecarPath);
+    memcpy(tmp, in.sidecarPath, n * sizeof(wchar_t));
     memcpy(tmp + n, L".tmp", 5 * sizeof(wchar_t));
     BundleWriter &w = s_writer;
     w.file = CreateFileW(tmp, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     w.ok = w.file != INVALID_HANDLE_VALUE;
-    w.hash = 2166136261u;
+    w.hash = REPLAY_FNV32_SEED;
     w.bytes = 0;
     w.staged = 0;
+
     if (w.ok) {
         DWORD wrote = 0;
         w.ok = WriteFile(w.file, &h, sizeof(h), &wrote, NULL) && wrote == sizeof(h);
     }
 
-    // CMDS: a commands.bin image in playback order.
+    // CMDS: the command log in playback order.
     ReplayLogFileHeader ch = {};
     memcpy(ch.magic, "SH2RCMD1", 8);
     ch.version = 2;
@@ -555,139 +638,219 @@ static bool writeBundle(bool complete, uint32_t endReason) {
     uint32_t sections = 1;
     writerSection(w, "CMDS", sizeof(ch) + s_retime.bytes);
     writerPut(w, &ch, sizeof(ch));
+
     for (uint32_t i = 0; i < s_retime.events && w.ok; ++i) {
+        const ReplayRetimeRef &ref = replayRetimeRefs()[i];
         ReplayEventRecord e;
-        memcpy(&e, log.bytes + replayRetimeRefs()[i].offset, sizeof(e));
-        e.simulationTick = replayRetimeRefs()[i].newTick;
+        memcpy(&e, log.bytes + ref.offset, sizeof(e));
+        e.simulationTick = ref.newTick;
         writerPut(w, &e, sizeof(e));
-        writerPut(w, log.bytes + replayRetimeRefs()[i].offset + sizeof(e), e.payloadLength);
+        writerPut(w, log.bytes + ref.offset + sizeof(e), e.payloadLength);
     }
-    if (h.flags & BUNDLE_PRNG) {
+
+    if (prngUsable) {
         ReplayPrngFileHeader ph = {};
         memcpy(ph.magic, "SH2RPRN", 8);
         ph.version = 4;
         ph.entrySize = sizeof(ReplayPrngEntry);
-        ph.entryCount = prngCount;
+        ph.entryCount = in.prngCount;
         ph.epochTick = log.epochTick;
-        ph.firstRelative = prng[0].relativeTick;
-        ph.lastRelative = prng[prngCount - 1].relativeTick;
-        const ReplayMonasteryClock *clocks = nullptr;
-        uint32_t clockCount = 0;
-        prngGuardRecordClocks(&clocks, &clockCount);
-        const uint32_t footer[2] = {REPLAY_CLOCK_MAGIC, clockCount};
-        writerSection(w, "PRNG", sizeof(ph) + prngCount * (sizeof(ReplayPrngEntry) + 1) +
-                      sizeof(footer) + clockCount * sizeof(ReplayMonasteryClock));
+        ph.firstRelative = in.prng[0].relativeTick;
+        ph.lastRelative = in.prng[in.prngCount - 1].relativeTick;
+        const uint32_t footer[2] = {REPLAY_CLOCK_MAGIC, in.clockCount};
+        writerSection(
+            w, "PRNG",
+            sizeof(ph) + in.prngCount * (sizeof(ReplayPrngEntry) + 1) + sizeof(footer) +
+                in.clockCount * sizeof(ReplayMonasteryClock)
+        );
         writerPut(w, &ph, sizeof(ph));
-        writerPut(w, prng, prngCount * sizeof(ReplayPrngEntry));
-        writerPut(w, prngGuardRecordGates(), prngCount);
+        writerPut(w, in.prng, in.prngCount * sizeof(ReplayPrngEntry));
+        writerPut(w, in.gates, in.prngCount);
         writerPut(w, footer, sizeof(footer));
-        writerPut(w, clocks, clockCount * sizeof(ReplayMonasteryClock));
+        writerPut(w, in.clocks, in.clockCount * sizeof(ReplayMonasteryClock));
         ++sections;
     }
-    if (haveTile) {
-        const uint32_t th[3] = {0x44524F54u, 1, tileLists};
-        writerSection(w, "TILE", sizeof(th) + tileWords * 4);
+
+    if (in.haveTile) {
+        const uint32_t th[3] = {REPLAY_TILE_MAGIC, 1, in.tileLists};
+        writerSection(w, "TILE", sizeof(th) + in.tileWords * 4);
         writerPut(w, th, sizeof(th));
-        writerPut(w, tile, tileWords * 4);
+        writerPut(w, in.tile, in.tileWords * 4);
         ++sections;
     }
-    const ReplayFlyField *fly = nullptr;
-    uint32_t flyCount = 0;
-    if (replayFlyStateView(&fly, &flyCount) && flyCount) {
-        const uint32_t fh[3] = {REPLAY_FLY_MAGIC, 1, flyCount};
-        writerSection(w, "FLYS", sizeof(fh) + flyCount * sizeof(ReplayFlyField));
+
+    if (in.haveFly && in.flyCount) {
+        const uint32_t fh[3] = {REPLAY_FLY_MAGIC, 1, in.flyCount};
+        writerSection(w, "FLYS", sizeof(fh) + in.flyCount * sizeof(ReplayFlyField));
         writerPut(w, fh, sizeof(fh));
-        writerPut(w, fly, flyCount * sizeof(ReplayFlyField));
+        writerPut(w, in.fly, in.flyCount * sizeof(ReplayFlyField));
         ++sections;
     }
+
     if (s_retime.planJobs) {
         writerSection(w, "EXOR", s_retime.planWords * 4);
         writerPut(w, replayRetimePlanWords(), s_retime.planWords * 4);
         ++sections;
     }
+
     writerFlushStage(w);
+
     if (w.ok) {
         h.sectionCount = sections;
         h.bodyBytes = w.bytes;
         h.bodyHash = w.hash;
         DWORD wrote = 0;
-        // Only the final write is forced to disk. A periodic one only has to
-        // survive the process, and the OS cache does; a sync of a 16 MB
-        // sidecar every few seconds would stall the lockstep for everyone.
+        // Only a final write is forced to disk. A periodic one only has to
+        // survive the process, and the OS cache does.
         w.ok = SetFilePointer(w.file, 0, NULL, FILE_BEGIN) == 0 &&
                WriteFile(w.file, &h, sizeof(h), &wrote, NULL) && wrote == sizeof(h) &&
                (!durable || FlushFileBuffers(w.file));
     }
+
     if (w.file != INVALID_HANDLE_VALUE) {
         CloseHandle(w.file);
     }
-    bool ok = w.ok && MoveFileExW(tmp, s_sidecarPath,
-                                  MOVEFILE_REPLACE_EXISTING | (durable ? MOVEFILE_WRITE_THROUGH : 0));
+
+    const bool ok = w.ok && MoveFileExW(
+                                tmp, in.sidecarPath,
+                                MOVEFILE_REPLACE_EXISTING | (durable ? MOVEFILE_WRITE_THROUGH : 0)
+                            );
+
     if (!ok) {
         DeleteFileW(tmp);
-        ++s_flushFailures;
     } else {
-        ++s_flushes;
-        s_lastFlushBytes = sizeof(h) + w.bytes;
+        InterlockedExchange(&s_lastFlushBytes, (LONG)(sizeof(h) + w.bytes));
     }
-    s_lastFlushMs = GetTickCount() - started;
-    s_lastRetimed = s_retime.retimed;
-    s_lastUnretimed = s_retime.unretimed;
-    s_lastExecPlans = s_retime.planJobs;
-    InterlockedExchange(&s_writing, 0);
+
     return ok;
+}
+
+// ── Periodic writes on a worker thread ──────────────────────────────────────
+//
+// A periodic rewrite retimes the whole log, sorts up to 262k commands and
+// writes up to 16 MB, and in lockstep a long game-thread frame stalls every
+// peer. So the game thread only takes the snapshot, and a worker builds and
+// writes the file.
+//
+// s_writing is the one lock over the sidecar writer, its working storage and
+// the recording buffers' lifetime. A periodic flush takes it on the game thread
+// and the worker drops it when the file is written; a final write, freeing the
+// buffers, and the crash filter all take it first, so none of them can overlap
+// a write in progress.
+
+static BundleInput s_job;
+static HANDLE s_workerWake = NULL;
+
+static bool tryLockWriter() { return InterlockedCompareExchange(&s_writing, 1, 0) == 0; }
+
+static void lockWriter() {
+    while (!tryLockWriter()) {
+        Sleep(1);
+    }
+}
+
+static void unlockWriter() { InterlockedExchange(&s_writing, 0); }
+
+static DWORD WINAPI writerThread(LPVOID) {
+    for (;;) {
+        WaitForSingleObject(s_workerWake, INFINITE);
+        writeBundle(s_job);
+        unlockWriter();
+    }
+}
+
+static bool ensureWorker() {
+    if (s_workerWake) {
+        return true;
+    }
+
+    HANDLE wake = CreateEventW(NULL, FALSE, FALSE, NULL);
+    HANDLE thread = wake ? CreateThread(NULL, 0, writerThread, NULL, 0, NULL) : NULL;
+
+    if (!thread) {
+        if (wake) {
+            CloseHandle(wake);
+        }
+
+        return false;
+    }
+
+    SetThreadPriority(thread, THREAD_PRIORITY_BELOW_NORMAL);
+    CloseHandle(thread);
+    s_workerWake = wake;
+    return true;
+}
+
+// A periodic snapshot of a match still in progress. False when a write is
+// already running; the caller tries again next frame.
+static bool flushPeriodic() {
+    if (!tryLockWriter()) {
+        return false;
+    }
+
+    takeSnapshot(false, REPLAY_END_RECORDING, &s_job);
+
+    if (!ensureWorker()) {
+        writeBundle(s_job);
+        unlockWriter();
+        return true;
+    }
+
+    SetEvent(s_workerWake); // the worker unlocks
+    return true;
+}
+
+// A final write on the game thread. The caller holds the writer lock.
+static void flushFinalLocked(bool complete, uint32_t endReason) {
+    takeSnapshot(complete, endReason, &s_job);
+    writeBundle(s_job);
 }
 
 // ── Recording lifecycle ─────────────────────────────────────────────────────
 
 static void finishRecording(uint32_t reason) {
-    if (s_mode != REPLAY_SESSION_RECORDING) {
+    if (s_mode != SESSION_RECORDING) {
         return;
     }
+
+    // A match that ends before its arm fired must not leave the arm for the
+    // next match, or for a playback.
+    replayRecorderCancelAutoArm();
+    lockWriter();
+
     if (s_armConfirmed) {
-        if (replayRecorderIsRecording()) {
-            replayRecorderControl(0);
-        }
-        writeBundle(true, reason);
-        ++s_recordings;
-        s_lastEndReason = reason;
+        replayRecorderStop();
+        flushFinalLocked(true, reason);
     }
-    s_mode = REPLAY_SESSION_IDLE;
+
+    releaseRecordingBuffers();
+    s_mode = SESSION_IDLE;
     s_armConfirmed = false;
+    unlockWriter();
 }
 
 static void beginRecording() {
-    const char *explicitPath = replayRecorderAutoArmPath();
-    if (explicitPath) {
-        // Tooling armed this match (REPLAY_AUTOARM): adopt it, so the reference
-        // container's checkpoint also becomes loadable in game.
-        if (MultiByteToWideChar(CP_UTF8, 0, explicitPath, -1, s_savePath, MAX_PATH) <= 0) {
-            return;
-        }
-    } else {
-        const bool networked = replayTraceSessionIsNetworked();
-        if (!(networked ? s_recordMp : s_recordSp)) {
-            return;
-        }
-        // Make room first, so the new match brings the count up to the limit.
-        pruneReplays(s_maxReplays - 1);
-        if (!newReplayPath(s_savePath, MAX_PATH)) {
-            return;
-        }
-        char utf8[MAX_PATH * 3];
-        toUtf8(s_savePath, utf8, sizeof(utf8));
-        if (!utf8[0] ||
-            !replayRecorderAutoArm(utf8, s_fingerprintInterval, ARM_DELAY_FRAMES, 0xffffffffu)) {
-            return;
-        }
-    }
-    if (!sidecarFor(s_savePath, s_sidecarPath, MAX_PATH)) {
+    if (!s_canRecord || !(replayTraceSessionIsNetworked() ? s_recordMp : s_recordSp)) {
         return;
     }
-    toUtf8(s_sidecarPath, s_sidecarUtf8, sizeof(s_sidecarUtf8));
+
+    if (!newReplayPath(s_savePath, MAX_PATH) || !sidecarFor(s_savePath, s_sidecarPath, MAX_PATH)) {
+        return;
+    }
+
+    if (!acquireRecordingBuffers()) {
+        return;
+    }
+
+    if (!replayRecorderAutoArm(s_savePath, ARM_DELAY_FRAMES)) {
+        releaseRecordingBuffers();
+        return;
+    }
+
     s_armConfirmed = false;
+    s_exitWritten = false;
     s_recordedUtc = nowFileTime();
-    s_mode = REPLAY_SESSION_RECORDING;
+    s_mode = SESSION_RECORDING;
 }
 
 // True when a recording buffer is about to fill: the command log, the
@@ -704,294 +867,274 @@ static bool recordingFull() {
     const ReplayPrngEntry *prng = nullptr;
     uint32_t jobs = 0, jobsDropped = 0;
     prngGuardRecordView(&prng, &jobs, &jobsDropped);
-    uint32_t maxEvents = REPLAY_MAX_EVENTS - HEADROOM_EVENTS;
-    if (s_commandBudget && s_commandBudget < maxEvents) {
-        maxEvents = s_commandBudget;
-    }
-    return log.dropped || witnessDropped || jobsDropped || log.events >= maxEvents ||
+    return log.dropped || witnessDropped || jobsDropped ||
+           log.events >= REPLAY_MAX_EVENTS - HEADROOM_EVENTS ||
            log.used + HEADROOM_LOG_BYTES > REPLAY_LOG_CAPACITY ||
            witness + 2 * HEADROOM_EVENTS > REPLAY_BOUNDARY_CAPACITY ||
            jobs + HEADROOM_PRNG_JOBS > REPLAY_PRNG_CAPACITY;
 }
 
 static void recordingTick() {
-    ReplayRecorderStatus st = {};
-    replayRecorderStatus(&st, sizeof(st));
+    replayRecorderFrame();
+
     if (!s_armConfirmed) {
-        if (st.autoArmPending) {
+        const ReplayArmState arm = replayRecorderArmState();
+
+        if (arm == REPLAY_ARM_PENDING) {
             return;
         }
-        if (!st.autoArmDone || !st.autoArmSaved ||
+
+        if (arm != REPLAY_ARM_ARMED ||
             !hashFile(s_savePath, &s_checkpointHash, &s_checkpointSize)) {
-            s_mode = REPLAY_SESSION_IDLE; // the checkpoint failed: no replay
+            finishRecording(REPLAY_END_STOPPED); // the checkpoint failed: no replay
             return;
         }
+
         s_armConfirmed = true;
-        s_mpPhase = st.epochNetCounter;
-        s_netMode = st.epochNetMode;
+        replayRecorderEpochTiming(&s_mpPhase, &s_netMode);
+        // Only now that this match will produce a replay, so an abandoned arm
+        // never costs the oldest one.
+        pruneReplays(s_maxReplays - 1);
         s_lastFlush = GetTickCount();
-        writeBundle(false, END_RECORDING);
+        flushPeriodic();
         return;
     }
+
     if (!replayRecorderIsRecording()) {
-        finishRecording(END_STOPPED);
+        finishRecording(REPLAY_END_STOPPED);
         return;
     }
+
     if (recordingFull()) {
-        finishRecording(END_CAPACITY);
+        finishRecording(REPLAY_END_CAPACITY);
         return;
     }
-    DWORD interval = FLUSH_MS * (1 + s_lastFlushBytes / FLUSH_SCALE_BYTES);
+
+    DWORD interval = FLUSH_MS * (1 + (uint32_t)s_lastFlushBytes / FLUSH_SCALE_BYTES);
+
     if (interval > FLUSH_MAX_MS) {
         interval = FLUSH_MAX_MS;
     }
-    if (GetTickCount() - s_lastFlush >= interval) {
+
+    if (GetTickCount() - s_lastFlush >= interval && flushPeriodic()) {
         s_lastFlush = GetTickCount();
-        writeBundle(false, END_RECORDING);
     }
 }
 
 // ── Playback lifecycle ──────────────────────────────────────────────────────
 
+static void clearPlaybackState() {
+    replayPlayerUnload();
+    prngGuardClearStream();
+    replayPlayerClearTileOrder();
+    replayPlayerClearExecOrder();
+    replayPlayerClearFlyState();
+    replayPlayerSetIter0AtSave(0xffffffffu);
+}
+
 static void stopPlayback() {
-    replayPlayerControl(0);
-    if (s_sessionPlayback) {
-        prngGuardControl(2);
-        replayPlayerLoadTileOrder("");
-        replayPlayerLoadExecOrder("");
-        replayPlayerClearFlyState();
-        replayPlayerSetIter0AtSave(0xffffffffu);
-    }
+    clearPlaybackState();
     replayViewerSetEnded(false);
     replayViewerSetReplayName(L"");
-    s_sessionPlayback = false;
-    s_mode = REPLAY_SESSION_IDLE;
+    s_mode = SESSION_IDLE;
 }
 
 static void playbackTick() {
     uint32_t rel = 0;
-    const uint32_t hold = s_endRelative +
-        ((s_playEndReason == END_WIN || s_playEndReason == END_LOSE) ? OUTCOME_HOLD_SLACK : 0);
-    if (s_sessionPlayback && s_endRelative && !replayViewerEnded() &&
-        replayPlayerPlaybackJob(&rel) && rel >= hold) {
+    const bool outcome = s_playEndReason == REPLAY_END_WIN || s_playEndReason == REPLAY_END_LOSE;
+    const uint32_t hold = s_endRelative + (outcome ? OUTCOME_HOLD_SLACK : 0);
+
+    if (s_endRelative && !replayViewerEnded() && replayPlayerPlaybackJob(&rel) && rel >= hold) {
         replayViewerSetEnded(true);
-        s_playbackEnded = 1;
     }
 }
 
-// The victory/defeat screen came up (latched by replaySessionNoteOutcome).
-// Recording: the match is over for the local player, so the replay ends right
-// here rather than whenever they leave the screen. Playback of a session
-// replay: the replay reached its own end screen. Stop the player, which drops
-// the spectator guard, so the screen (and the stat overlay) is usable.
-// Tooling-armed playback is left running to its own end.
-// `outcome` 0 means the match was left without an end screen.
-static void endMatch(LONG outcome, bool leftMatch) {
-    if (s_mode == REPLAY_SESSION_RECORDING) {
-        finishRecording(outcome == 1 ? END_WIN : outcome == 2 ? END_LOSE : END_LEFT_MATCH);
-    } else if (s_mode == REPLAY_SESSION_PLAYBACK && (s_sessionPlayback || leftMatch)) {
-        const bool session = s_sessionPlayback;
+// The match ended. Recording: the replay ends here (on a victory/defeat screen,
+// right there rather than when the player leaves it). Playback: stop the
+// player, which drops the spectator guard, so the end screen, the menu and the
+// stat overlay are usable again. `outcome` 0 means no end screen.
+static void endMatch(LONG outcome) {
+    if (s_mode == SESSION_RECORDING) {
+        uint32_t reason = REPLAY_END_LEFT_MATCH;
+
+        if (outcome == 1) {
+            reason = REPLAY_END_WIN;
+        } else if (outcome == 2) {
+            reason = REPLAY_END_LOSE;
+        }
+
+        finishRecording(reason);
+    } else if (s_mode == SESSION_PLAYBACK) {
         stopPlayback();
-        if (session) {
-            s_playbackEnded = outcome == 1 ? 2 : outcome == 2 ? 3 : 4;
-        }
     }
 }
 
-static void outcomeTick() {
-    const LONG outcome = InterlockedExchange(&s_pendingOutcome, 0);
-    if (outcome) {
-        endMatch(outcome, false);
-    }
-}
+static uint32_t loadReplayFile(const wchar_t *path, uint8_t **data) {
+    HANDLE f = CreateFileW(
+        path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL
+    );
 
-static bool findSection(const uint8_t *body, uint32_t bytes, uint32_t sections, const char *tag,
-                        const uint8_t **data, uint32_t *size) {
-    uint32_t at = 0;
-    for (uint32_t i = 0; i < sections; ++i) {
-        if (at + sizeof(ReplayBundleSection) > bytes) {
-            return false;
-        }
-        ReplayBundleSection s;
-        memcpy(&s, body + at, sizeof(s));
-        at += sizeof(s);
-        if (s.bytes > bytes - at) {
-            return false;
-        }
-        if (s.tag == tag4(tag)) {
-            *data = body + at;
-            *size = s.bytes;
-            return true;
-        }
-        at += s.bytes;
-    }
-    return false;
-}
-
-static uint32_t armReplay(const wchar_t *savePath) {
-    wchar_t side[MAX_PATH];
-    if (!sidecarFor(savePath, side, MAX_PATH)) {
-        return REPLAY_LOAD_NOT_REPLAY;
-    }
-    HANDLE f = CreateFileW(side, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
-                           FILE_ATTRIBUTE_NORMAL, NULL);
     if (f == INVALID_HANDLE_VALUE) {
-        return REPLAY_LOAD_NOT_REPLAY;
+        return 0;
     }
+
     const DWORD size = GetFileSize(f, NULL);
-    uint8_t *data = size != INVALID_FILE_SIZE && size >= sizeof(ReplayBundleHeader)
-                        ? (uint8_t *)VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE)
-                        : nullptr;
+    *data = nullptr;
+
+    if (size != INVALID_FILE_SIZE && size >= sizeof(ReplayBundleHeader)) {
+        *data = (uint8_t *)VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    }
+
     DWORD got = 0;
-    const bool read = data && ReadFile(f, data, size, &got, NULL) && got == size;
+    const bool read = *data && ReadFile(f, *data, size, &got, NULL) && got == size;
     CloseHandle(f);
-    uint32_t result = REPLAY_LOAD_BAD_SIDECAR;
-    ReplayBundleHeader h = {};
+
+    if (!read && *data) {
+        VirtualFree(*data, 0, MEM_RELEASE);
+        *data = nullptr;
+    }
+
+    return read ? size : 0;
+}
+
+// Arms playback from the sidecar beside `savePath`. False for an ordinary save,
+// or a sidecar that is refused for any reason; the save then loads untouched.
+static bool armReplay(const wchar_t *savePath) {
+    wchar_t side[MAX_PATH];
+    uint8_t *data = nullptr;
+    const uint32_t size = sidecarFor(savePath, side, MAX_PATH) ? loadReplayFile(side, &data) : 0;
+
+    if (!size) {
+        return false;
+    }
+
+    ReplayBundleHeader h;
     uint32_t imageSize = 0, timeStamp = 0;
     exeIdentity(&imageSize, &timeStamp);
     uint64_t hash = 0;
     uint32_t saveSize = 0;
-    const uint8_t *body = data ? data + sizeof(h) : nullptr;
+    const uint8_t *body = data + sizeof(ReplayBundleHeader);
     const uint8_t *sec = nullptr;
     uint32_t secBytes = 0;
-    if (read) {
-        memcpy(&h, data, sizeof(h));
+    bool armed = false;
+
+    if (replayValidateBundle(data, size, &h) && h.exeImageSize == imageSize &&
+        h.exeTimeStamp == timeStamp && hashFile(savePath, &hash, &saveSize) &&
+        hash == h.checkpointHash && saveSize == h.checkpointSize &&
+        !replayTraceSessionIsNetworked() &&
+        replayFindSection(body, h.bodyBytes, h.sectionCount, replayTag("CMDS"), &sec, &secBytes) &&
+        replayPlayerLoadBytes(sec, secBytes)) {
+        // The optional sections: absent or refused, that state is not restored.
+        if (replayFindSection(
+                body, h.bodyBytes, h.sectionCount, replayTag("PRNG"), &sec, &secBytes
+            )) {
+            prngGuardLoadBytes(sec, secBytes);
+        }
+
+        if (replayFindSection(
+                body, h.bodyBytes, h.sectionCount, replayTag("TILE"), &sec, &secBytes
+            )) {
+            replayPlayerLoadTileOrderBytes(sec, secBytes);
+        }
+
+        if (replayFindSection(
+                body, h.bodyBytes, h.sectionCount, replayTag("EXOR"), &sec, &secBytes
+            )) {
+            replayPlayerLoadExecOrderBytes(sec, secBytes);
+        }
+
+        if (replayFindSection(
+                body, h.bodyBytes, h.sectionCount, replayTag("FLYS"), &sec, &secBytes
+            )) {
+            replayPlayerLoadFlyStateBytes(sec, secBytes);
+        }
+
+        replayPlayerSetIter0AtSave(
+            (h.flags & REPLAY_BUNDLE_ITER0_AT_SAVE) ? h.reserved[0] >> 16 : 0xffffffffu
+        );
+        const bool mp = (h.flags & REPLAY_BUNDLE_MP_TIMING) != 0;
+        armed = replayPlayerControl(mp ? 2 : 1, h.mpPhase & 0xff) == 2;
     }
-    if (!read || memcmp(h.magic, "S2REPLAY", 8) != 0 || h.version != 1 ||
-        h.headerSize != sizeof(h) || h.bodyBytes != size - sizeof(h) ||
-        fnv32(2166136261u, body, h.bodyBytes) != h.bodyHash) {
-        result = REPLAY_LOAD_BAD_SIDECAR;
-    } else if (h.exeImageSize != imageSize || h.exeTimeStamp != timeStamp) {
-        result = REPLAY_LOAD_EXE;
-    } else if (!hashFile(savePath, &hash, &saveSize) || hash != h.checkpointHash ||
-               saveSize != h.checkpointSize) {
-        result = REPLAY_LOAD_CHECKPOINT;
-    } else if (replayTraceSessionIsNetworked()) {
-        result = REPLAY_LOAD_NETWORKED;
-    } else if (!findSection(body, h.bodyBytes, h.sectionCount, "CMDS", &sec, &secBytes) ||
-               !replayPlayerLoadBytes(sec, secBytes)) {
-        result = REPLAY_LOAD_COMMANDS;
+
+    if (armed) {
+        s_endRelative = h.endRelative;
+        s_playEndReason = h.endReason;
     } else {
-        if (!(findSection(body, h.bodyBytes, h.sectionCount, "PRNG", &sec, &secBytes) &&
-              prngGuardLoadBytes(sec, secBytes))) {
-            prngGuardControl(2);
-        }
-        if (!(findSection(body, h.bodyBytes, h.sectionCount, "TILE", &sec, &secBytes) &&
-              replayPlayerLoadTileOrderBytes(sec, secBytes) != TILE_ORDER_REFUSED)) {
-            replayPlayerLoadTileOrder("");
-        }
-        if (!(findSection(body, h.bodyBytes, h.sectionCount, "EXOR", &sec, &secBytes) &&
-              replayPlayerLoadExecOrderBytes(sec, secBytes) != EXEC_ORDER_REFUSED)) {
-            replayPlayerLoadExecOrder("");
-        }
-        // Absent in older sidecars: nothing to restore.
-        if (!(findSection(body, h.bodyBytes, h.sectionCount, "FLYS", &sec, &secBytes) &&
-              replayPlayerLoadFlyStateBytes(sec, secBytes) != FLY_STATE_REFUSED)) {
-            replayPlayerClearFlyState();
-        }
-        // Absent in older sidecars (flag 0x40): the load's own cursor stays.
-        replayPlayerSetIter0AtSave((h.flags & BUNDLE_ITER0_AT_SAVE) ? h.reserved[0] >> 16
-                                                                    : 0xffffffffu);
-        const bool mp = (h.flags & BUNDLE_MP_TIMING) != 0;
-        const uint32_t state = replayPlayerControl(mp ? 2 : 1, h.mpPhase & 0xff, true);
-        if (state != 2 && state != 5) {
-            prngGuardControl(2);
-            replayPlayerLoadTileOrder("");
-            replayPlayerLoadExecOrder("");
-            replayPlayerClearFlyState();
-            replayPlayerSetIter0AtSave(0xffffffffu);
-            result = REPLAY_LOAD_CONTROL;
-        } else {
-            result = REPLAY_LOAD_ARMED;
-            s_endRelative = h.endRelative;
-            s_playEndReason = h.endReason;
-            s_checkpointHash = h.checkpointHash;
-        }
+        clearPlaybackState();
     }
-    if (data) {
-        VirtualFree(data, 0, MEM_RELEASE);
-    }
-    return result;
+
+    VirtualFree(data, 0, MEM_RELEASE);
+    return armed;
 }
 
 // Replay name for the viewer title: the file name without directory or `.sh2`.
 static void setViewerName(const wchar_t *path) {
     const wchar_t *name = path;
+
     for (const wchar_t *p = path; *p; ++p) {
         if (*p == L'\\' || *p == L'/') {
             name = p + 1;
         }
     }
+
     wchar_t buf[64];
     size_t n = 0;
+
     for (; name[n] && n + 1 < 64; ++n) {
         buf[n] = name[n];
     }
+
     buf[n] = 0;
+
     if (n > 4 && endsWithSh2(buf)) {
         buf[n - 4] = 0;
     }
+
     replayViewerSetReplayName(buf);
 }
 
-// MSVC std::wstring as the game passes it by value:
-// a 16-byte SSO union, then size at +0x10 and capacity at +0x14.
-namespace { // internal linkage: several modules define this layout
-struct GameWString {
-    union {
-        wchar_t buf[8];
-        wchar_t *ptr;
-    } u;
-    uint32_t size;
-    uint32_t res;
-};
-} // namespace
-
 extern "C" void replaySessionOnLoadGame(const GameWString *arg) {
-    ++s_loads;
     // Whatever was running is being replaced. Close it out first.
-    if (s_mode == REPLAY_SESSION_RECORDING) {
-        finishRecording(END_REPLACED);
-    } else if (s_mode == REPLAY_SESSION_PLAYBACK) {
+    if (s_mode == SESSION_RECORDING) {
+        finishRecording(REPLAY_END_REPLACED);
+    } else if (s_mode == SESSION_PLAYBACK) {
         stopPlayback();
     }
+
     // The next in-match frame is a new match even if World+4 never dropped (a
     // load from the pause menu keeps it set).
-    replayRecorderResetEpoch();
     s_prevInGame = false;
     s_fallFrames = 0;
-    s_playbackEnded = 0;
     InterlockedExchange(&s_pendingOutcome, 0);
+    // Kills are counted only during playback, and every playback starts with a
+    // load: a pause-menu load never passes the main menu's reset.
+    resetKillCounts();
+    const wchar_t *text = gameWStringText(arg);
 
-    if (!arg || arg->size == 0 || arg->size >= MAX_PATH) {
-        s_lastLoadResult = REPLAY_LOAD_NOT_REPLAY;
+    if (!text || arg->size == 0 || arg->size >= MAX_PATH) {
         return;
     }
-    const wchar_t *text = arg->res >= 8 ? arg->u.ptr : arg->u.buf;
+
     wchar_t path[MAX_PATH];
     memcpy(path, text, arg->size * sizeof(wchar_t));
     path[arg->size] = 0;
     // The save list may hand over a bare file name; resolve it in Saves.
     wchar_t full[MAX_PATH];
+
     if (!wcschr(path, L'\\') && !wcschr(path, L'/')) {
         wchar_t dir[MAX_PATH];
-        if (savesDirectory(dir, MAX_PATH) && wlen(dir) + wlen(path) + 2 < MAX_PATH) {
+
+        if (savesDirectory(dir, MAX_PATH) && wcslen(dir) + wcslen(path) + 2 < MAX_PATH) {
             _snwprintf(full, MAX_PATH, L"%ls\\%ls", dir, path);
             full[MAX_PATH - 1] = 0;
             memcpy(path, full, sizeof(full));
         }
     }
-    s_lastLoadResult = armReplay(path);
-    if (s_lastLoadResult == REPLAY_LOAD_ARMED) {
-        ++s_playbacks;
-        s_sessionPlayback = true;
-        s_mode = REPLAY_SESSION_PLAYBACK;
+
+    if (armReplay(path)) {
+        s_mode = SESSION_PLAYBACK;
         setViewerName(path);
         replayViewerSetEnded(false);
-        wchar_t side[MAX_PATH];
-        if (sidecarFor(path, side, MAX_PATH)) {
-            toUtf8(side, s_sidecarUtf8, sizeof(s_sidecarUtf8));
-        }
     }
 }
 
@@ -1018,149 +1161,133 @@ __declspec(naked) static void loadGameHook() {
 static LPTOP_LEVEL_EXCEPTION_FILTER s_prevFilter = nullptr;
 static bool s_filterInstalled = false;
 
+// A crash mid-recording still leaves the match up to the crash. This runs the
+// full sidecar build -- retiming, a qsort over our own buffers and file I/O --
+// inside an unhandled-exception filter, which is deliberate: it touches only
+// the recording buffers (no game heap), and the snapshot reads only up to the
+// published counts, so a game thread that is still appending cannot tear it.
+// What it cannot rule out is a crash that corrupted those buffers, in which
+// case the write fails or produces a sidecar that its own hash refuses; the
+// previous periodic sidecar then stays on disk. A write already running on
+// the worker is left to finish instead.
 static LONG WINAPI sessionCrashFilter(EXCEPTION_POINTERS *ep) {
-    if (s_mode == REPLAY_SESSION_RECORDING && s_armConfirmed) {
-        writeBundle(false, END_CRASH);
+    if (tryLockWriter()) {
+        if (s_mode == SESSION_RECORDING && s_armConfirmed) {
+            flushFinalLocked(false, REPLAY_END_CRASH);
+        }
+
+        unlockWriter();
     }
+
     return s_prevFilter ? s_prevFilter(ep) : EXCEPTION_CONTINUE_SEARCH;
 }
 
 static void sessionTick() {
     // Installed here rather than at DLL attach: the game's CRT startup, and
-    // any earlier-registered tick, set theirs first, and
-    // this one chains to whatever it replaces.
+    // any earlier-registered tick, set theirs first, and this one chains to
+    // whatever it replaces.
     if (!s_filterInstalled) {
         s_filterInstalled = true;
         s_prevFilter = SetUnhandledExceptionFilter(sessionCrashFilter);
-        s_hooks |= 2;
     }
 
-    const bool now = inGame();
-    if (!now) {
+    if (!replayInGame()) {
         if (s_prevInGame) {
             // Left the match: menu exit, a desync drop to the menu, or the
             // victory/defeat screen. Give the screen's OnActivate a few frames
             // to report which it was.
             s_fallFrames = 1;
         }
+
         s_prevInGame = false;
+
         if (s_fallFrames) {
             const LONG outcome = InterlockedExchange(&s_pendingOutcome, 0);
+
             if (outcome || ++s_fallFrames > OUTCOME_GRACE_FRAMES) {
-                endMatch(outcome, true);
-                replayRecorderResetEpoch();
+                endMatch(outcome);
                 s_fallFrames = 0;
             }
         }
+
         return;
     }
+
     if (s_fallFrames) {
         // Back in a match inside the grace window (a load straight from the
         // menu): close the previous one out as a plain exit first.
-        endMatch(0, true);
-        replayRecorderResetEpoch();
+        endMatch(0);
         s_fallFrames = 0;
     }
+
     if (!s_prevInGame) {
         s_prevInGame = true;
         InterlockedExchange(&s_pendingOutcome, 0);
-        if (replayPlayerArmed()) {
-            s_mode = REPLAY_SESSION_PLAYBACK; // ours, or armed by tooling
-        } else if (s_mode == REPLAY_SESSION_IDLE) {
+
+        if (s_mode == SESSION_IDLE) {
             beginRecording();
         }
     }
-    outcomeTick();
-    if (s_mode == REPLAY_SESSION_RECORDING) {
+
+    const LONG outcome = InterlockedExchange(&s_pendingOutcome, 0);
+
+    if (outcome) {
+        endMatch(outcome);
+    }
+
+    if (s_mode == SESSION_RECORDING) {
         recordingTick();
-    } else if (s_mode == REPLAY_SESSION_PLAYBACK) {
+    } else if (s_mode == SESSION_PLAYBACK) {
         playbackTick();
     }
 }
 
 // ── Public ──────────────────────────────────────────────────────────────────
 
-void replaySessionNoteOutcome(bool won) {
-    InterlockedExchange(&s_pendingOutcome, won ? 1 : 2);
-}
+void replaySessionNoteOutcome(bool won) { InterlockedExchange(&s_pendingOutcome, won ? 1 : 2); }
 
-void replaySessionOnProcessExit() {
-    if (s_mode == REPLAY_SESSION_RECORDING && s_armConfirmed) {
-        writeBundle(false, END_PROCESS_EXIT);
+void replaySessionOnWindowClosing() {
+    if (s_mode == SESSION_RECORDING && s_armConfirmed && !s_exitWritten) {
+        s_exitWritten = true;
+        lockWriter();
+        flushFinalLocked(false, REPLAY_END_PROCESS_EXIT);
+        unlockWriter();
     }
 }
 
-void replaySessionConfigure(bool recordMultiplayer, bool recordSinglePlayer,
-                            uint32_t fingerprintInterval) {
-    s_recordMp = recordMultiplayer;
-    s_recordSp = recordSinglePlayer;
-    if (fingerprintInterval) {
-        s_fingerprintInterval = fingerprintInterval;
-    }
-}
+bool replaySessionRecordMultiplayer() { return s_recordMp; }
 
-void replaySessionSetCommandBudget(uint32_t commands) {
-    s_commandBudget = commands;
-}
+void replaySessionSetRecordMultiplayer(bool on) { s_recordMp = on; }
 
-void replaySessionGetStatus(ReplaySessionStatus *out) {
-    out->mode = s_mode;
-    out->recordMultiplayer = s_recordMp ? 1 : 0;
-    out->recordSinglePlayer = s_recordSp ? 1 : 0;
-    out->hooks = s_hooks;
-    out->recordings = s_recordings;
-    out->flushes = s_flushes;
-    out->flushFailures = s_flushFailures;
-    out->lastFlushBytes = s_lastFlushBytes;
-    out->lastFlushMs = s_lastFlushMs;
-    out->lastEndReason = s_lastEndReason;
-    out->lastRetimed = s_lastRetimed;
-    out->lastUnretimed = s_lastUnretimed;
-    out->lastExecPlans = s_lastExecPlans;
-    out->lastRetimeFail = s_lastRetimeFail;
-    out->loads = s_loads;
-    out->lastLoadResult = s_lastLoadResult;
-    out->playbacks = s_playbacks;
-    out->endRelative = s_endRelative;
-    out->ended = s_playbackEnded ? s_playbackEnded : (replayViewerEnded() ? 1u : 0u);
-    out->checkpointHashLo = (uint32_t)s_checkpointHash;
-    out->checkpointHashHi = (uint32_t)(s_checkpointHash >> 32);
-}
-
-bool replaySessionRecordMultiplayer() {
-    return s_recordMp;
-}
-
-void replaySessionSetRecordMultiplayer(bool on) {
-    s_recordMp = on;
-}
-
-int replaySessionMaxReplays() {
-    return s_maxReplays;
-}
+int replaySessionMaxReplays() { return s_maxReplays; }
 
 void replaySessionSetMaxReplays(int keep) {
-    s_maxReplays = keep < REPLAY_KEEP_MIN ? REPLAY_KEEP_MIN
-                   : keep > REPLAY_KEEP_MAX ? REPLAY_KEEP_MAX : keep;
-}
+    if (keep < REPLAY_KEEP_MIN) {
+        keep = REPLAY_KEEP_MIN;
+    } else if (keep > REPLAY_KEEP_MAX) {
+        keep = REPLAY_KEEP_MAX;
+    }
 
-const char *replaySessionSidecarPath() {
-    return s_sidecarUtf8;
+    s_maxReplays = keep;
 }
 
 void installReplaySession() {
-    s_recordMp = configInt("replay", "RecordMultiplayer", 1) != 0;
+    s_recordMp = configInt("replay", "RecordMultiplayer", 0) != 0;
     s_recordSp = configInt("replay", "RecordSinglePlayer", 0) != 0;
     replaySessionSetMaxReplays(configInt("replay", "MaxReplays", REPLAY_KEEP_DEFAULT));
-    const int interval = configInt("replay", "FingerprintInterval", 64);
-    s_fingerprintInterval = interval > 0 ? (uint32_t)interval : 64;
 
-    const uintptr_t base = exeBase();
-    uint8_t *site = (uint8_t *)(base + LOAD_GAME_RVA);
-    if (memcmp(site, LOAD_GAME_STOCK, sizeof(LOAD_GAME_STOCK)) == 0) {
-        g_replaySessionLoadReturn = (uintptr_t)site + sizeof(LOAD_GAME_STOCK);
-        installHook(site, reinterpret_cast<void *>(loadGameHook), sizeof(LOAD_GAME_STOCK));
-        s_hooks |= 1;
+    uint8_t *site = (uint8_t *)(exeBase() + LOAD_GAME_RVA);
+
+    if (memcmp(site, LOAD_GAME_STOCK, sizeof(LOAD_GAME_STOCK)) != 0 || !replayPlayerInstalled() ||
+        !replayTraceInstalled() || !prngGuardInstalled()) {
+        return; // a replay this build could not play is not recorded either
     }
-    registerFrameTick(sessionTick);
+
+    if (!registerFrameTick(sessionTick)) {
+        return;
+    }
+
+    g_replaySessionLoadReturn = (uintptr_t)site + sizeof(LOAD_GAME_STOCK);
+    installHook(site, reinterpret_cast<void *>(loadGameHook), sizeof(LOAD_GAME_STOCK));
+    s_canRecord = true;
 }

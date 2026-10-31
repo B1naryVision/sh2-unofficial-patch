@@ -27,55 +27,64 @@
 // at the capacity limit. Injected commands still in flight at the cut are left
 // out too, so everything kept is exact.
 //
-// Never executed. An injected command admitted but never executed while the
-// witness ran is left out (`unretimed`): the live game dropped it on every
-// peer. In one recorded match a
-// peer's 73 wall/building deletes arrived in a network catch-up, never ran
-// (the player deleted the same walls again 1,300 jobs later), and playback
-// that ran them at arrival diverged 20 jobs on. Only one admitted within
-// IN_FLIGHT_JOBS of a truncated witness's end may have executed unseen; the
-// truncation cut comes before it.
+// Never executed. An injected command admitted but not executed within
+// IN_FLIGHT_JOBS (64 jobs; live MP never took more than 4) is left out
+// (`unretimed`): the live game dropped it on every peer. In one recorded match
+// a peer's 73 wall/building deletes arrived in a network catch-up and never
+// ran, and playback that ran them at arrival diverged 20 jobs on. Only one
+// admitted within IN_FLIGHT_JOBS of a truncated witness's end may have executed
+// unseen; the truncation cut comes before it.
 //
-// Pure computation over caller-supplied buffers (static working storage, one
-// caller at a time), so it can be exercised offline against recorded
-// sidecars.
+// Pairing is one pass over the witness through a hash of the admissions still
+// awaiting execution, and an admission is expired from it once it is
+// IN_FLIGHT_JOBS old, so the cost is linear in the witness and a match full of
+// dropped commands still retimes.
+//
+// Pure computation over caller-supplied buffers (working storage allocated by
+// replayRetimeAcquire, one caller at a time), so tests/replayTests.cpp
+// exercises it on the host.
 
 // Log events the retimer holds. Two boundary entries per event, so it matches
 // REPLAY_BOUNDARY_CAPACITY / 2 (replayTrace.h).
 static const uint32_t REPLAY_MAX_EVENTS = 262144;
 
 struct ReplayRetimeRef {
-    uint32_t newTick;   // playback schedule tick for this event
+    uint32_t newTick; // playback schedule tick for this event
     uint32_t execOrder; // sort key within the tick
-    uint32_t index;     // position in the recorded log
-    uint32_t offset;    // byte offset of the record in the log
+    uint32_t index; // position in the recorded log
+    uint32_t offset; // byte offset of the record in the log
 };
 
 struct ReplayRetimeResult {
-    uint32_t events;     // events kept (all but the never-executed, unless truncated)
-    uint32_t injected;   // injected and retimed are over the kept events
-    uint32_t retimed;    // injected events moved to their execution job - 1
-    uint32_t unretimed;  // injected events never executed, left out (before any cut)
+    uint32_t events; // events kept (all but the never-executed, unless truncated)
+    uint32_t injected; // injected and retimed are over the kept events
+    uint32_t retimed; // injected events moved to their execution job - 1
+    uint32_t unretimed; // injected events never executed, left out (before any cut)
     uint32_t planJobs;
-    uint32_t planWords;  // 0 when retiming did not run (no EXOR section)
+    uint32_t planWords; // 0 when retiming did not run (no EXOR section)
     uint32_t firstTick;
     uint32_t lastTick;
     // 0 ok. Retiming skipped: 1 boundary hooks not all installed; 3 token
-    // reused before execution; 4 too many in flight. Output truncated at
-    // endTick: 2 witness dropped entries or too large; 5 too many events.
+    // reused before execution; 4 more than 16384 admissions in flight at once.
+    // Output truncated at endTick: 2 witness dropped entries or too large;
+    // 5 too many events. 6: no working storage, nothing produced.
     uint32_t failReason;
-    uint32_t bytes;      // record + payload bytes of the kept events
+    uint32_t bytes; // record + payload bytes of the kept events
     // Truncated output: the last job (absolute) the kept events are exact
     // through, else 0.
     uint32_t endTick;
-    uint32_t cutEvents;  // events left out by the truncation
+    uint32_t cutEvents; // events left out by the truncation
 };
 
+// Working storage (about 7.5 MB), allocated for a recording and freed after it.
+bool replayRetimeAcquire();
+void replayRetimeRelease();
+
 // `log` is the recorder arena (records + payloads, no file header).
-void replayRetime(const uint8_t *log, uint32_t used, uint32_t epochTick,
-                  const ReplayBoundaryEntry *boundaries, uint32_t count,
-                  uint32_t dropped, uint32_t hooks, uint32_t limitTick,
-                  ReplayRetimeResult *out);
+void replayRetime(
+    const uint8_t *log, uint32_t used, uint32_t epochTick, const ReplayBoundaryEntry *boundaries,
+    uint32_t count, uint32_t dropped, uint32_t hooks, uint32_t limitTick, ReplayRetimeResult *out
+);
 
 // Valid until the next replayRetime call.
 const ReplayRetimeRef *replayRetimeRefs();

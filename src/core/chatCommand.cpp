@@ -1,4 +1,5 @@
 #include "chatCommand.h"
+#include "gameWString.h"
 #include "hook.h"
 #include <cstdint>
 #include <cstring>
@@ -24,15 +25,6 @@ static const uint8_t CHAT_SUBMIT_BYTES[] = {0x55, 0x8b, 0xec, 0x6a, 0xff};
 
 static const int MAX_COMMANDS = 8;
 static const int MAX_OBSERVERS = 4;
-
-struct GameWString {
-    union {
-        wchar_t *heap;
-        wchar_t inl[8];
-    };
-    uint32_t size;
-    uint32_t res;
-};
 
 typedef void(__attribute__((thiscall)) * AssignFn)(
     void *dest, const GameWString *src, uint32_t pos, uint32_t len

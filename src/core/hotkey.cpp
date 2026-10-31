@@ -1,6 +1,5 @@
 #include "hotkey.h"
 #include "config.h"
-#include "../replay/spectatorGuard.h"
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
@@ -415,15 +414,18 @@ static int modsFromState(bool async) {
     return mods;
 }
 
+static bool (*s_suppressor)() = nullptr;
+
+void hotkeySetSuppressor(bool (*fn)()) {
+    s_suppressor = fn;
+}
+
 bool hotkeyHeld(const Hotkey &hk) {
     if (!hotkeyIsBound(hk)) {
         return false;
     }
 
-    // A replay is a spectator session: polled command hotkeys (stop, attack)
-    // read the device directly, past the replay's window-message guard, and
-    // would post live commands into the recorded match.
-    if (spectatorGuardActive()) {
+    if (s_suppressor && s_suppressor()) {
         return false;
     }
 

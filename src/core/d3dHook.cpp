@@ -43,18 +43,26 @@ static void *patchVtableSlot(void *comObject, int index, void *hook) {
 
 // ── render callback registry ───────────────────────────────────────────────────
 // Callbacks draw in registration order, so the patch installed last in
-// registry.cpp ends up on top. Registering past the capacity would be dropped
-// silently, so keep headroom: six callbacks use it today (endgame stats,
+// registry.cpp ends up on top. Registering past the capacity is refused, so
+// keep headroom: six callbacks use it today (endgame stats,
 // auto-market editor, settings panel, replay panel, and the replay vision and
 // spectator guards' window-subclass checks).
 static const int MAX_RENDER_CBS = 8;
 static D3DRenderFn s_renderCbs[MAX_RENDER_CBS] = {};
 static int s_renderCbCount = 0;
 
-void registerD3DRender(D3DRenderFn fn) {
-    if (fn && s_renderCbCount < MAX_RENDER_CBS) {
-        s_renderCbs[s_renderCbCount++] = fn;
+bool registerD3DRender(D3DRenderFn fn) {
+    if (!fn) {
+        return false;
     }
+
+    if (s_renderCbCount >= MAX_RENDER_CBS) {
+        OutputDebugStringA("sh2-unofficial-patch: render callback registry full (MAX_RENDER_CBS), callback dropped\n");
+        return false;
+    }
+
+    s_renderCbs[s_renderCbCount++] = fn;
+    return true;
 }
 
 // Called from the naked EndScene trampoline with the device (`this`), while the

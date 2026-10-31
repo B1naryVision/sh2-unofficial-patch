@@ -1,4 +1,5 @@
 #include "maintChannel.h"
+#include "gameWString.h"
 #include "hook.h"
 #include <cstring>
 #include <windows.h>
@@ -25,15 +26,6 @@ static const uint8_t MAINT_DISPATCH_BYTES[] = {0x55, 0x8b, 0xec, 0x53, 0x56};
 static const int MAX_MSG_LEN = 64;
 
 static const int MAX_HANDLERS = 8;
-
-struct GameWString {
-    union {
-        wchar_t *heap;
-        wchar_t inl[8];
-    };
-    uint32_t size;
-    uint32_t res;
-};
 
 typedef bool(__attribute__((thiscall)) * SendP2PFn)(
     void *self, const MaintOnlineId *id, const void *data, unsigned len, int sendType, int channel

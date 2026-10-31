@@ -19,4 +19,6 @@
 
 typedef void (*FrameTickFn)();
 
-void registerFrameTick(FrameTickFn fn);
+// False when the registry is full: the callback will never run. Reported with
+// OutputDebugString too, so raise MAX_TICKS rather than ignore it.
+bool registerFrameTick(FrameTickFn fn);

@@ -20,11 +20,13 @@ inline int killRowFromUnitId(uint32_t typeId) {
     return typeId == kLordUnitId ? kKillLordRow : unitIndexFromId(typeId);
 }
 
-inline const char *killRowName(int row) {
-    return row == kKillLordRow ? "Lord" : kUnits[row].name;
-}
+inline const char *killRowName(int row) { return row == kKillLordRow ? "Lord" : kUnits[row].name; }
 
 void installKillTracker();
+
+// Counting runs only while a replay plays (the spectator guard is up): the
+// counts feed the replay panel alone, and live matches skip the cost.
+void killTrackerSetActive(bool active);
 
 // kKillRowCount entries, indexed by kill row: kills BY this slot's player
 // (any of its units, the lord included), BY victim type. slot must be 0..31.

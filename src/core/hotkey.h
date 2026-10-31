@@ -54,6 +54,12 @@ bool hotkeySave(const char *section, const char *key, const Hotkey &hk);
 // while Ctrl is down, which is what makes "H" and "Ctrl+H" distinct bindings.
 bool hotkeyHeld(const Hotkey &hk);
 
+// While `fn` returns true, hotkeyHeld reports every binding as released. A
+// replay registers one: polled command hotkeys (stop, attack) read the device
+// directly, past its window-message guard, and would post live commands into
+// the recorded match. One suppressor; a later call replaces it.
+void hotkeySetSuppressor(bool (*fn)());
+
 // True when a WM_KEYDOWN/WM_SYSKEYDOWN for `vk` completes this binding, with
 // the modifier state read from GetKeyState (valid inside a window procedure).
 bool hotkeyMatchesKeyDown(const Hotkey &hk, int vk);
