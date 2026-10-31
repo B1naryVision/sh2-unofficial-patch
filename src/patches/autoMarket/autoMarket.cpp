@@ -2,6 +2,7 @@
 #include "../../core/config.h"
 #include "../../core/frameTick.h"
 #include "overlay.h"
+#include "../../replay/spectatorGuard.h"
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -204,6 +205,12 @@ static void postTrade(uintptr_t base, void *world, void *player, int goodId, int
 // Runs on the sim thread via the shared frame-tick dispatcher. Float-free.
 static void autoMarketTick() {
     static int counter = 0;
+
+    // Never trade on the viewer's behalf during a replay: the recorded
+    // match's own trades (the player's auto-market included) are replayed.
+    if (spectatorGuardActive()) {
+        return;
+    }
 
     if (++counter < TICK_INTERVAL) {
         return;
