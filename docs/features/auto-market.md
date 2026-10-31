@@ -21,8 +21,10 @@ The **Market** (on-demand buy/sell for gold) and the **Carter's Post / Trader**
 - Market UI = **`SubPanelTrading`** (a command sub-panel). ← the feature target
 - Carter's Post UI = `SubPanelCarterPost` / `TraderScreen`.
 
-Both build the shared `TradeChore` command class; this feature drives the
-*Market* path only.
+Only the Market builds `TradeChore`; the Carter's Post has its own
+`CarterTradeChore`. An earlier version of this doc said both share `TradeChore`.
+The constructor's callers say otherwise: the Market panel's buy and sell buttons
+and the AI governor (`S2Governor`), see [no-market.md](no-market.md).
 
 ## Trade command path
 

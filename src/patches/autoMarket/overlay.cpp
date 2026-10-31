@@ -141,13 +141,13 @@ static void buildLayout(Layout &l, int scale) {
     // The name box holds whichever preset name is longest, so a name authored
     // in the ini can't spill over the arrows, the label or Apply.
     int nameBoxW = maxInt(
-        overlayScaleBy(D_NAME_MIN, scale),
-        overlayPanelTextWidth(body, PRESET_NONE) + 2 * cellPad
+        overlayScaleBy(D_NAME_MIN, scale), overlayPanelTextWidth(body, PRESET_NONE) + 2 * cellPad
     );
     int presetCount = autoMarketPresetCount();
 
     for (int i = 0; i < presetCount; ++i) {
-        nameBoxW = maxInt(nameBoxW, overlayPanelTextWidth(body, autoMarketPresetName(i)) + 2 * cellPad);
+        nameBoxW =
+            maxInt(nameBoxW, overlayPanelTextWidth(body, autoMarketPresetName(i)) + 2 * cellPad);
     }
 
     int barMin = l.margin + presetLabelW + gapS * 2 + arrowW + gapS + nameBoxW + gapS + arrowW +
@@ -525,6 +525,12 @@ static LRESULT CALLBACK overlayWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARA
         int vk = (int)wparam;
 
         if (hotkeyMatchesKeyDown(s_hotkey, vk)) {
+            // No market in this match: there is nothing to automate, so the key
+            // only ever closes the editor.
+            if (!s_visible && autoMarketSuppressed()) {
+                return 0;
+            }
+
             // Lay out on the way up, not at install: the panel is sized against
             // the backbuffer, which does not exist yet when patches install.
             // This is a WndProc, so the float work in applyLayout is safe here.

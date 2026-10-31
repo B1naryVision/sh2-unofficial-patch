@@ -10,6 +10,11 @@
 
 void installAutoMarket();
 
+// While suppressed the engine posts nothing and the editor will not open. Set by
+// the "no market" match rule (patches/noMarket.cpp); local only.
+void autoMarketSetSuppressed(bool suppressed);
+bool autoMarketSuppressed();
+
 // Clears all thresholds and hides the editor. Called on return to the main menu
 // so thresholds never carry between games.
 void autoMarketResetThresholds();

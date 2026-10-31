@@ -202,8 +202,18 @@ static void postTrade(uintptr_t base, void *world, void *player, int goodId, int
 }
 
 // Runs on the sim thread via the shared frame-tick dispatcher. Float-free.
+static bool s_suppressed = false;
+
+void autoMarketSetSuppressed(bool suppressed) { s_suppressed = suppressed; }
+
+bool autoMarketSuppressed() { return s_suppressed; }
+
 static void autoMarketTick() {
     static int counter = 0;
+
+    if (s_suppressed) {
+        return;
+    }
 
     if (++counter < TICK_INTERVAL) {
         return;
