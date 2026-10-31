@@ -44,8 +44,9 @@ static void *patchVtableSlot(void *comObject, int index, void *hook) {
 // ── render callback registry ───────────────────────────────────────────────────
 // Callbacks draw in registration order, so the patch installed last in
 // registry.cpp ends up on top. Registering past the capacity would be dropped
-// silently, so keep headroom: three overlays use it today (endgame stats,
-// auto-market editor, settings panel).
+// silently, so keep headroom: six callbacks use it today (endgame stats,
+// auto-market editor, settings panel, replay panel, and the replay vision and
+// spectator guards' window-subclass checks).
 static const int MAX_RENDER_CBS = 8;
 static D3DRenderFn s_renderCbs[MAX_RENDER_CBS] = {};
 static int s_renderCbCount = 0;

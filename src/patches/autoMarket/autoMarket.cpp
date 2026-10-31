@@ -2,6 +2,7 @@
 #include "../../core/config.h"
 #include "../../core/frameTick.h"
 #include "overlay.h"
+#include "../../replay/spectatorGuard.h"
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -211,7 +212,9 @@ bool autoMarketSuppressed() { return s_suppressed; }
 static void autoMarketTick() {
     static int counter = 0;
 
-    if (s_suppressed) {
+    // Never trade on the viewer's behalf during a replay: the recorded
+    // match's own trades (the player's auto-market included) are replayed.
+    if (s_suppressed || spectatorGuardActive()) {
         return;
     }
 

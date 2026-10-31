@@ -4,9 +4,11 @@
 #include "autoMarket/autoMarket.h"
 #include "endgameStats/collect.h"
 #include "endgameStats/debugDump.h"
+#include "endgameStats/killTracker.h"
 #include "endgameStats/overlay.h"
 #include "endgameStats/session.h"
 #include "endgameStats/unitTracker.h"
+#include "../replay/replaySession.h"
 #include <cstdint>
 #include <windows.h>
 
@@ -60,6 +62,9 @@ static bool paneAttached(void *pane) {
 // `screen` is the hook site's ECX (the Win/LoseScreen `this`), kept so the
 // tick below can tell when the player leaves that screen.
 static void showEndgameStats(bool won, void *screen) {
+    // The replay session ends a recording here, or finishes a replay that has
+    // reached its own victory/defeat screen (latched; acted on next frame).
+    replaySessionNoteOutcome(won);
     const EndgameSnapshot &snap = collectEndgameStats(won);
     dumpEndgameDebug(snap);
     showStatsOverlay(snap);
@@ -84,6 +89,9 @@ extern "C" void endgameStatsReset() {
     closeStatsOverlay();
     sessionReset();
     resetUnitCounts();
+    // Kill counts feed the replay panel only (replay/replayViewer.cpp), not
+    // the endgame overlay.
+    resetKillCounts();
     // Auto-market thresholds are per-game; clear them at every game boundary
     // (in the campaign that boundary is leaving the endgame screen, not the menu).
     autoMarketResetThresholds();
@@ -96,6 +104,19 @@ extern "C" void endgameStatsReset() {
 // main menu, so the main-menu hook below never fires and the overlay used to
 // stay up over the new mission.
 static void endgameScreenTick() {
+    // A save load (a replay starts as one) replaces the match wholesale. A
+    // pause-menu load never passes the main menu, so drop the previous
+    // match's kills here for the replay panel. World::LoadGame is counted by
+    // the replay session's hook (replay/replaySession.h).
+    static uint32_t seenLoads = 0;
+    ReplaySessionStatus replay;
+    replaySessionGetStatus(&replay);
+
+    if (replay.loads != seenLoads) {
+        seenLoads = replay.loads;
+        resetKillCounts();
+    }
+
     if (!s_endgameScreen) {
         return;
     }
@@ -198,5 +219,6 @@ void installEndgameStats() {
 
     installStatsOverlay();
     installUnitTracker();
+    installKillTracker();
     installSession();
 }

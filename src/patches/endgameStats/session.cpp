@@ -1,6 +1,7 @@
 #include "session.h"
 #include "../../core/frameTick.h"
 #include "gameOffsets.h"
+#include "killTracker.h"
 #include "unitTracker.h"
 #include <cstring>
 #include <windows.h>
@@ -120,7 +121,8 @@ static void freezeIdentity(int slot, uintptr_t base, int color) {
 
 // If the object at this slot is not the one we captured state from, the slot
 // was recycled (new game without an endgame screen, or engine reuse) — the
-// old identity and unit counts belong to somebody else, so drop them.
+// old identity, unit counts and kill counts belong to somebody else, so drop
+// them.
 static void handleSlotRealloc(int slot, uintptr_t playerPtr) {
     SlotCache &cache = s_slots[slot];
 
@@ -130,6 +132,7 @@ static void handleSlotRealloc(int slot, uintptr_t playerPtr) {
 
     memset(&cache, 0, sizeof(cache));
     resetUnitCountsForSlot(slot);
+    resetKillCountsForSlot(slot);
     s_counters.slotReallocs++;
 }
 
