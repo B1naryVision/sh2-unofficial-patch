@@ -156,6 +156,12 @@ const PATCHES = [
     how:"As host, click No market in the lobby panel to switch it on. The Market still shows in the build menu, but placing one does nothing."
   },
   {
+    id:"stuck-worker-crime", cat:"multiplayer", kind:"fix", version:"next", mp:"all",
+    title:"Criminals stuck inside wheat farms and candle makers",
+    was:"Wheat farmers and candle makers often get stuck inside their buildings, and when one turned to crime there the guards could not reach them, so the building had to be torn down.",
+    now:"Wheat farms and candle makers' workshops are left out of crime, as the gong pit and falconer's post already are, so crime comes from other workers instead. It is always on in single player, and on in any multiplayer match where every player has the patch."
+  },
+  {
     id:"lobby-panel", cat:"multiplayer", kind:"feature", version:"next", mp:"partial",
     title:"See who has the patch, in the lobby",
     was:"You could only check other players' patch versions once the match had started, too late to sort it out.",
@@ -287,7 +293,8 @@ const HISTORY = [
     "The host can switch on match rules, starting with ballista auto-fire",
     "Rapid-clicking Disband no longer hands back extra peasants",
     "Record and watch multiplayer replays (opt-in, experimental)",
-    "No-market matches, as a match rule the host can switch on"
+    "No-market matches, as a match rule the host can switch on",
+    "Wheat farmers and candle makers no longer turn to crime inside their buildings"
   ]},
   { v:"0.7.0", date:"", items:[
     "Every patch setting is adjustable in game, while you play",

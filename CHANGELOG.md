@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### [Fix] - Wheat Farmers and Candle Makers No Longer Turn to Crime
+
+- **What the issue was:** Wheat farmers and candle makers often get stuck inside their buildings, and when one of them turned to crime there the guards could not reach them, so the only way out was to tear the building down.
+- **What we changed:** Wheat farms and candle makers' workshops are now left out of crime, the same way the game already leaves out the gong pit and the falconer's post, so crime comes from other workers instead. In multiplayer the fix switches itself on for any match where every player has a patch version that supports it, with nothing for the host to set, and the lobby panel shows it; with anyone missing it, the match keeps the old behaviour so it stays in sync. In single player it is always on.
+
 ### [Feature] - No Market Matches
 
 - **What the issue was:** Players agreed on "no market" games among themselves, but nothing stopped anyone from building one, so the rule only held as long as everyone kept their word.

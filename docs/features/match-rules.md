@@ -14,6 +14,7 @@ settings of a match, not of a player.
 | Ballista auto-fire | option | `BallistaAutoFire` | `0x1` | [ballista-auto-fire.md](ballista-auto-fire.md) |
 | Disband peasant fix | fix | — | `0x2` | [disband-peasant-duplication.md](../bugs/disband-peasant-duplication.md) |
 | No market | option | `NoMarket` | `0x4` | [no-market.md](no-market.md) |
+| Stuck-worker crime fix | fix | — | `0x8` | [stuck-worker-crime.md](../bugs/stuck-worker-crime.md) |
 
 ## Options and fixes
 

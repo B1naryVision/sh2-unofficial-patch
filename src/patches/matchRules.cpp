@@ -6,6 +6,7 @@
 #include "../core/screens.h"
 #include "../core/steamLobby.h"
 #include "ballistaAutoFire.h"
+#include "crimeExclusion.h"
 #include "disbandRefundGuard.h"
 #include "handshake.h"
 #include "noMarket.h"
@@ -57,6 +58,8 @@ static const Rule RULES[] = {
     {RULE_DISBAND_FIX, "Disband peasant fix", true, nullptr, installDisbandRefundGuard,
      disbandRefundGuardSetEnabled},
     {RULE_NO_MARKET, "No market", false, "NoMarket", installNoMarket, noMarketSetEnabled},
+    {RULE_CRIME_EXCLUSION_FIX, "Stuck-worker crime fix", true, nullptr, installCrimeExclusion,
+     crimeExclusionSetEnabled},
 };
 
 static const int RULE_COUNT = (int)(sizeof(RULES) / sizeof(RULES[0]));

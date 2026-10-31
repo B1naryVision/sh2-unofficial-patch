@@ -10,6 +10,7 @@
 static const uint32_t RULE_BALLISTA_AUTOFIRE = 1u << 0;
 static const uint32_t RULE_DISBAND_FIX = 1u << 1;
 static const uint32_t RULE_NO_MARKET = 1u << 2;
+static const uint32_t RULE_CRIME_EXCLUSION_FIX = 1u << 3;
 
 // Bumped whenever the member-data format changes; a player on another protocol
 // is treated as supporting nothing.
