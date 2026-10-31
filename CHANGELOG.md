@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### [Feature] - No Market Matches
+
+- **What the issue was:** Players agreed on "no market" games among themselves, but nothing stopped anyone from building one, so the rule only held as long as everyone kept their word.
+- **What we changed:** The host can switch on **No market** in the lobby panel. For that match nobody, including AI players, can build a Market or buy and sell at one, even at a Market that comes with the map, and the auto-market stays idle. The Carter's Post still works as normal. The Market is still listed in the build menu, but placing one does nothing. Like every match rule, it only takes effect when every player has a patch version that supports it.
+
 ### [Feature] - Watch Your Multiplayer Matches Again
 
 - **What the issue was:** Stronghold 2 has no replays, so once a multiplayer match ended the only record of it was what the players remembered.

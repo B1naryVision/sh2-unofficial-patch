@@ -1,5 +1,4 @@
 #include "noMarket.h"
-#include "../core/log.h"
 #include "autoMarket/autoMarket.h"
 #include <cstdint>
 #include <windows.h>
@@ -18,12 +17,9 @@ static const uintptr_t TRADE_EXECUTE_RVA = 0x1e0fa0;
 
 static const uintptr_t PLACE_TYPE_OFF = 0x10; // word: building type, as passed to placement
 
-// The Market's building type. Not yet known: the debug build logs every placed
-// type (0xb0000000 | type) so one placed Market reveals it. Until then the rule
-// reports itself unavailable and is never offered.
-static const int MARKET_TYPE = -1;
-
-static const uintptr_t LOG_PLACE_TAG = 0xb0000000;
+// The Market's building type: S2BuildingClass +0x3c, copied to each building's
+// +0x1c. Read from a dump; the same id space gives SiegeCamp 0x46.
+static const uint16_t MARKET_TYPE = 0x40;
 
 typedef void(__attribute__((thiscall)) * ExecuteFn)(void *chore);
 
@@ -35,9 +31,7 @@ static bool s_enabled = false;
 static void __attribute__((thiscall)) placeExecuteHook(void *chore) {
     uint16_t type = *(uint16_t *)((uintptr_t)chore + PLACE_TYPE_OFF);
 
-    logPushContext(LOG_PLACE_TAG | type);
-
-    if (s_enabled && (int)type == MARKET_TYPE) {
+    if (s_enabled && type == MARKET_TYPE) {
         return;
     }
 
@@ -94,7 +88,7 @@ bool installNoMarket() {
         return false;
     }
 
-    return MARKET_TYPE >= 0;
+    return true;
 }
 
 void noMarketSetEnabled(bool enabled) {

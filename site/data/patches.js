@@ -149,6 +149,13 @@ const PATCHES = [
     how:"As host, click Ballista auto-fire in the lobby panel to switch it on. Everyone's lobby panel shows whether it is on, or unavailable because someone does not have the patch."
   },
   {
+    id:"no-market", cat:"multiplayer", kind:"feature", version:"next", mp:"all", optIn:true,
+    title:"No market, as a match rule",
+    was:"\"No market\" games relied on everyone keeping their word, since nothing stopped a player from building one.",
+    now:"For that match nobody, AI players included, can build a Market or trade at one, and the auto-market stays idle. The Carter's Post still works.",
+    how:"As host, click No market in the lobby panel to switch it on. The Market still shows in the build menu, but placing one does nothing."
+  },
+  {
     id:"lobby-panel", cat:"multiplayer", kind:"feature", version:"next", mp:"partial",
     title:"See who has the patch, in the lobby",
     was:"You could only check other players' patch versions once the match had started, too late to sort it out.",
@@ -279,7 +286,8 @@ const HISTORY = [
     "A lobby panel shows who has the patch before the match starts",
     "The host can switch on match rules, starting with ballista auto-fire",
     "Rapid-clicking Disband no longer hands back extra peasants",
-    "Record and watch multiplayer replays (opt-in, experimental)"
+    "Record and watch multiplayer replays (opt-in, experimental)",
+    "No-market matches, as a match rule the host can switch on"
   ]},
   { v:"0.7.0", date:"", items:[
     "Every patch setting is adjustable in game, while you play",

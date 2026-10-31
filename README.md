@@ -72,6 +72,7 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [Host-chosen match rules, starting with field ballista auto-fire](docs/features/match-rules.md) | `base+0x5c7134`, `base+0x180c48`, `base+0x180c71`, `base+0x180c92`, `base+0x180ef9` | Unreleased |
 | [Chain-load a D3D9 wrapper (DXVK, ReShade, dgVoodoo) as `d3d9_chain.dll`](docs/features/dll-chaining.md) | — | Unreleased |
 | [Multiplayer replays with a spectator panel and kill counts (opt-in)](docs/features/multiplayer-replays.md) | `base+0x2ac60`, `base+0x2a2e0`, `base+0x37efb0`, `base+0x367a03`, `base+0x36aca0` | Unreleased |
+| [No Market match rule: no market building or trading for anyone](docs/features/no-market.md) | `base+0x5c5abc`, `base+0x5c6198` | Unreleased |
 
 ---
 
@@ -94,7 +95,6 @@ The following is on hold, excluded from the build pending further work in a futu
 | Priority | Type | Description | Requested by |
 | --- | --- | --- | --- |
 | Medium | Bug fix | Wheat Farmers and Candle Makers should not be eligible to become criminals — they get permanently stuck inside buildings | TheSettler |
-| Low | Feature | Checkbox to disable market placement in No Market multiplayer games | Ignite |
 
 ---
 
