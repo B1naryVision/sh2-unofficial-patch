@@ -17,7 +17,7 @@
 ### [Feature] - Watch Your Multiplayer Matches Again
 
 - **What the issue was:** Stronghold 2 has no replays, so once a multiplayer match ended the only record of it was what the players remembered.
-- **What we changed:** Switch on **Multiplayer replays** in the settings panel (`Ctrl+Shift+O`) and every multiplayer match you play is saved as a replay you can watch from the Load menu, with live stats for every player, a game speed slider, pause and a free camera. It is off by default while it is still experimental, because recording saves the game a moment after the match starts, which can cause a short pause for everyone.
+- **What we changed:** Switch on **Multiplayer replays** in the settings panel (`Ctrl+Shift+O`) and every multiplayer match you play is saved as a replay you can watch from the Load menu, with live stats for every player, a game speed slider, pause and a free camera. A replay plays under the same match rules the match had, so ballistae that fired by themselves in the match fire in the replay too. It is off by default while it is still experimental, because recording saves the game a moment after the match starts, which can cause a short pause for everyone.
 
 ### [Fix] - Rapid-Clicking Disband No Longer Hands Back Extra Peasants
 

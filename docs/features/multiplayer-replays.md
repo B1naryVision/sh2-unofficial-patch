@@ -121,9 +121,12 @@ The header records the format version, a 64-bit hash of the checkpoint save,
 a hash of the whole body, the executable's image size and timestamp, the epoch
 job and last recorded job, command counts, why the recording ended, when it
 was recorded and last written (UTC), the iterator-0 cursor either side of the
-checkpoint save (`reserved[0]`, flag `0x40`), and the recorder id
-(`reserved[1]`, flag `0x80`). A sidecar without `FLYS` or the iterator-0
-flag still loads; the missing data is simply not restored.
+checkpoint save (`reserved[0]`, flag `0x40`), the recorder id
+(`reserved[1]`, flag `0x80`), and the [match rules](match-rules.md) at the
+checkpoint (flag `0x100`: `reserved[2]` = the rule bits on, `reserved[3]` = the
+host's peer id; flag `0x200` = a rules line had already executed). A sidecar
+without `FLYS`, the iterator-0 flag or the rules flag still loads; the missing
+data is simply not restored.
 
 A sidecar is meant to be shared, so it is read as hostile input. Every section
 goes through a validator in `src/replay/replayFormat.cpp` before anything is
@@ -155,8 +158,9 @@ exactly as the live one did. Most of the replay code exists to make that true.
    around it (`ObserverFpScope`), since the frame tick is a mid-function site. In a networked session the save's
    "game state" announcement is suppressed for the duration of the call, the
    same way the [multiplayer save recovery](mp-save-recovery.md) save is made,
-   so the match is not interrupted. The occupancy-list order and projectile damage, which the save
-   format does not keep, are captured in the same frame. The save waits for
+   so the match is not interrupted. The occupancy-list order, projectile damage and
+   the match rules in force, which the save format does not keep, are captured in
+   the same frame. The save waits for
    a frame with no command in the lockstep queue and no deferred building
    placement (a save taken then would lose them); if that never happens
    within 900 frames, the match is simply not recorded.
@@ -247,7 +251,23 @@ the last job whose timing is fully known, so everything kept is exact.
    overwritten with the recorded value at the epoch. In live play the stock
    code zeroes it itself on entering stage 2 (VA `0x474339`) before its only
    read, so the hook leaves every live match on the stock constructor.
-4. **Spectator guard** (`spectatorGuard.cpp`). A window subclass swallows mouse
+4. **Match rules** (`matchRulesReplayBegin`). The rules a match was played
+   under (ballista auto-fire, no market, the simulation fixes) are patch
+   state, not game state: no save carries them, and live they are decided
+   outside the simulation, from the lobby and by the frame tick. Playback is
+   offline with no Steam lobby, which the live logic reads as single player:
+   it switched every option off and every fix on, and rejected the replayed
+   rules line because its sender is not the (absent) network host. Field
+   ballistae then stood idle in a replay of a match where they had fired.
+   Playback therefore takes the rules from the sidecar instead: the state at
+   the checkpoint is applied at load, and the live frame-tick logic is
+   suspended until the playback ends. A rules line that executed after the
+   checkpoint is an ordinary recorded command (human origin on the host, remote
+   on everyone else), so it is injected and commits on the job it did live,
+   checked against the recorded host peer id. The rebuilt line carries its
+   live sender: `ChatChore`'s `serial` (VA `0x5e8a10`) writes `+8` before the
+   text. A rule this build cannot run stays off, and that replay diverges.
+5. **Spectator guard** (`spectatorGuard.cpp`). A window subclass swallows mouse
    buttons, character messages and keys that could post a command, and lets
    camera keys through. Because the game also polls keys directly, the
    `GetAsyncKeyState` import of the executable and of `dxrenderer.dll` -- the
@@ -262,7 +282,7 @@ the last job whose timing is fully known, so everything kept is exact.
    (VA `0x77f022`..`0x77f057`) and returns without admitting it. Commands from
    the open in-game menu, whose clicks are let through so the viewer can leave,
    are admitted and counted.
-5. **Viewer and vision** (`replayViewer.cpp`, `replayVision.cpp`). The panel is
+6. **Viewer and vision** (`replayViewer.cpp`, `replayVision.cpp`). The panel is
    drawn in the frame like the other overlays. Pausing skips whole simulation
    updates rather than using the game's pause flag, which would put the job
    counter out of step. The Game Speed slider writes the game's own speed
@@ -270,7 +290,7 @@ the last job whose timing is fully known, so everything kept is exact.
    ends. Ally vision answers "allied" only at the draw-path call sites of the
    game's `allied(local, owner)` check, and only while the spectator guard is
    up and the session is not networked.
-6. **End.** Playback holds at the last recorded job, or plays into the
+7. **End.** Playback holds at the last recorded job, or plays into the
    victory/defeat screen if the match ended on one. The session alone ends a
    playback: when the match is left (World+4 falls), after the same 30-frame
    grace it gives a recording to report a victory or defeat screen.
@@ -444,6 +464,15 @@ All RVAs (VA - `0x400000`). The main sites; each file documents its own in full.
   playback, and the Steam overlay's `Shift+Tab` must work during one.
 - A replay only plays on the same game executable it was recorded with. Any
   other build is refused, and the save loads as a normal save.
+- A sidecar written before the match rules were recorded (no flag `0x100`)
+  starts multiplayer playback vanilla and takes the first replayed rules line
+  from any sender, since the host's peer id is unknown. That recovers a match
+  whose rules line came after the checkpoint; one whose line came before it
+  plays vanilla and diverges. Single-player sidecars of that age get every fix,
+  as live.
+- Replaying match rules needs a playtest: a match with ballista auto-fire on,
+  recorded on both the host and a joining client, must show the ballistae
+  firing in both replays.
 - A replay cannot be loaded from inside a live networked session.
 - Recording buffers hold about two hours of an 8-player match. A longer match
   is recorded up to that point, and the replay ends there.

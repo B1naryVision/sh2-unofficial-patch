@@ -76,6 +76,9 @@ static uint32_t s_lastRefreshMs = 0;
 static uint32_t s_published = 0xffffffff;
 static bool s_inSteamLobby = false; // cached by the refresh, which may call Steam
 static bool s_wasInLobbyScreen = false;
+static bool s_replay = false; // a replay is loaded: its recorded rules, not the lobby's
+static bool s_replayAnyHost = false; // older sidecar: the host's peer id was not recorded
+static uint32_t s_replayHostPeer = 0;
 
 static bool commandsImmediate() {
     return *(uint8_t *)((uintptr_t)GetModuleHandleA(NULL) + COMMANDS_IMMEDIATE_RVA) != 0;
@@ -87,6 +90,17 @@ static uint32_t hostProposal() { return (s_chosen | s_fixes) & handshakeCommonRu
 
 static uint32_t hostPeer() {
     return *(uint32_t *)((uintptr_t)GetModuleHandleA(NULL) + NETWORK_RVA + NET_HOST_PEER_OFF);
+}
+
+// A replay plays offline, where the network holds no host: the recorded one
+// stands in. The rebuilt line carries its live sender (ChatChore's serial writes
+// +8 before the text).
+static bool fromHost(uint32_t senderPeer) {
+    if (!s_replay) {
+        return senderPeer == hostPeer();
+    }
+
+    return s_replayAnyHost || senderPeer == s_replayHostPeer;
 }
 
 static void setActive(uint32_t rules) {
@@ -169,7 +183,7 @@ static void onChatExecuted(uint32_t senderPeer, const wchar_t *text, int length)
         return;
     }
 
-    if (senderPeer != hostPeer() || protocol != HANDSHAKE_PROTOCOL) {
+    if (!fromHost(senderPeer) || protocol != HANDSHAKE_PROTOCOL) {
         return;
     }
 
@@ -271,6 +285,13 @@ static void matchRulesTick() {
     uint32_t now = GetTickCount();
     bool inLobby = lobbyScreenUp();
     bool inGame = gameScreenUp();
+
+    // A replay is offline with no lobby, which below would mean "single player"
+    // and switch the recorded match's options off. Its rules are the recorded
+    // ones (matchRulesReplayBegin), and there is no one to post to.
+    if (s_replay) {
+        return;
+    }
 
     if (now - s_lastRefreshMs >= REFRESH_MS || s_lastRefreshMs == 0) {
         s_lastRefreshMs = now;
@@ -381,6 +402,48 @@ bool matchRuleToggle(int index) {
     s_proposed = hostProposal();
 
     return true;
+}
+
+void matchRulesCapture(MatchRulesState *out) {
+    out->active = s_active;
+    out->hostPeer = hostPeer();
+    out->committed = s_committed;
+}
+
+// A rule this build cannot run stays off, as a rules line naming one would leave
+// it live: the replay then diverges, which nothing here can avoid.
+void matchRulesReplayBegin(const MatchRulesState *state, bool networked) {
+    uint32_t active = 0;
+
+    s_replay = true;
+    s_replayAnyHost = state == nullptr;
+    s_replayHostPeer = 0;
+    s_committed = false;
+    s_posted = true;
+
+    if (state) {
+        active = state->active;
+        s_replayHostPeer = state->hostPeer;
+        s_committed = state->committed;
+    } else if (!networked) {
+        active = s_fixes;
+    }
+
+    setActive(active & s_supported);
+}
+
+// Back to the live rules: vanilla, until the frame tick decides otherwise.
+void matchRulesReplayEnd() {
+    if (!s_replay) {
+        return;
+    }
+
+    s_replay = false;
+    s_replayAnyHost = false;
+    s_committed = false;
+    s_posted = false;
+    s_gameSeenMs = 0;
+    setActive(0);
 }
 
 void installMatchRules() {

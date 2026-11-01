@@ -25,3 +25,21 @@ int matchRulesView(MatchRuleView *out, int max);
 // and saves it to the ini. False, and nothing changes, when this client is not
 // the lobby owner, the rule is a fix, or it is not available to everyone.
 bool matchRuleToggle(int index);
+
+// What a replay needs to run a match under the rules it was played with.
+struct MatchRulesState {
+    uint32_t active; // rules on at the checkpoint
+    uint32_t hostPeer; // the host's peer id, which a rules line must come from
+    bool committed; // a rules line had already executed
+};
+
+// Game thread, on the frame the replay checkpoint is saved.
+void matchRulesCapture(MatchRulesState *out);
+
+// A replay load: the recorded state replaces the live one until ReplayEnd, and a
+// rules line in the replay commits exactly as it did live. `state` null is an
+// older sidecar that did not record it: single player then gets every fix, as
+// live, and multiplayer starts vanilla and takes the first rules line from
+// anyone.
+void matchRulesReplayBegin(const MatchRulesState *state, bool networked);
+void matchRulesReplayEnd();

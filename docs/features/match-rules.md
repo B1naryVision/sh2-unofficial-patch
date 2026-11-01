@@ -136,6 +136,18 @@ Every match is entered from the lobby, so the next match always starts vanilla.
 so it is the queue's "accepting commands" state, not "a match is running". `GameScreen`'s
 `+0x80` parent is the signal: `0` in the menu and lobby, set in the match.
 
+### Replays
+
+A [replay](multiplayer-replays.md) plays offline, with no Steam lobby and no network host, so
+the logic above would read it as single player: options off, fixes on, and the replayed rules
+line rejected for not coming from `net+0x50`. The replay sidecar therefore records the rule
+state on the checkpoint frame (`matchRulesCapture`: the active bits, whether a line had
+already committed, and the host's peer id). Loading a replay applies that state
+(`matchRulesReplayBegin`) and suspends the frame tick until the playback ends
+(`matchRulesReplayEnd`, which goes back to vanilla). A rules line after the checkpoint is a
+recorded command like any other, so it is replayed on its live job and accepted against the
+recorded host peer id.
+
 ---
 
 ## The lobby side

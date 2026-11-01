@@ -6,6 +6,7 @@
 #include "../core/gameWString.h"
 #include "../core/hook.h"
 #include "../patches/endgameStats/killTracker.h"
+#include "../patches/matchRules.h"
 #include "prngGuard.h"
 #include "replayCommon.h"
 #include "replayFormat.h"
@@ -81,6 +82,7 @@ static uint32_t s_checkpointSize = 0;
 static uint64_t s_recordedUtc = 0;
 static uint32_t s_mpPhase = 0;
 static uint32_t s_netMode = 0;
+static MatchRulesState s_rules = {};
 static DWORD s_lastFlush = 0;
 // The writer lock (see "Periodic writes on a worker thread").
 static volatile LONG s_writing = 0;
@@ -451,6 +453,7 @@ struct BundleInput {
     uint32_t checkpointSize, mpPhase, netMode;
     uint64_t recordedUtc;
     uint32_t recorderId;
+    MatchRulesState rules;
     wchar_t sidecarPath[MAX_PATH];
 };
 
@@ -473,6 +476,7 @@ static void takeSnapshot(bool complete, uint32_t endReason, BundleInput *in) {
     in->netMode = s_netMode;
     in->recordedUtc = s_recordedUtc;
     in->recorderId = localRecorderId();
+    in->rules = s_rules;
     memcpy(in->sidecarPath, s_sidecarPath, sizeof(in->sidecarPath));
 }
 
@@ -607,6 +611,13 @@ static bool writeBundle(const BundleInput &in) {
 
     h.flags |= REPLAY_BUNDLE_RECORDER_ID;
     h.reserved[1] = in.recorderId;
+    h.flags |= REPLAY_BUNDLE_MATCH_RULES;
+    h.reserved[2] = in.rules.active;
+    h.reserved[3] = in.rules.hostPeer;
+
+    if (in.rules.committed) {
+        h.flags |= REPLAY_BUNDLE_RULES_COMMITTED;
+    }
 
     wchar_t tmp[MAX_PATH + 8];
     const size_t n = wcslen(in.sidecarPath);
@@ -896,6 +907,9 @@ static void recordingTick() {
 
         s_armConfirmed = true;
         replayRecorderEpochTiming(&s_mpPhase, &s_netMode);
+        // Still the save's frame. A rules line that executed before it is in
+        // neither the save nor the log, so its effect is kept here.
+        matchRulesCapture(&s_rules);
         // Only now that this match will produce a replay, so an abandoned arm
         // never costs the oldest one.
         pruneReplays(s_maxReplays - 1);
@@ -938,6 +952,7 @@ static void clearPlaybackState() {
 
 static void stopPlayback() {
     clearPlaybackState();
+    matchRulesReplayEnd();
     replayViewerSetEnded(false);
     replayViewerSetReplayName(L"");
     s_mode = SESSION_IDLE;
@@ -1061,8 +1076,18 @@ static bool armReplay(const wchar_t *savePath) {
     }
 
     if (armed) {
+        const MatchRulesState rules = {
+            h.reserved[2], h.reserved[3], (h.flags & REPLAY_BUNDLE_RULES_COMMITTED) != 0
+        };
+        const MatchRulesState *recorded = nullptr;
+
+        if (h.flags & REPLAY_BUNDLE_MATCH_RULES) {
+            recorded = &rules;
+        }
+
         s_endRelative = h.endRelative;
         s_playEndReason = h.endReason;
+        matchRulesReplayBegin(recorded, h.netMode == 2);
     } else {
         clearPlaybackState();
     }

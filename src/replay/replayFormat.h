@@ -75,6 +75,12 @@ static const uint32_t REPLAY_BUNDLE_ITER0_AT_SAVE = 1u << 6;
 // reserved[1] = the recorder id of the install that recorded it. Retention
 // only ever deletes replays carrying this install's id.
 static const uint32_t REPLAY_BUNDLE_RECORDER_ID = 1u << 7;
+// reserved[2] = the match rules on at the checkpoint, reserved[3] = the host
+// peer id a rules line must come from (docs/features/match-rules.md).
+static const uint32_t REPLAY_BUNDLE_MATCH_RULES = 1u << 8;
+// With MATCH_RULES: a rules line had already executed at the checkpoint, so one
+// in the replay is ignored, as it was live.
+static const uint32_t REPLAY_BUNDLE_RULES_COMMITTED = 1u << 9;
 
 enum : uint32_t {
     REPLAY_END_RECORDING = 0, // periodic snapshot of a match still in progress
