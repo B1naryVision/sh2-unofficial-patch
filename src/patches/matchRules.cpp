@@ -7,6 +7,7 @@
 #include "../core/steamLobby.h"
 #include "ballistaAutoFire.h"
 #include "crimeExclusion.h"
+#include "deadShieldPassThrough.h"
 #include "disbandRefundGuard.h"
 #include "handshake.h"
 #include "noMarket.h"
@@ -70,6 +71,8 @@ static const Rule RULES[] = {
     {RULE_NO_MARKET, "No market", false, "NoMarket", installNoMarket, noMarketSetEnabled},
     {RULE_UNIT_CAP_RAISE, "Unit cap 550", false, "UnitCap550", installUnitCapRaise,
      unitCapRaiseSetEnabled},
+    {RULE_DEAD_SHIELD_PASS, "Dead shields let shots through", false, "DeadShieldPassThrough",
+     installDeadShieldPassThrough, deadShieldPassThroughSetEnabled},
 };
 
 static const int RULE_COUNT = (int)(sizeof(RULES) / sizeof(RULES[0]));

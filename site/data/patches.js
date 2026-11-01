@@ -163,6 +163,13 @@ const PATCHES = [
     how:"As host, click Unit cap 550 in the lobby panel to switch it on. It only takes effect when every player has the patch."
   },
   {
+    id:"dead-shields", cat:"multiplayer", kind:"feature", version:"next", mp:"all", optIn:true,
+    title:"Destroyed Mantlets and Cats stop blocking shots",
+    was:"A destroyed Mantlet or Cat kept catching every arrow, bolt and stone until it had finished collapsing, so a stack of shields kept protecting the troops behind it long after the front one was gone.",
+    now:"The host can make a shield stop catching shots the moment it is destroyed, so the next shield or the troops behind it are hit straight away.",
+    how:"As host, click Dead shields let shots through in the lobby panel to switch it on. It only takes effect when every player has the patch."
+  },
+  {
     id:"stuck-worker-crime", cat:"multiplayer", kind:"fix", version:"next", mp:"all",
     title:"Criminals stuck inside wheat farms and candle makers",
     was:"Wheat farmers and candle makers often get stuck inside their buildings, and when one turned to crime there the guards could not reach them, so the building had to be torn down.",
@@ -309,7 +316,8 @@ const HISTORY = [
     "No-market matches, as a match rule the host can switch on",
     "550-unit armies in every lobby size, as a match rule",
     "Wheat farmers and candle makers no longer turn to crime inside their buildings",
-    "Archers, crossbowmen and axe throwers no longer ignore move orders in a fight"
+    "Archers, crossbowmen and axe throwers no longer ignore move orders in a fight",
+    "Destroyed Mantlets and Cats stop blocking shots, as a match rule"
   ]},
   { v:"0.7.0", date:"", items:[
     "Every patch setting is adjustable in game, while you play",

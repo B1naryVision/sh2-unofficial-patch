@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### [Feature] - Destroyed Mantlets and Cats Stop Blocking Shots
+
+- **What the issue was:** A destroyed Mantlet or Cat kept catching every arrow, bolt and stone until it had finished collapsing, so a stack of shields went on protecting the troops behind it for several seconds after the front one was gone.
+- **What we changed:** The host can switch on **Dead shields let shots through** in the lobby panel. A shield then stops catching shots the moment it is destroyed, so the next shield in the stack, or the troops behind it, are hit straight away. Like every match rule, it only takes effect when every player has a patch version that supports it; otherwise shields behave as before.
+
 ### [Feature] - Full-Size Armies in Every Lobby Size
 
 - **What the issue was:** The more players in a match, the smaller everyone's army had to be: 550 units each in a two-player game, but only 425 with four players and 362 with eight.

@@ -76,6 +76,7 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [Unit cap 550 match rule: the two-player cap in every lobby size](docs/features/unit-cap-raise.md) | `base+0x16827`, `base+0x18768`, `base+0x189fb` | Unreleased |
 | [Wheat farmers and candle makers no longer turn to crime inside their buildings, on automatically when every player has it](docs/bugs/stuck-worker-crime.md) | `base+0x68d528`, `base+0x68d5a0` | Unreleased |
 | [Archers, crossbowmen and axe throwers no longer ignore move orders in a fight, on automatically when every player has it](docs/bugs/ranged-move-orders.md) | `base+0x113eb0`, `base+0xfe4e7`, `base+0x10a367` | Unreleased |
+| [Dead shields match rule: a destroyed Mantlet or Cat stops catching shots at once](docs/features/dead-shield-pass-through.md) | `base+0x21fdb` | Unreleased |
 
 ---
 
