@@ -1,8 +1,8 @@
 # Dead Shields Let Shots Through — Match Option
 
-**Status:** Built as a host [match option](match-rules.md) on 2026-11-01. Playtested
-2026-11-01: behaves as expected. The two-client desync test and the replay test (tests 4 and
-7) are not yet recorded.
+**Status:** Added in v0.8.0 as a host [match option](match-rules.md) (built 2026-11-01). Playtested
+2026-11-01, including the two-client desync test and the replay test (tests 4 and 7):
+behaves as expected.
 **Config**: the host clicks *Dead shields let shots through* in the
 [lobby panel](lobby-panel.md) (`[matchrules] DeadShieldPassThrough`). Rule bit `0x40`.
 **Affects:** Stronghold 2 Steam v1.5.0 (32-bit, `Stronghold2.exe`)

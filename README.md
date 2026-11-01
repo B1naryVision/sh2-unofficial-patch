@@ -41,13 +41,13 @@ No game files are modified. Removing the DLL restores the original behavior comp
 
 ## Current Fixes and Features
 
-### v0.7.0
+### v0.8.0
 
 | Description | Offset | Status |
 | --- | --- | --- |
 | [Knight/catapult mount crash](docs/bugs/knight-catapult-crash.md) | `base+0x1048BB` | Fixed in v0.1.0 |
 | [AI opponents in multiplayer lobbies](docs/features/mp-ai-enable.md) | `base+0x2A0F69` | Added in v0.2.0 |
-| [Skip the intro videos on launch](docs/features/intro-skip.md) | `base+0x4DA9F8`, `base+0x27BB0D` | Added in v0.2.0; stutter fix unreleased |
+| [Skip the intro videos on launch](docs/features/intro-skip.md) | `base+0x4DA9F8`, `base+0x27BB0D` | Added in v0.2.0; stutter fix in v0.8.0 |
 | [MP connect-complete crash](docs/bugs/mp-connect-complete-crash.md) | `base+0x3d85c6` | Added in v0.3.0 |
 | [End-of-game statistics overlay](docs/features/endgame-stats.md) | `base+0x297fa0`, `base+0x297700` | Added in v0.3.0 |
 | [Stop selected troops hotkey (`H`)](docs/features/stop-troops-hotkey.md) | `base+0xf3140` | Added in v0.4.0 |
@@ -66,17 +66,17 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [In-progress games hidden from the multiplayer browser](docs/bugs/in-progress-lobbies.md) | `base+0x3e065b`, `base+0x3e06bf` | Fixed in v0.7.0 |
 | [`!ping` chat command showing per-player latency](docs/features/ping-command.md) | `base+0x24d8e0`, `base+0x3d88c0` | Added in v0.7.0 |
 | [Configurable camera pan speed (opt-in)](docs/features/pan-speed.md) | `base+0x1f9d86` | Added in v0.7.0 |
-| [Patch handshake and `!ver` chat command showing everyone's patch version](docs/features/patch-handshake.md) | `base+0x26cd918` | Unreleased |
-| [Lobby panel listing every player's patch version (`Ctrl+Shift+L`)](docs/features/lobby-panel.md) | `base+0x5e2c64` | Unreleased |
-| [Disband peasant duplication fix, on automatically when every player has it](docs/bugs/disband-peasant-duplication.md) | `base+0xf6419` | Unreleased |
-| [Host-chosen match rules, starting with field ballista auto-fire](docs/features/match-rules.md) | `base+0x5c7134`, `base+0x180c48`, `base+0x180c71`, `base+0x180c92`, `base+0x180ef9` | Unreleased |
-| [Chain-load a D3D9 wrapper (DXVK, ReShade, dgVoodoo) as `d3d9_chain.dll`](docs/features/dll-chaining.md) | — | Unreleased |
-| [Multiplayer replays with a spectator panel and kill counts (opt-in)](docs/features/multiplayer-replays.md) | `base+0x2ac60`, `base+0x2a2e0`, `base+0x37efb0`, `base+0x367a03`, `base+0x36aca0` | Unreleased |
-| [No Market match rule: no market building or trading for anyone](docs/features/no-market.md) | `base+0x5c5abc`, `base+0x5c6198` | Unreleased |
-| [Unit cap 550 match rule: the two-player cap in every lobby size](docs/features/unit-cap-raise.md) | `base+0x16827`, `base+0x18768`, `base+0x189fb` | Unreleased |
-| [Wheat farmers and candle makers no longer turn to crime inside their buildings, on automatically when every player has it](docs/bugs/stuck-worker-crime.md) | `base+0x68d528`, `base+0x68d5a0` | Unreleased |
-| [Archers, crossbowmen and axe throwers no longer ignore move orders in a fight, on automatically when every player has it](docs/bugs/ranged-move-orders.md) | `base+0x113eb0`, `base+0xfe4e7`, `base+0x10a367` | Unreleased |
-| [Dead shields match rule: a destroyed Mantlet or Cat stops catching shots at once](docs/features/dead-shield-pass-through.md) | `base+0x21fdb` | Unreleased |
+| [Patch handshake and `!ver` chat command showing everyone's patch version](docs/features/patch-handshake.md) | `base+0x26cd918` | Added in v0.8.0 |
+| [Lobby panel listing every player's patch version (`Ctrl+Shift+L`)](docs/features/lobby-panel.md) | `base+0x5e2c64` | Added in v0.8.0 |
+| [Disband peasant duplication fix, on automatically when every player has it](docs/bugs/disband-peasant-duplication.md) | `base+0xf6419` | Fixed in v0.8.0 |
+| [Host-chosen match rules, starting with field ballista auto-fire](docs/features/match-rules.md) | `base+0x5c7134`, `base+0x180c48`, `base+0x180c71`, `base+0x180c92`, `base+0x180ef9` | Added in v0.8.0 |
+| [Chain-load a D3D9 wrapper (DXVK, ReShade, dgVoodoo) as `d3d9_chain.dll`](docs/features/dll-chaining.md) | — | Added in v0.8.0 |
+| [Multiplayer replays with a spectator panel and kill counts (opt-in)](docs/features/multiplayer-replays.md) | `base+0x2ac60`, `base+0x2a2e0`, `base+0x37efb0`, `base+0x367a03`, `base+0x36aca0` | Added in v0.8.0 |
+| [No Market match rule: no market building or trading for anyone](docs/features/no-market.md) | `base+0x5c5abc`, `base+0x5c6198` | Added in v0.8.0 |
+| [Unit cap 550 match rule: the two-player cap in every lobby size](docs/features/unit-cap-raise.md) | `base+0x16827`, `base+0x18768`, `base+0x189fb` | Added in v0.8.0 |
+| [Wheat farmers and candle makers no longer turn to crime inside their buildings, on automatically when every player has it](docs/bugs/stuck-worker-crime.md) | `base+0x68d528`, `base+0x68d5a0` | Fixed in v0.8.0 |
+| [Archers, crossbowmen and axe throwers no longer ignore move orders in a fight, on automatically when every player has it](docs/bugs/ranged-move-orders.md) | `base+0x113eb0`, `base+0xfe4e7`, `base+0x10a367` | Fixed in v0.8.0 |
+| [Dead shields match rule: a destroyed Mantlet or Cat stops catching shots at once](docs/features/dead-shield-pass-through.md) | `base+0x21fdb` | Added in v0.8.0 |
 
 ---
 
@@ -90,9 +90,11 @@ The following is on hold, excluded from the build pending further work in a futu
 | --- | --- |
 | [Multiplayer recovery saves](docs/features/mp-save-recovery.md) | Save engine works, but calling it live kicks a networked match to the lobby; being redesigned to save at session-end (graceful drops only). See the doc's verification log |
 
-| Priority | Type | Description | Requested by |
-| --- | --- | --- | --- |
-| Medium | Bug fix | Wheat Farmers and Candle Makers should not be eligible to become criminals — they get permanently stuck inside buildings | TheSettler |
+Potential match rules:
+
+| Type | Description | Notes |
+| --- | --- | --- |
+| Match rule (host option) | **Decom/Recom**: bring back the pre-1.4.1 disband, where a disbanded unit turns into a peasant on the spot and walks back to the castle. Firefly's patch 1.4.1 replaced it: *"Disbanded troops now appear from the player's hovels. If no hovels are placed, peasants will appear outside the keep."* The aim is to make the old behaviour optional rather than restore it for everyone | Changes the simulation, so it needs its own rule bit and the replay test. It works on the same troop disband path as the [disband peasant fix](docs/bugs/disband-peasant-duplication.md), so the two must be built to work together |
 
 ---
 
@@ -149,6 +151,12 @@ which applies it to the running game and writes it back to the ini — see
 [docs/features/settings-overlay.md](docs/features/settings-overlay.md).
 See [docs/features/configuration.md](docs/features/configuration.md)
 for details.
+
+The ini also remembers the host's [match rules](docs/features/match-rules.md),
+which are picked in the multiplayer lobby panel (`Ctrl+Shift+L`) rather than
+in the settings panel, and whether
+[multiplayer replays](docs/features/multiplayer-replays.md) are recorded
+(off by default).
 
 ---
 

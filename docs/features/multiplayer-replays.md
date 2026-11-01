@@ -1,6 +1,6 @@
 # Multiplayer Replays
 
-**Status:** Unreleased  
+**Status:** Added in v0.8.0 (opt-in, experimental)  
 **Affected version:** Stronghold 2 Steam v1.5.0  
 **Patch type:** Opt-in (`[replay] RecordMultiplayer=1`). Hooks are installed at startup so a received replay can be played with recording off; in a match that is neither recorded nor replayed they return after one or two compares (see [Footprint when idle](#footprint-when-idle))
 
@@ -520,10 +520,11 @@ All RVAs (VA - `0x400000`). The main sites; each file documents its own in full.
   whose rules line came after the checkpoint; one whose line came before it
   plays vanilla and diverges. Single-player sidecars of that age get every fix,
   as live.
-- Replaying match rules needs a playtest: a match with ballista auto-fire on,
-  recorded on both the host and a joining client, must show the ballistae
-  firing in both replays. Dead shields has passed its replay test at 1x and
-  5x; the other rules have not had one of their own.
+- Replaying match rules was playtested 2026-11-01 and seems to work as
+  expected, with dead shields' own replay test (test 7 in its doc) passing.
+  The full check, a ballista auto-fire match recorded on both the host and a
+  joining client showing the ballistae firing in both replays, has not been
+  reported separately.
 - A replay carrying a rule bit the playing build does not support (a newer
   build's rule, or one whose sites failed to verify) plays with that rule off
   and diverges, and nothing tells the viewer why. The sidecar records the

@@ -1,6 +1,6 @@
 # D3D9 Chain-Loading (DXVK, ReShade, dgVoodoo)
 
-**Status:** Unreleased  
+**Status:** Added in v0.8.0  
 **Affected version:** Stronghold 2 Steam v1.5.0  
 **Patch type:** Proxy loader change + `EndScene` hook fallback (no exe bytes touched)
 

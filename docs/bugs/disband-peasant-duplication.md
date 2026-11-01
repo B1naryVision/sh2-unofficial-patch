@@ -1,8 +1,8 @@
 # Disband Peasant Duplication (Rapid-Click Exploit)
 
-**Status:** An automatic [match fix](../features/match-rules.md#options-and-fixes): on in every
-multiplayer match where every player supports it, and always on in single player. Not yet
-playtested in this form.
+**Status:** Fixed in v0.8.0 as an automatic [match fix](../features/match-rules.md#options-and-fixes): on in every
+multiplayer match where every player supports it, and always on in single player. Playtested
+in this form 2026-11-01: works as expected.
 **Affects:** Stronghold 2 Steam v1.5.0 (32-bit, `Stronghold2.exe`)
 **Config:** none. A bug fix is never a choice.
 
@@ -301,6 +301,8 @@ unpatched lobbies stay in sync while quietly handing the clicker free peasants.
       v1.5.0 `Stronghold2.exe`
 - [x] Patched byte stream re-disassembled and matches the intent
 - [x] Compiles clean (`-Wall -Wextra`, no warnings)
+- [x] Playtested as a match fix 2026-11-01: works as expected (reported as a
+      whole; the cases below were not reported one by one)
 - [ ] Single-player: rapid-click disband returns exactly one peasant per unit
 - [ ] Single-player: siege engine disband unchanged
 - [ ] Single-player: disbanding a unit that is dying from combat in the same

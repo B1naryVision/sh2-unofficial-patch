@@ -1,6 +1,6 @@
 # Patch Configuration (`sh2-unofficial-patch.ini`)
 
-**Status:** Added in v0.5.0; extended in v0.6.0 (key combinations, siege camp, recruitment and auto-market settings), v0.6.1 (overlay scale) and v0.7.0 (every setting editable in game)
+**Status:** Added in v0.5.0; extended in v0.6.0 (key combinations, siege camp, recruitment and auto-market settings), v0.6.1 (overlay scale), v0.7.0 (every setting editable in game) and v0.8.0 (match rules, replays)
 **Affected version:** Stronghold 2 Steam v1.5.0
 **Patch type:** No game-code change — a config layer (`src/core/config.cpp`) read by the individual patches at install time
 
@@ -60,6 +60,8 @@ the game has created a device to read a backbuffer size from
 | Section | Key | Default | Meaning |
 | --- | --- | --- | --- |
 | `[hotkeys]` | `SettingsPanel` | `Ctrl+Shift+O` | Open the in-game settings panel, which rebinds the keys below and writes them back here ([settings-overlay.md](settings-overlay.md)); `None` removes the panel |
+| `[hotkeys]` | `ReplayPanel` | `RBracket` | Show or hide the replay panel while watching a replay ([multiplayer-replays.md](multiplayer-replays.md)) |
+| `[hotkeys]` | `ReplayFreeView` | `F` | Free view while watching a replay: hides the HUD, the middle mouse button turns and tilts the camera ([multiplayer-replays.md](multiplayer-replays.md)) |
 | `[hotkeys]` | `StopTroops` | `H` | Stop selected troops ([stop-troops-hotkey.md](stop-troops-hotkey.md)) |
 | `[hotkeys]` | `AttackToggle` | `Mouse4` | Toggle attack-move stance ([attack-move-hotkey.md](attack-move-hotkey.md)) |
 | `[hotkeys]` | `LobbyPanel` | `Ctrl+Shift+L` | Show or hide the lobby patch panel ([lobby-panel.md](lobby-panel.md)); it appears by itself in the multiplayer lobby |
@@ -71,6 +73,14 @@ the game has created a device to read a backbuffer size from
 | `[ui]` | `Scale` | `Auto` | Size of the patch's overlay panels in percent ([ui-scale.md](ui-scale.md)); `Auto` derives it from the game's resolution, `50`–`300` sets it by hand, anything else falls back to `Auto` |
 | `[multiplayer]` | `HideInProgressLobbies` | `1` | Leave games that have already started out of the multiplayer game list ([in-progress-lobbies.md](../bugs/in-progress-lobbies.md)); `0` restores the stock list (no hooks installed) |
 | `[matchrules]` | `BallistaAutoFire` | `0` | As host, switch on field ballista auto-fire for multiplayer matches where every player supports it ([match-rules.md](match-rules.md)); set by clicking the rule in the lobby panel, not in the settings panel; ignored when not hosting |
+| `[matchrules]` | `NoMarket` | `0` | As host, no Market building or market trading for anyone in the match ([no-market.md](no-market.md)); set from the lobby panel like every rule |
+| `[matchrules]` | `UnitCap550` | `0` | As host, a 550-unit cap for every player whatever the lobby size ([unit-cap-raise.md](unit-cap-raise.md)) |
+| `[matchrules]` | `DeadShieldPassThrough` | `0` | As host, a destroyed Mantlet or Cat stops catching shots at once ([dead-shield-pass-through.md](dead-shield-pass-through.md)) |
+| `[replay]` | `RecordMultiplayer` | `0` | Record every multiplayer match as a replay ([multiplayer-replays.md](multiplayer-replays.md)); experimental, off by default |
+| `[replay]` | `RecordSinglePlayer` | `0` | Also record single-player sessions |
+| `[replay]` | `MaxReplays` | `10` | Replays kept in the Saves folder, `1`–`99`; the oldest replays this install recorded are deleted to make room, ordinary saves never |
+| `[replay]` | `AllyVision` | `1` | While a replay plays, see every player's buildings and units as their allies would (interiors, hidden units, unsprung traps); `0` turns it off |
+| `[replay]` | `RecorderId` | generated | Written by the patch on first use; marks the replays this install recorded, so retention never deletes someone else's. Not meant to be edited |
 | `[recruitment]` | `RecruitmentShiftMultiplier` | `20` | Units queued per shift-click in barracks/mercenary post/monastery/engineers guild/siege camp ([shift-click-recruitment.md](shift-click-recruitment.md)); `0` or `1` disables (no hooks installed) |
 
 ### Hotkey value format

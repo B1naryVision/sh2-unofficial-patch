@@ -1,7 +1,7 @@
 # Ranged Units Ignore Move Orders in Combat
 
-**Status:** Fixed, as an automatic match fix (`src/patches/rangedWalkGuard.cpp`).
-Root cause confirmed by a runtime trace; the fix itself is awaiting a playtest.
+**Status:** Fixed in v0.8.0, as an automatic match fix (`src/patches/rangedWalkGuard.cpp`).
+Root cause confirmed by a runtime trace; the fix playtested 2026-11-01: works as expected.
 **Affected version:** Stronghold 2 Steam v1.5.0
 **Patch type:** Three `call` operands retargeted (recipe A), switched per match by
 `patches/matchRules.cpp`.

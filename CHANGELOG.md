@@ -2,7 +2,7 @@
 
 ---
 
-## [Unreleased]
+## [0.8.0]
 
 ### [Feature] - Destroyed Mantlets and Cats Stop Blocking Shots
 

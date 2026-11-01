@@ -135,48 +135,48 @@ const PATCHES = [
     how:"Type !ping into the in-game chat during a multiplayer match. Players without the patch still see the results — their own time shows as n/a until they install it."
   },
   {
-    id:"patch-handshake", cat:"multiplayer", kind:"feature", version:"next", mp:"partial",
+    id:"patch-handshake", cat:"multiplayer", kind:"feature", version:"0.8.0", mp:"partial",
     title:"See who has the patch, with !ver",
     was:"There was no way to tell whether the other players had the patch, or which version, short of asking each of them.",
     now:"Everyone sees a chat message listing each player's patch version and who is hosting. It is also the groundwork for optional game rules the host can switch on when everyone has the patch.",
     how:"Type !ver into the in-game chat during a multiplayer match. Players without the patch, or with version 0.7 or older, show as \"0.7 or older\"."
   },
   {
-    id:"match-rules", cat:"multiplayer", kind:"feature", version:"next", mp:"all", optIn:true,
+    id:"match-rules", cat:"multiplayer", kind:"feature", version:"0.8.0", mp:"all", optIn:true,
     title:"Ballista auto-fire, as a match rule",
     was:"Field ballistae stopped aiming and firing by themselves in an official update, which left knight rushes very hard to stop.",
     now:"The host can switch it back on for a match. It only takes effect when every player has the patch, and a chat message at the start tells everyone it is on.",
     how:"As host, click Ballista auto-fire in the lobby panel to switch it on. Everyone's lobby panel shows whether it is on, or unavailable because someone does not have the patch."
   },
   {
-    id:"no-market", cat:"multiplayer", kind:"feature", version:"next", mp:"all", optIn:true,
+    id:"no-market", cat:"multiplayer", kind:"feature", version:"0.8.0", mp:"all", optIn:true,
     title:"No market, as a match rule",
     was:"\"No market\" games relied on everyone keeping their word, since nothing stopped a player from building one.",
     now:"For that match nobody, AI players included, can build a Market or trade at one, and the auto-market stays idle. The Carter's Post still works.",
     how:"As host, click No market in the lobby panel to switch it on. The Market still shows in the build menu, but placing one does nothing."
   },
   {
-    id:"unit-cap", cat:"multiplayer", kind:"feature", version:"next", mp:"all", optIn:true,
+    id:"unit-cap", cat:"multiplayer", kind:"feature", version:"0.8.0", mp:"all", optIn:true,
     title:"550-unit armies in every lobby size",
     was:"The more players in a match, the smaller everyone's army had to be: 550 units each with two players, but only 362 with eight.",
     now:"The host can give every player the two-player cap of 550 units, whatever the number of players.",
     how:"As host, click Unit cap 550 in the lobby panel to switch it on. It only takes effect when every player has the patch."
   },
   {
-    id:"dead-shields", cat:"multiplayer", kind:"feature", version:"next", mp:"all", optIn:true,
+    id:"dead-shields", cat:"multiplayer", kind:"feature", version:"0.8.0", mp:"all", optIn:true,
     title:"Destroyed Mantlets and Cats stop blocking shots",
     was:"A destroyed Mantlet or Cat kept catching every arrow, bolt and stone until it had finished collapsing, so a stack of shields kept protecting the troops behind it long after the front one was gone.",
     now:"The host can make a shield stop catching shots the moment it is destroyed, so the next shield or the troops behind it are hit straight away.",
     how:"As host, click Dead shields let shots through in the lobby panel to switch it on. It only takes effect when every player has the patch."
   },
   {
-    id:"stuck-worker-crime", cat:"multiplayer", kind:"fix", version:"next", mp:"all",
+    id:"stuck-worker-crime", cat:"multiplayer", kind:"fix", version:"0.8.0", mp:"all",
     title:"Criminals stuck inside wheat farms and candle makers",
     was:"Wheat farmers and candle makers often get stuck inside their buildings, and when one turned to crime there the guards could not reach them, so the building had to be torn down.",
     now:"Wheat farms and candle makers' workshops are left out of crime, as the gong pit and falconer's post already are, so crime comes from other workers instead. It is always on in single player, and on in any multiplayer match where every player has the patch."
   },
   {
-    id:"lobby-panel", cat:"multiplayer", kind:"feature", version:"next", mp:"partial",
+    id:"lobby-panel", cat:"multiplayer", kind:"feature", version:"0.8.0", mp:"partial",
     title:"See who has the patch, in the lobby",
     was:"You could only check other players' patch versions once the match had started, too late to sort it out.",
     now:"A small panel in the corner of the lobby lists every player, their patch version and who is hosting, and says whether everyone has the patch.",
@@ -185,7 +185,7 @@ const PATCHES = [
 
   /* ---------- CONTROLS ------------------------------------------- */
   {
-    id:"ranged-move-orders", cat:"controls", kind:"fix", version:"next", mp:"all",
+    id:"ranged-move-orders", cat:"controls", kind:"fix", version:"0.8.0", mp:"all",
     title:"Archers that ignore move orders in a fight",
     was:"Archers, crossbowmen and axe throwers in a fight often ignored a move order and kept shooting, even when ordered away from the enemy, so it took several clicks to get them all moving.",
     now:"Ranged troops keep to a move order until they arrive, then pick targets as before. It is always on in single player, and on in any multiplayer match where every player has the patch."
@@ -285,14 +285,14 @@ const PATCHES = [
     how:"Automatic. If you want them larger or smaller, set Scale under [ui] to a percentage between 50 and 300."
   },
   {
-    id:"dll-chaining", cat:"interface", kind:"feature", version:"next", mp:"solo",
+    id:"dll-chaining", cat:"interface", kind:"feature", version:"0.8.0", mp:"solo",
     title:"Use the patch together with DXVK or ReShade",
     was:"The patch and graphics add-ons such as DXVK, ReShade or dgVoodoo all need the same file name in the game folder, so you could only have one of them.",
     now:"The patch can now load one of those add-ons for you, so you can use both at once.",
     how:"Rename the add-on's d3d9.dll to d3d9_chain.dll and put it in the game folder next to the patch's d3d9.dll. That's all there is to it — take the file away again to go back to normal."
   },
   {
-    id:"multiplayer-replays", cat:"multiplayer", kind:"feature", version:"next", mp:"solo", optIn:true,
+    id:"multiplayer-replays", cat:"multiplayer", kind:"feature", version:"0.8.0", mp:"solo", optIn:true,
     title:"Watch your multiplayer matches again",
     was:"The game has no replays, so once a multiplayer match was over there was no way to see it again.",
     now:"Every multiplayer match you play can be saved as a replay and watched later from a spectator's seat, with live stats for every player, a speed slider and a free camera. It plays under the same match rules the match had, such as ballista auto-fire.",
@@ -305,7 +305,7 @@ const PATCHES = [
    the bottom of the page. Keep it in step with CHANGELOG.md.
    ================================================================== */
 const HISTORY = [
-  { v:"next", date:"", items:[
+  { v:"0.8.0", date:"", items:[
     "Fixed occasional stuttering caused by skipping the intro videos",
     "Works alongside DXVK, ReShade and other graphics add-ons",
     "See which patch version every player has with the !ver chat command",

@@ -1,6 +1,6 @@
 # Match Rules — Host-Chosen Gameplay Changes
 
-**Status**: Implemented and playtested 2026-10-29: tests 1–3 below passed, test 3 with four
+**Status**: Added in v0.8.0; playtested 2026-10-29: tests 1–3 below passed, test 3 with four
 patched players and with the tester both as host and as a joining player. Test 4 has been
 checked as far as the lobby (the panel marks the rule unavailable with an unpatched player
 present); the rest of it runs the same "nothing to post" path test 1 exercised.

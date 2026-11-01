@@ -1,6 +1,6 @@
 # Unit Cap Raise — Match Option
 
-**Status:** Built as a host [match option](match-rules.md) on 2026-11-01. Not yet playtested.
+**Status:** Added in v0.8.0 as a host [match option](match-rules.md) (built 2026-11-01). Playtested 2026-11-01: works as expected.
 **Config**: the host clicks *Unit cap 550* in the [lobby panel](lobby-panel.md)
 (`[matchrules] UnitCap550`). Rule bit `0x20`.
 **Affects:** Stronghold 2 Steam v1.5.0 (32-bit, `Stronghold2.exe`)

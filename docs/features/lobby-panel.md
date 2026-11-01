@@ -1,6 +1,6 @@
 # Lobby Patch Panel
 
-**Status**: Implemented; playtested 2026-10-28 solo and with an unpatched player (shows in the
+**Status**: Added in v0.8.0; playtested 2026-10-28 solo and with an unpatched player (shows in the
 lobby, hides in the match, toggle works, unpatched row reads `0.7 or older`), and 2026-10-29
 with four patched players, including the host's rule switches and the read-only view as a
 joining player.

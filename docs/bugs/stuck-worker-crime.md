@@ -1,8 +1,8 @@
 # Wheat Farmers and Candle Makers Turning to Crime Inside Their Buildings
 
-**Status:** An automatic [match fix](../features/match-rules.md#options-and-fixes): on in every
+**Status:** Fixed in v0.8.0 as an automatic [match fix](../features/match-rules.md#options-and-fixes): on in every
 multiplayer match where every player supports it, and always on in single player. Built
-2026-10-31, not yet playtested.
+2026-10-31, playtested 2026-11-01: works as expected.
 **Affects:** Stronghold 2 Steam v1.5.0 (32-bit, `Stronghold2.exe`)
 **Config:** none. A bug fix is never a choice.
 

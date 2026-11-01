@@ -1,6 +1,6 @@
 # Intro Skip
 
-**Status:** Added in v0.2.0; timer-resolution fix and byte checks added after v0.7.0  
+**Status:** Added in v0.2.0; timer-resolution fix and byte checks added in v0.8.0  
 **Affected version:** Stronghold 2 Steam v1.5.0  
 **Patch type:** In-memory write (2 sites) + one `timeBeginPeriod(1)` call
 

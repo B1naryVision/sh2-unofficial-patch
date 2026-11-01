@@ -1,6 +1,6 @@
 # No Market — Match Option
 
-**Status**: Built; the Market's building type id (`0x40`) was read from a dump on 2026-10-31
+**Status**: Added in v0.8.0; the Market's building type id (`0x40`) was read from a dump on 2026-10-31
 (below). Playtested 2026-10-31: with the rule on, a Market cannot be placed and the
 auto-market editor will not open. Trading at a map-placed Market was not separately checked.
 **Config**: a host [match option](match-rules.md) (`[matchrules] NoMarket`), clicked on in

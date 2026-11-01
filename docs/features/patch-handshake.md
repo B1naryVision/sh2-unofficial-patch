@@ -1,6 +1,6 @@
 # Patch Handshake — Who Has Which Patch Version
 
-**Status**: Implemented; playtested 2026-10-28 with patched and unpatched players. Advertises the
+**Status**: Added in v0.8.0; playtested 2026-10-28 with patched and unpatched players. Advertises the
 [match rules](match-rules.md) whose sites verified on this machine
 (`handshakeSetSupportedRules`).
 **Config**: none — always active.

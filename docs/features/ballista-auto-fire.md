@@ -1,6 +1,6 @@
 # Ballista Auto-Fire Restore
 
-**Status:** A host-chosen [match rule](match-rules.md) (`[matchrules] BallistaAutoFire`):
+**Status:** Added in v0.8.0 as a host-chosen [match rule](match-rules.md) (`[matchrules] BallistaAutoFire`):
 switched on per match only when every player supports it. Never installed on its own.  
 **Affects:** Stronghold 2 Steam v1.5.0 (32-bit, `Stronghold2.exe`)
 
@@ -298,7 +298,7 @@ Why each piece is shaped this way:
   the engine itself uses, and adds no state.
 - **Multiplayer.** The old cave and the new one behave differently, so builds with each would
   desync if the rule were on. The fix still keeps rule bit `0x1`: the rule (and the handshake
-  that carries it) is unreleased, so no published build has the old cave. Development builds
+  that carries it) first shipped in v0.8.0, with the new cave, so no published build has the old cave. Development builds
   from before 2026-10-31 must not share a match with this rule on. If the ballista logic changes
   again after a release, it needs a new bit, because `handshake.h` forbids reusing one.
 
