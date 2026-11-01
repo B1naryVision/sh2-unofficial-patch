@@ -20,6 +20,7 @@
 #include "matchRules.h"
 #include "mpAiEnable.h"
 #include "mpConnectCompleteCrash.h"
+#include "orderTrace.h"
 #include "panSpeed.h"
 #include "pingCommand.h"
 #include "settingsOverlay.h"
@@ -52,6 +53,7 @@ void applyUnofficialPatches() {
     installShiftRecruit();
     installAutoMarket();
     installSiegeCampHotkey();
+    installOrderTrace();
 
     // Multiplayer replays (src/replay/). Every hook is stock-byte verified
     // and each module installs all of its sites or none. The session comes

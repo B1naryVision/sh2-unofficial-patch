@@ -11,10 +11,16 @@ settings of a match, not of a player.
 
 | Rule | Kind | Ini key | Bit | Feature |
 | --- | --- | --- | --- | --- |
-| Ballista auto-fire | option | `BallistaAutoFire` | `0x1` | [ballista-auto-fire.md](ballista-auto-fire.md) |
 | Disband peasant fix | fix | — | `0x2` | [disband-peasant-duplication.md](../bugs/disband-peasant-duplication.md) |
-| No market | option | `NoMarket` | `0x4` | [no-market.md](no-market.md) |
 | Stuck-worker crime fix | fix | — | `0x8` | [stuck-worker-crime.md](../bugs/stuck-worker-crime.md) |
+| Ranged move-order fix | fix | — | `0x10` | [ranged-move-orders.md](../bugs/ranged-move-orders.md) |
+| Ballista auto-fire | option | `BallistaAutoFire` | `0x1` | [ballista-auto-fire.md](ballista-auto-fire.md) |
+| No market | option | `NoMarket` | `0x4` | [no-market.md](no-market.md) |
+
+The table is in display order. The lobby panel lists rules in the order of the `RULES`
+table in `matchRules.cpp`: every fix first, then the host's options, so the two kinds read
+as separate groups. Its click index is a position in that table, so new rules go in their
+group there; the bits are independent of the order.
 
 ## Options and fixes
 

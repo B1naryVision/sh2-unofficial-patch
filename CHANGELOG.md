@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### [Fix] - Archers and Crossbowmen Now Follow Move Orders in a Fight
+
+- **What the issue was:** When archers, crossbowmen or axe throwers were in a fight, some of them often ignored a move order and kept shooting, even when you ordered them away from the enemy, so you had to click again and again to get them all moving.
+- **What we changed:** Ranged troops now keep to a move order until they get there, then pick targets as before. They no longer drop it to shoot at whatever is in range in the moment before they start walking. In multiplayer the fix switches itself on for any match where every player has a patch version that supports it, with nothing for the host to set, and the lobby panel shows it; with anyone missing it, the match keeps the old behaviour so it stays in sync. In single player it is always on.
+
 ### [Fix] - Wheat Farmers and Candle Makers No Longer Turn to Crime
 
 - **What the issue was:** Wheat farmers and candle makers often get stuck inside their buildings, and when one of them turned to crime there the guards could not reach them, so the only way out was to tear the building down.

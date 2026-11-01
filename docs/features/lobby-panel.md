@@ -35,7 +35,8 @@ lobby controls underneath, and keys are never touched. The settings panel is ins
 so its subclass sits outside this one and still takes all input while it is open.
 
 Below the players it lists every [match rule](match-rules.md): `on` / `off` for the next
-match, or `unavailable` when someone in the lobby cannot run it. **The host clicks a rule to
+match, or `unavailable` when someone in the lobby cannot run it. The automatic fixes come
+first and the host's options last, so the switchable rows sit together at the bottom. **The host clicks a rule to
 switch it**; available rules get a button outline on the host's screen only. Everyone else's
 panel is read-only, and `matchRuleToggle` refuses a click from anyone but the lobby owner, or
 on a rule someone cannot run. The host's change shows at once and reaches the other players

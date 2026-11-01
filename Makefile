@@ -46,6 +46,8 @@ SRCS = src/dllmain.cpp \
        src/patches/disbandRefundGuard.cpp \
        src/patches/noMarket.cpp \
        src/patches/crimeExclusion.cpp \
+       src/patches/rangedWalkGuard.cpp \
+       src/patches/orderTrace.cpp \
        src/patches/endgameStats.cpp \
        src/patches/endgameStats/unitTracker.cpp \
        src/patches/endgameStats/killTracker.cpp \

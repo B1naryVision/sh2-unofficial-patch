@@ -171,6 +171,12 @@ const PATCHES = [
 
   /* ---------- CONTROLS ------------------------------------------- */
   {
+    id:"ranged-move-orders", cat:"controls", kind:"fix", version:"next", mp:"all",
+    title:"Archers that ignore move orders in a fight",
+    was:"Archers, crossbowmen and axe throwers in a fight often ignored a move order and kept shooting, even when ordered away from the enemy, so it took several clicks to get them all moving.",
+    now:"Ranged troops keep to a move order until they arrive, then pick targets as before. It is always on in single player, and on in any multiplayer match where every player has the patch."
+  },
+  {
     id:"stop-troops", cat:"controls", kind:"feature", version:"0.4.0", mp:"solo",
     title:"A key to stop your troops",
     was:"Halting a group of troops meant finding and clicking the Stop button on the command panel every single time.",
@@ -294,7 +300,8 @@ const HISTORY = [
     "Rapid-clicking Disband no longer hands back extra peasants",
     "Record and watch multiplayer replays (opt-in, experimental)",
     "No-market matches, as a match rule the host can switch on",
-    "Wheat farmers and candle makers no longer turn to crime inside their buildings"
+    "Wheat farmers and candle makers no longer turn to crime inside their buildings",
+    "Archers, crossbowmen and axe throwers no longer ignore move orders in a fight"
   ]},
   { v:"0.7.0", date:"", items:[
     "Every patch setting is adjustable in game, while you play",

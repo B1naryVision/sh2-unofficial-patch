@@ -10,6 +10,7 @@
 #include "disbandRefundGuard.h"
 #include "handshake.h"
 #include "noMarket.h"
+#include "rangedWalkGuard.h"
 #include <cstdio>
 #include <cstring>
 #include <windows.h>
@@ -52,14 +53,20 @@ struct Rule {
     void (*setEnabled)(bool);
 };
 
+// Table order is display order: the lobby panel lists the rules as they appear
+// here and its click index is a position in this table. Fixes come first and
+// the host's options last, so the two kinds read as separate groups. Each rule
+// carries its own bit and ini key, so reordering changes nothing on the wire.
 static const Rule RULES[] = {
-    {RULE_BALLISTA_AUTOFIRE, "Ballista auto-fire", false, "BallistaAutoFire",
-     installBallistaAutoFire, ballistaAutoFireSetEnabled},
     {RULE_DISBAND_FIX, "Disband peasant fix", true, nullptr, installDisbandRefundGuard,
      disbandRefundGuardSetEnabled},
-    {RULE_NO_MARKET, "No market", false, "NoMarket", installNoMarket, noMarketSetEnabled},
     {RULE_CRIME_EXCLUSION_FIX, "Stuck-worker crime fix", true, nullptr, installCrimeExclusion,
      crimeExclusionSetEnabled},
+    {RULE_RANGED_WALK_FIX, "Ranged move-order fix", true, nullptr, installRangedWalkGuard,
+     rangedWalkGuardSetEnabled},
+    {RULE_BALLISTA_AUTOFIRE, "Ballista auto-fire", false, "BallistaAutoFire",
+     installBallistaAutoFire, ballistaAutoFireSetEnabled},
+    {RULE_NO_MARKET, "No market", false, "NoMarket", installNoMarket, noMarketSetEnabled},
 };
 
 static const int RULE_COUNT = (int)(sizeof(RULES) / sizeof(RULES[0]));
