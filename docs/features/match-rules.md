@@ -16,6 +16,7 @@ settings of a match, not of a player.
 | Ranged move-order fix | fix | — | `0x10` | [ranged-move-orders.md](../bugs/ranged-move-orders.md) |
 | Ballista auto-fire | option | `BallistaAutoFire` | `0x1` | [ballista-auto-fire.md](ballista-auto-fire.md) |
 | No market | option | `NoMarket` | `0x4` | [no-market.md](no-market.md) |
+| Unit cap 550 | option | `UnitCap550` | `0x20` | [unit-cap-raise.md](unit-cap-raise.md) |
 
 The table is in display order. The lobby panel lists rules in the order of the `RULES`
 table in `matchRules.cpp`: every fix first, then the host's options, so the two kinds read

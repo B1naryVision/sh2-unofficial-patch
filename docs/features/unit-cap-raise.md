@@ -1,6 +1,8 @@
-# Unit Cap Raise
+# Unit Cap Raise — Match Option
 
-**Status:** Not added, incompatible in multiplayer for players without patch.
+**Status:** Built as a host [match option](match-rules.md) on 2026-11-01. Not yet playtested.
+**Config**: the host clicks *Unit cap 550* in the [lobby panel](lobby-panel.md)
+(`[matchrules] UnitCap550`). Rule bit `0x20`.
 **Affects:** Stronghold 2 Steam v1.5.0 (32-bit, `Stronghold2.exe`)
 
 ---
@@ -9,7 +11,7 @@
 
 Raises the per-player unit cap so it is always 550, regardless of player count.
 In vanilla the cap scales down as more players join, dropping to 362 in 8-player
-games. With this patch every player always has the 2-player maximum of 550 units.
+games. With the rule on, every player has the 2-player maximum of 550 units.
 
 ---
 
@@ -39,6 +41,9 @@ The cap formula `300 + floor(500 / player_count)` produces:
 | 6       | 383 |
 | 8       | 362 |
 
+These are the only three: a scan of the whole exe for `mov eax, 0x1f4` / `div` /
+`add eax, 0x12c` finds exactly these sites (re-checked 2026-11-01).
+
 ---
 
 ## Implementation
@@ -47,9 +52,9 @@ In each function the compiler emits:
 
 ```asm
 MOV EAX, 0x1F4    ; eax = 500
-<IDIV player_count>
+DIV ECX           ; ecx = player count
 ADD EAX, 0x12C    ; eax = 500/n + 300  ← patch target
-CMP EAX, army_size
+CMP <army>, EAX
 ```
 
 Replacing `ADD EAX, 0x12C` (`05 2C 01 00 00`) with `MOV EAX, 0x226`
@@ -58,26 +63,32 @@ The division still executes harmlessly; only EAX is overwritten before the
 comparison.
 
 | # | Offset | Size | Original | Patched |
-|---|--------|------|----------|---------|
+| --- | --- | --- | --- | --- |
 | 1 | `base+0x16827` | 5 bytes | `05 2C 01 00 00` | `B8 26 02 00 00` |
 | 2 | `base+0x18768` | 5 bytes | `05 2C 01 00 00` | `B8 26 02 00 00` |
 | 3 | `base+0x189FB` | 5 bytes | `05 2C 01 00 00` | `B8 26 02 00 00` |
+
+`installUnitCapRaise` only verifies that all three sites hold the stock bytes
+(all-or-nothing: a cap raised on one recruitment path and not another would be
+worse than none) and writes nothing. `unitCapRaiseSetEnabled` rewrites the three
+sites to the patched or the stock bytes. [Match rules](match-rules.md) calls it on
+the simulation thread when the rules line executes and again when the match is
+over, the same as the disband fix. None of the operands is an absolute address,
+so the disk bytes are the in-memory bytes.
 
 ---
 
 ## Multiplayer Compatibility
 
-**This patch is not compatible with vanilla multiplayer.** Each client enforces
-the cap locally, so a patched player can field 550 units while an unpatched
-player is capped at the vanilla value. This creates an unfair asymmetry and
-potential confusion. All players in a lobby must run the same patch version.
-
-For this reason this patch is currently excluded from the build.
+**Requires all clients, self-enforced**, like every [match rule](match-rules.md).
+Each client enforces the cap locally, so a client with the cap raised accepts
+recruitment the others refuse, and the match desyncs. As a match rule it is only
+offered when every player in the lobby advertises it, and switched on through the
+host's rules line on the same tick on every client. With anyone lacking it, the
+lobby panel shows it as unavailable and the match keeps the vanilla cap.
 
 The check is gated on `DAT_00db8454 == 0`, which is 0 only in multiplayer mode,
-so single-player games are unaffected.
-
-Probably for the best, as it might give an advantage to players with the patch vs those without.
+so single-player games have no cap to raise.
 
 ---
 

@@ -156,6 +156,13 @@ const PATCHES = [
     how:"As host, click No market in the lobby panel to switch it on. The Market still shows in the build menu, but placing one does nothing."
   },
   {
+    id:"unit-cap", cat:"multiplayer", kind:"feature", version:"next", mp:"all", optIn:true,
+    title:"550-unit armies in every lobby size",
+    was:"The more players in a match, the smaller everyone's army had to be: 550 units each with two players, but only 362 with eight.",
+    now:"The host can give every player the two-player cap of 550 units, whatever the number of players.",
+    how:"As host, click Unit cap 550 in the lobby panel to switch it on. It only takes effect when every player has the patch."
+  },
+  {
     id:"stuck-worker-crime", cat:"multiplayer", kind:"fix", version:"next", mp:"all",
     title:"Criminals stuck inside wheat farms and candle makers",
     was:"Wheat farmers and candle makers often get stuck inside their buildings, and when one turned to crime there the guards could not reach them, so the building had to be torn down.",
@@ -300,6 +307,7 @@ const HISTORY = [
     "Rapid-clicking Disband no longer hands back extra peasants",
     "Record and watch multiplayer replays (opt-in, experimental)",
     "No-market matches, as a match rule the host can switch on",
+    "550-unit armies in every lobby size, as a match rule",
     "Wheat farmers and candle makers no longer turn to crime inside their buildings",
     "Archers, crossbowmen and axe throwers no longer ignore move orders in a fight"
   ]},

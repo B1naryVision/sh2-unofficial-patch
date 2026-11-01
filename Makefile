@@ -45,6 +45,7 @@ SRCS = src/dllmain.cpp \
        src/patches/ballistaAutoFire.cpp \
        src/patches/disbandRefundGuard.cpp \
        src/patches/noMarket.cpp \
+       src/patches/unitCapRaise.cpp \
        src/patches/crimeExclusion.cpp \
        src/patches/rangedWalkGuard.cpp \
        src/patches/orderTrace.cpp \

@@ -11,6 +11,7 @@
 #include "handshake.h"
 #include "noMarket.h"
 #include "rangedWalkGuard.h"
+#include "unitCapRaise.h"
 #include <cstdio>
 #include <cstring>
 #include <windows.h>
@@ -67,6 +68,8 @@ static const Rule RULES[] = {
     {RULE_BALLISTA_AUTOFIRE, "Ballista auto-fire", false, "BallistaAutoFire",
      installBallistaAutoFire, ballistaAutoFireSetEnabled},
     {RULE_NO_MARKET, "No market", false, "NoMarket", installNoMarket, noMarketSetEnabled},
+    {RULE_UNIT_CAP_RAISE, "Unit cap 550", false, "UnitCap550", installUnitCapRaise,
+     unitCapRaiseSetEnabled},
 };
 
 static const int RULE_COUNT = (int)(sizeof(RULES) / sizeof(RULES[0]));

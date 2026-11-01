@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### [Feature] - Full-Size Armies in Every Lobby Size
+
+- **What the issue was:** The more players in a match, the smaller everyone's army had to be: 550 units each in a two-player game, but only 425 with four players and 362 with eight.
+- **What we changed:** The host can switch on **Unit cap 550** in the lobby panel, and every player can then field 550 units however many are in the match. Like every match rule, it only takes effect when every player has a patch version that supports it; otherwise the normal cap applies.
+
 ### [Fix] - Archers and Crossbowmen Now Follow Move Orders in a Fight
 
 - **What the issue was:** When archers, crossbowmen or axe throwers were in a fight, some of them often ignored a move order and kept shooting, even when you ordered them away from the enemy, so you had to click again and again to get them all moving.

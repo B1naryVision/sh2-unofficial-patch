@@ -73,6 +73,7 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [Chain-load a D3D9 wrapper (DXVK, ReShade, dgVoodoo) as `d3d9_chain.dll`](docs/features/dll-chaining.md) | — | Unreleased |
 | [Multiplayer replays with a spectator panel and kill counts (opt-in)](docs/features/multiplayer-replays.md) | `base+0x2ac60`, `base+0x2a2e0`, `base+0x37efb0`, `base+0x367a03`, `base+0x36aca0` | Unreleased |
 | [No Market match rule: no market building or trading for anyone](docs/features/no-market.md) | `base+0x5c5abc`, `base+0x5c6198` | Unreleased |
+| [Unit cap 550 match rule: the two-player cap in every lobby size](docs/features/unit-cap-raise.md) | `base+0x16827`, `base+0x18768`, `base+0x189fb` | Unreleased |
 | [Wheat farmers and candle makers no longer turn to crime inside their buildings, on automatically when every player has it](docs/bugs/stuck-worker-crime.md) | `base+0x68d528`, `base+0x68d5a0` | Unreleased |
 | [Archers, crossbowmen and axe throwers no longer ignore move orders in a fight, on automatically when every player has it](docs/bugs/ranged-move-orders.md) | `base+0x113eb0`, `base+0xfe4e7`, `base+0x10a367` | Unreleased |
 
@@ -81,12 +82,6 @@ No game files are modified. Removing the DLL restores the original behavior comp
 ## Roadmap
 
 Items under active investigation or queued for a future release.
-
-The following are implemented but excluded from the build until the patch has broader adoption — all of them require **all players to run the same patch version** to avoid multiplayer desyncs:
-
-| Description | Notes |
-| --- | --- |
-| [Unit cap raise (550 in all lobby sizes)](docs/features/unit-cap-raise.md) | Per-player cap enforced locally; patched vs unpatched clients diverge |
 
 The following is on hold, excluded from the build pending further work in a future release:
 
