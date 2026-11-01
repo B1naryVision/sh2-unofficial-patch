@@ -128,6 +128,56 @@ host's peer id; flag `0x200` = a rules line had already executed). A sidecar
 without `FLYS`, the iterator-0 flag or the rules flag still loads; the missing
 data is simply not restored.
 
+### Simulation state the save does not carry
+
+A replay reproduces a match only if everything the simulation reads is either
+in the checkpoint save or recorded beside it. The save carries the game's own
+state. What it does not carry is captured on the checkpoint frame:
+
+| State | Where it is recorded | Restored by |
+|-------|----------------------|-------------|
+| Match rules on at the checkpoint | header `reserved[2]`, flag `0x100` | `matchRulesReplayBegin` |
+| The host's peer id (a later rules line must come from it) | header `reserved[3]`, flag `0x100` | `matchRulesReplayBegin` |
+| A rules line had already executed | flag `0x200` | `matchRulesReplayBegin` |
+| Rules line executed after the checkpoint | `CMDS` (an ordinary `ChatChore`) | injection, on its live job |
+| Iterator-0 cursor either side of the save | header `reserved[0]`, flag `0x40` | playback epoch |
+| Occupancy-list order | `TILE` | playback epoch |
+| Projectile damage in flight | `FLYS` | playback epoch |
+| Monastery prayer-stage clocks | `PRNG` footer (`MCLK`) | playback epoch |
+
+`reserved[2]` is the [match rules](match-rules.md) word exactly as it is on the
+wire: one bit per rule (`handshake.h`), so it covers options and fixes alike.
+Every rule switched through `matchRules.cpp` is tracked by it, with no
+per-rule replay code:
+
+| Bit | Rule | Kind | Doc |
+|-----|------|------|-----|
+| `0x01` | `RULE_BALLISTA_AUTOFIRE` | option | [ballista-auto-fire.md](ballista-auto-fire.md) |
+| `0x02` | `RULE_DISBAND_FIX` | fix | [disband-peasant-duplication.md](../bugs/disband-peasant-duplication.md) |
+| `0x04` | `RULE_NO_MARKET` | option | [no-market.md](no-market.md) |
+| `0x08` | `RULE_CRIME_EXCLUSION_FIX` | fix | [stuck-worker-crime.md](../bugs/stuck-worker-crime.md) |
+| `0x10` | `RULE_RANGED_WALK_FIX` | fix | [ranged-move-orders.md](../bugs/ranged-move-orders.md) |
+| `0x20` | `RULE_UNIT_CAP_RAISE` | option | [unit-cap-raise.md](unit-cap-raise.md) |
+| `0x40` | `RULE_DEAD_SHIELD_PASS` | option | [dead-shield-pass-through.md](dead-shield-pass-through.md) |
+
+This holds because each rule is a pure function of its bit and of state the
+save carries: none reads lobby data, the ini, the wall clock or the network
+while it simulates. A rule that did would need that input recorded too, in a
+header word or a section of its own.
+
+Everything else the patch does to a match is covered without the header:
+
+- **Commands a patch posts** (auto-market trades, shift-recruit, the stop,
+  attack and siege camp hotkeys, the rules line itself) go through the game's
+  command admission, so they are in `CMDS` like a click. A command admitted
+  from inside our DLL is flagged `REPLAY_FLAG_FOREIGN_CALLER` and is always
+  injected. During playback the spectator guard keeps these features from
+  posting anything of their own.
+- **Unconditional crash fixes** (knight/catapult, map-edge formation) change
+  the simulation only where the stock game would crash, and are installed in
+  every build, so recording and playback run the same code.
+- **UI, camera, lobby and network patches** do not touch simulation state.
+
 A sidecar is meant to be shared, so it is read as hostile input. Every section
 goes through a validator in `src/replay/replayFormat.cpp` before anything is
 copied out of it: the whole-body hash and length, a section table that stays
@@ -252,7 +302,7 @@ the last job whose timing is fully known, so everything kept is exact.
    code zeroes it itself on entering stage 2 (VA `0x474339`) before its only
    read, so the hook leaves every live match on the stock constructor.
 4. **Match rules** (`matchRulesReplayBegin`). The rules a match was played
-   under (ballista auto-fire, no market, the simulation fixes) are patch
+   under (every rule in the table above, options and fixes) are patch
    state, not game state: no save carries them, and live they are decided
    outside the simulation, from the lobby and by the frame tick. Playback is
    offline with no Steam lobby, which the live logic reads as single player:
@@ -472,7 +522,13 @@ All RVAs (VA - `0x400000`). The main sites; each file documents its own in full.
   as live.
 - Replaying match rules needs a playtest: a match with ballista auto-fire on,
   recorded on both the host and a joining client, must show the ballistae
-  firing in both replays.
+  firing in both replays. Dead shields has passed its replay test at 1x and
+  5x; the other rules have not had one of their own.
+- A replay carrying a rule bit the playing build does not support (a newer
+  build's rule, or one whose sites failed to verify) plays with that rule off
+  and diverges, and nothing tells the viewer why. The sidecar records the
+  game executable it needs but not the patch build, so this is the one
+  mismatch the load cannot refuse.
 - A replay cannot be loaded from inside a live networked session.
 - Recording buffers hold about two hours of an 8-player match. A longer match
   is recorded up to that point, and the replay ends there.

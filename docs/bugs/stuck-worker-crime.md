@@ -161,7 +161,8 @@ from the candidate list changes how many PRNG draws the shuffle consumes, and wh
 is picked. A client with the fix and a client without it would diverge on the first crime
 check. The fix is therefore advertised as rule bit `0x8` and only switched on through the
 host's rules line, on the same lockstep tick everywhere. With any player lacking it, the
-lobby panel shows it as `unavailable` and the match keeps the stock table.
+lobby panel shows it as `unavailable` and the match keeps the stock table. Replays record
+and restore it with the other rules.
 
 ---
 

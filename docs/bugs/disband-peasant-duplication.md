@@ -272,7 +272,8 @@ on every client, whenever every player in the lobby advertises it, without the h
 choosing anything. With anyone lacking it the match keeps the stock (exploitable)
 behaviour, which is at least the same on every client. In single player there is no
 one to stay in step with, so it is simply on. See
-[match-rules.md](../features/match-rules.md).
+[match-rules.md](../features/match-rules.md). Replays record and restore it with the
+other rules.
 
 It is worth noting the exploit itself is *not* a desync in stock play: every
 client runs the same duplicated refund from the same command stream, so

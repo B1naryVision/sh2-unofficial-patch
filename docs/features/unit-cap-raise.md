@@ -85,7 +85,8 @@ Each client enforces the cap locally, so a client with the cap raised accepts
 recruitment the others refuse, and the match desyncs. As a match rule it is only
 offered when every player in the lobby advertises it, and switched on through the
 host's rules line on the same tick on every client. With anyone lacking it, the
-lobby panel shows it as unavailable and the match keeps the vanilla cap.
+lobby panel shows it as unavailable and the match keeps the vanilla cap. Replays
+record and restore it with the other rules (bit `0x20`).
 
 The check is gated on `DAT_00db8454 == 0`, which is 0 only in multiplayer mode,
 so single-player games have no cap to raise.

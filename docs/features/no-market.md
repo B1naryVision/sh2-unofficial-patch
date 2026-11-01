@@ -96,4 +96,5 @@ Two leads that did not give it:
 **Requires all clients, self-enforced**, like every [match rule](match-rules.md): it is only
 offered when every player in the lobby advertises it, and switched on through the host's
 rules line on the same tick everywhere. The auto-market suppression is local and only
-removes commands that would be dropped anyway.
+removes commands that would be dropped anyway. Replays record and restore it with the
+other rules (bit `0x4`).

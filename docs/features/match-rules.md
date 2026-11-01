@@ -156,6 +156,14 @@ already committed, and the host's peer id). Loading a replay applies that state
 recorded command like any other, so it is replayed on its live job and accepted against the
 recorded host peer id.
 
+Because the sidecar stores the rules word itself, **every rule in `RULES[]` is tracked by
+replays with no code of its own**, and a new rule is tracked the moment it has a bit. What a
+new rule must guarantee in return is that it simulates from its bit and the saved game state
+alone. If it reads anything else while the match runs (lobby data, the ini, a value chosen in
+the lobby panel, the wall clock), that input is outside both the save and the rules word, and
+it needs its own field in the replay header, captured on the checkpoint frame. The current
+list of tracked bits is in [multiplayer-replays.md](multiplayer-replays.md#simulation-state-the-save-does-not-carry).
+
 ---
 
 ## The lobby side
@@ -192,3 +200,7 @@ where a rule is on, because their missing member data makes every rule unavailab
    is posted, no desync.
 5. **A second match in the same session** with the rule off: no auto-fire, which confirms the
    revert on returning to the lobby.
+6. **Replay, for every new or revised rule:** record a match with the rule on and one with it
+   off, then play each back at 1x and at 5x. Each must reach the recorded outcome, and the
+   rule's effect must be visible in the first and absent in the second. Repeat with a
+   multiplayer recording from a joining client, whose rules line arrives as a remote command.

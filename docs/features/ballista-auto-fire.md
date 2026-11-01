@@ -312,6 +312,10 @@ Stronghold 2 multiplayer runs a deterministic lockstep simulation: both clients 
 switch it on when every player in the lobby advertises it. It is switched on for every client
 on the same lockstep tick, and with anyone lacking it the match stays vanilla.
 
+Replays record and restore it with the other rules (bit `0x1`). This rule is the case that
+showed the need: without the recorded rules word, playback read as single player and field
+ballistae stood idle in a replay of a match where they had fired.
+
 ---
 
 ## Investigation Notes
