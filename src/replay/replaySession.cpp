@@ -22,6 +22,9 @@
 #include <cwchar>
 #include <windows.h>
 
+#include <ntsecapi.h>
+#include <shlobj.h>
+
 // See replaySession.h for the contract. Ghidra VAs use ImageBase 0x400000;
 // everything below is an RVA applied to the live module base.
 
@@ -179,21 +182,12 @@ static bool sidecarFor(const wchar_t *save, wchar_t *out, size_t cap) {
     return true;
 }
 
-// <Documents>\Stronghold 2\Saves, resolved through shell32 at runtime (the DLL
-// imports only kernel32/user32/gdi32, and shell32 is already in the process).
+// <Documents>\Stronghold 2\Saves. shell32 is a normal import (the game imports
+// it too), not resolved by hand: see docs/antivirus-false-positive.md.
 static bool savesDirectory(wchar_t *out, size_t cap) {
-    typedef HRESULT(WINAPI * GetFolderFn)(HWND, int, HANDLE, DWORD, LPWSTR);
-    HMODULE shell = GetModuleHandleA("shell32.dll");
-
-    if (!shell) {
-        shell = LoadLibraryA("shell32.dll");
-    }
-
-    GetFolderFn getFolder =
-        shell ? (GetFolderFn)(void *)GetProcAddress(shell, "SHGetFolderPathW") : nullptr;
     wchar_t docs[MAX_PATH];
 
-    if (!getFolder || getFolder(NULL, 5 /* CSIDL_PERSONAL */, NULL, 0, docs) != 0) {
+    if (SHGetFolderPathW(NULL, CSIDL_PERSONAL, NULL, 0, docs) != S_OK) {
         return false;
     }
 
@@ -209,16 +203,12 @@ static bool savesDirectory(wchar_t *out, size_t cap) {
     return GetFileAttributesW(out) != INVALID_FILE_ATTRIBUTES;
 }
 
-// 32 random bits from the OS generator (advapi32!SystemFunction036, resolved
-// at runtime so the import table does not grow), else a mix of clocks and ids.
+// 32 random bits from the OS generator (advapi32!SystemFunction036, a normal
+// import like shell32 above), else a mix of clocks and ids.
 static uint32_t randomWord() {
-    typedef BOOLEAN(WINAPI * GenRandomFn)(PVOID, ULONG);
-    HMODULE advapi = LoadLibraryA("advapi32.dll");
-    GenRandomFn gen =
-        advapi ? (GenRandomFn)(void *)GetProcAddress(advapi, "SystemFunction036") : nullptr;
     uint32_t value = 0;
 
-    if (gen && gen(&value, sizeof(value))) {
+    if (RtlGenRandom(&value, sizeof(value))) {
         return value;
     }
 

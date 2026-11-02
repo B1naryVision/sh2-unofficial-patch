@@ -22,7 +22,9 @@ permissions:
 jobs:
   build:
     name: Build, package, and publish
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: the MinGW version decides the exact bytes of
+    # the DLL, so a moving image would make a release impossible to rebuild.
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Check out source
@@ -35,6 +37,8 @@ jobs:
 
       - name: Build release DLL
         run: |
+          # Logged so anyone can rebuild the release with the same compiler.
+          i686-w64-mingw32-g++ --version | head -n 1
           make clean
           make
 
@@ -48,6 +52,15 @@ jobs:
             || { echo '::error::no relocations -- ASLR cannot apply'; exit 1; }
           i686-w64-mingw32-objdump -p d3d9.dll | grep -qE 'DllCharacteristics[[:space:]]+0*140' \
             || { echo '::error::ASLR/DEP bits not set -- expected DllCharacteristics 0x140'; exit 1; }
+          # The import table is what a malware analyst reads first and what
+          # docs/antivirus-false-positive.md promises. A new DLL here needs the
+          # doc updated before it ships.
+          IMPORTS="$(i686-w64-mingw32-objdump -p d3d9.dll | awk '/DLL Name:/{print toupper($3)}' | sort | tr '\n' ' ')"
+          EXPECTED='ADVAPI32.DLL GDI32.DLL KERNEL32.DLL MSVCRT.DLL SHELL32.DLL USER32.DLL WINMM.DLL '
+          if [ "${IMPORTS}" != "${EXPECTED}" ]; then
+            echo "::error::unexpected DLL imports: ${IMPORTS} -- update docs/antivirus-false-positive.md and this list"
+            exit 1
+          fi
           if i686-w64-mingw32-objdump -h d3d9.dll | grep -q 'debug_info'; then
             echo '::error::debug sections in a release build -- is -s missing?'
             exit 1
