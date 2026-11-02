@@ -41,7 +41,7 @@ No game files are modified. Removing the DLL restores the original behavior comp
 
 ## Current Fixes and Features
 
-### v0.8.0
+### v0.8.1
 
 | Description | Offset | Status |
 | --- | --- | --- |
@@ -73,11 +73,11 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [Chain-load a D3D9 wrapper (DXVK, ReShade, dgVoodoo) as `d3d9_chain.dll`](docs/features/dll-chaining.md) | — | Added in v0.8.0 |
 | [Multiplayer replays with a spectator panel and kill counts (opt-in)](docs/features/multiplayer-replays.md) | `base+0x2ac60`, `base+0x2a2e0`, `base+0x37efb0`, `base+0x367a03`, `base+0x36aca0` | Added in v0.8.0 |
 | [No Market match rule: no market building or trading for anyone](docs/features/no-market.md) | `base+0x5c5abc`, `base+0x5c6198` | Added in v0.8.0 |
-| [Unit cap 550 match rule: the two-player cap in every lobby size](docs/features/unit-cap-raise.md) | `base+0x16827`, `base+0x18768`, `base+0x189fb`; warning `base+0x2207fd`, `base+0x2255f2` | Added in v0.8.0 |
+| [Unit cap 550 match rule: the two-player cap in every lobby size](docs/features/unit-cap-raise.md) | `base+0x16827`, `base+0x18768`, `base+0x189fb`; warning `base+0x2207fd`, `base+0x2255f2` | Added in v0.8.0; warning fix in v0.8.1 |
 | [Wheat farmers and candle makers no longer turn to crime inside their buildings, on automatically when every player has it](docs/bugs/stuck-worker-crime.md) | `base+0x68d528`, `base+0x68d5a0` | Fixed in v0.8.0 |
 | [Archers, crossbowmen and axe throwers no longer ignore move orders in a fight, on automatically when every player has it](docs/bugs/ranged-move-orders.md) | `base+0x113eb0`, `base+0xfe4e7`, `base+0x10a367` | Fixed in v0.8.0 |
 | [Dead shields match rule: a destroyed Mantlet or Cat stops catching shots at once](docs/features/dead-shield-pass-through.md) | `base+0x21fdb` | Added in v0.8.0 |
-| [Crash when the game closes during startup](docs/bugs/startup-quit-crash.md) | `base+0x30331` | Unreleased |
+| [Crash when the game closes during startup](docs/bugs/startup-quit-crash.md) | `base+0x30331` | Fixed in v0.8.1 |
 
 ---
 

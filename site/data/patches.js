@@ -112,7 +112,7 @@ const PATCHES = [
     now:"Troops and formations are handled safely at the map edge, so it no longer crashes."
   },
   {
-    id:"startup-quit-crash", cat:"crashes", kind:"fix", version:"next", mp:"solo",
+    id:"startup-quit-crash", cat:"crashes", kind:"fix", version:"0.8.1", mp:"solo",
     title:"Crash when the game closes while starting up",
     was:"If the game closed while it was still opening, whether you closed the window or something else made it quit, it crashed on the way out.",
     now:"The game closes cleanly at any point during startup."
@@ -311,7 +311,7 @@ const PATCHES = [
    the bottom of the page. Keep it in step with CHANGELOG.md.
    ================================================================== */
 const HISTORY = [
-  { v:"next", date:"", items:[
+  { v:"0.8.1", date:"", items:[
     "Fixed a crash when the game closes while it is still starting up",
     "The army-nearly-full warning now matches the 550 unit cap"
   ]},

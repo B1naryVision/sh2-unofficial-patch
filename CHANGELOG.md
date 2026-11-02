@@ -2,7 +2,7 @@
 
 ---
 
-## [Unreleased]
+## [0.8.1]
 
 ### [Fix] - Crash When the Game Closes While Starting Up
 

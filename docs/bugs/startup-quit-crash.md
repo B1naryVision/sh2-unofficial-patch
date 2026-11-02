@@ -1,6 +1,6 @@
 # Crash When the Game Closes During Startup
 
-**Status**: Fixed in the next release (unreleased)
+**Status**: Fixed in v0.8.1
 **Severity**: Low to medium. The crash happens on the way out, but it hides
 whatever closed the game, and it leaves a WER report that looks like a game bug.
 **Game version**: Steam build v1.5.0 (PE timestamp `0x5EA311C0`)

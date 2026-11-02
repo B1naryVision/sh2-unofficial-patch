@@ -1,7 +1,7 @@
 # Unit Cap Raise — Match Option
 
-**Status:** Added in v0.8.0 as a host [match option](match-rules.md) (built 2026-11-01). Playtested 2026-11-01: works as expected. The advisor warning (below) was added
-2026-11-02 after a player report that it still fired at the vanilla cap. Not yet
+**Status:** Added in v0.8.0 as a host [match option](match-rules.md) (built 2026-11-01). Playtested 2026-11-01: works as expected. The advisor warning (below) was added in v0.8.1
+(2026-11-02) after a player report that it still fired at the vanilla cap. Not yet
 playtested.
 **Config**: the host clicks *Unit cap 550* in the [lobby panel](lobby-panel.md)
 (`[matchrules] UnitCap550`). Rule bit `0x20`.
