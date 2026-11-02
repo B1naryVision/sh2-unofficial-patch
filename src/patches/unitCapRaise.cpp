@@ -14,7 +14,15 @@ static const uintptr_t CAP_RVAS[3] = {0x16827, 0x18768, 0x189fb};
 static const uint8_t CAP_STOCK[5] = {0x05, 0x2c, 0x01, 0x00, 0x00}; // add eax, 0x12c
 static const uint8_t CAP_PATCHED[5] = {0xb8, 0x26, 0x02, 0x00, 0x00}; // mov eax, 0x226
 
+// The barracks and mercenary post panels warn that the army is nearly full 20
+// units below the cap, with their own copy of the formula (`add eax, 280`).
+// Advisor speech only, so it moves with the cap without needing a rule bit.
+static const uintptr_t WARN_RVAS[2] = {0x2207fd, 0x2255f2};
+static const uint8_t WARN_STOCK[5] = {0x05, 0x18, 0x01, 0x00, 0x00}; // add eax, 0x118
+static const uint8_t WARN_PATCHED[5] = {0xb8, 0x12, 0x02, 0x00, 0x00}; // mov eax, 0x212
+
 static bool s_ready = false;
+static bool s_warnReady = false;
 static bool s_enabled = false;
 
 bool installUnitCapRaise() {
@@ -29,35 +37,52 @@ bool installUnitCapRaise() {
     }
 
     s_ready = true;
+    s_warnReady = true;
+
+    for (uintptr_t rva : WARN_RVAS) {
+        if (memcmp((const void *)(base + rva), WARN_STOCK, sizeof(WARN_STOCK)) != 0) {
+            s_warnReady = false;
+        }
+    }
 
     return true;
+}
+
+static void writeSites(uintptr_t base, const uintptr_t *rvas, size_t count, const uint8_t *bytes) {
+    for (size_t i = 0; i < count; ++i) {
+        void *site = (void *)(base + rvas[i]);
+        DWORD oldProtect = 0;
+
+        if (!VirtualProtect(site, 5, PAGE_EXECUTE_READWRITE, &oldProtect)) {
+            continue;
+        }
+
+        memcpy(site, bytes, 5);
+        VirtualProtect(site, 5, oldProtect, &oldProtect);
+        FlushInstructionCache(GetCurrentProcess(), site, 5);
+    }
 }
 
 // Called on the simulation thread only, so no cap check is half-way through the
 // five bytes being rewritten.
 void unitCapRaiseSetEnabled(bool enabled) {
     uintptr_t base = (uintptr_t)GetModuleHandleA(NULL);
-    const uint8_t *bytes = CAP_STOCK;
+    const uint8_t *capBytes = CAP_STOCK;
+    const uint8_t *warnBytes = WARN_STOCK;
 
     if (!s_ready || enabled == s_enabled) {
         return;
     }
 
     if (enabled) {
-        bytes = CAP_PATCHED;
+        capBytes = CAP_PATCHED;
+        warnBytes = WARN_PATCHED;
     }
 
-    for (uintptr_t rva : CAP_RVAS) {
-        void *site = (void *)(base + rva);
-        DWORD oldProtect = 0;
+    writeSites(base, CAP_RVAS, 3, capBytes);
 
-        if (!VirtualProtect(site, sizeof(CAP_STOCK), PAGE_EXECUTE_READWRITE, &oldProtect)) {
-            continue;
-        }
-
-        memcpy(site, bytes, sizeof(CAP_STOCK));
-        VirtualProtect(site, sizeof(CAP_STOCK), oldProtect, &oldProtect);
-        FlushInstructionCache(GetCurrentProcess(), site, sizeof(CAP_STOCK));
+    if (s_warnReady) {
+        writeSites(base, WARN_RVAS, 2, warnBytes);
     }
 
     s_enabled = enabled;

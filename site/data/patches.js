@@ -312,7 +312,8 @@ const PATCHES = [
    ================================================================== */
 const HISTORY = [
   { v:"next", date:"", items:[
-    "Fixed a crash when the game closes while it is still starting up"
+    "Fixed a crash when the game closes while it is still starting up",
+    "The army-nearly-full warning now matches the 550 unit cap"
   ]},
   { v:"0.8.0", date:"", items:[
     "Fixed occasional stuttering caused by skipping the intro videos",

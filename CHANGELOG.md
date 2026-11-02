@@ -9,6 +9,11 @@
 - **What the issue was:** If the game closed while it was still opening, whether you closed the window or something else made it quit, it crashed on the way out and Windows reported a crash in Stronghold 2.
 - **What we changed:** The game now closes cleanly at any point during startup.
 
+### [Fix] - Army Size Warning Matches the 550 Unit Cap
+
+- **What the issue was:** With **Unit cap 550** switched on, the advisor still warned that your army was nearly full at the normal cap for the lobby size (from 342 units with eight players), long before you were anywhere near 550.
+- **What we changed:** With the match rule on, the warning now comes at 530 units, 20 short of the raised cap, just as it does 20 short of the normal cap in every other match.
+
 ---
 
 ## [0.8.0]
