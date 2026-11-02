@@ -83,7 +83,10 @@ static analysis:
    matching `timeEndPeriod(1)` is in its teardown (`0x18012a20`; calls at
    `0x18012a9c`/`0x18012abd`), reached when the last sound track is released.
    No other module in the install imports `timeBeginPeriod`: not the exe, not
-   `dragonfly.dll`, not any other shipped DLL.
+   `dragonfly.dll`, not any other shipped DLL. DirectSound is the backend in
+   use because `milessound.dll` tries `BinkOpenMiles` first and it fails: it
+   requires `_AIL_set_sample_channel_levels@12` (checked at `0x1800fa85`),
+   which the shipped MSS 6.5e does not export.
 2. **The stock intro never closes its last video.** When a video plays to its
    end, the counter-3 path in `Update` (`0x67bb91`) changes screen without
    closing the player. Only the click handler, `process(Event&)` (vtable slot 0,

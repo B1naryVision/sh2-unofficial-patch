@@ -2,6 +2,15 @@
 
 ---
 
+## [Unreleased]
+
+### [Fix] - Crash When the Game Closes While Starting Up
+
+- **What the issue was:** If the game closed while it was still opening, whether you closed the window or something else made it quit, it crashed on the way out and Windows reported a crash in Stronghold 2.
+- **What we changed:** The game now closes cleanly at any point during startup.
+
+---
+
 ## [0.8.0]
 
 ### [Feature] - Destroyed Mantlets and Cats Stop Blocking Shots

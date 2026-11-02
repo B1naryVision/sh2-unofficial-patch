@@ -37,6 +37,7 @@ SRCS = src/dllmain.cpp \
        src/patches/mpAiEnable.cpp \
        src/patches/introSkip.cpp \
        src/patches/mpConnectCompleteCrash.cpp \
+       src/patches/startupQuitCrash.cpp \
        src/patches/lobbyInProgressFilter.cpp \
        src/patches/pingCommand.cpp \
        src/patches/handshake.cpp \

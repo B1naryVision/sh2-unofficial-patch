@@ -111,6 +111,12 @@ const PATCHES = [
     was:"Dragging a formation into a map corner or over the edge could close the game to the desktop.",
     now:"Troops and formations are handled safely at the map edge, so it no longer crashes."
   },
+  {
+    id:"startup-quit-crash", cat:"crashes", kind:"fix", version:"next", mp:"solo",
+    title:"Crash when the game closes while starting up",
+    was:"If the game closed while it was still opening, whether you closed the window or something else made it quit, it crashed on the way out.",
+    now:"The game closes cleanly at any point during startup."
+  },
 
   /* ---------- MULTIPLAYER ---------------------------------------- */
   {
@@ -305,6 +311,9 @@ const PATCHES = [
    the bottom of the page. Keep it in step with CHANGELOG.md.
    ================================================================== */
 const HISTORY = [
+  { v:"next", date:"", items:[
+    "Fixed a crash when the game closes while it is still starting up"
+  ]},
   { v:"0.8.0", date:"", items:[
     "Fixed occasional stuttering caused by skipping the intro videos",
     "Works alongside DXVK, ReShade and other graphics add-ons",

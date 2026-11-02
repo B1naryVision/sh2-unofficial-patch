@@ -26,6 +26,7 @@
 #include "settingsOverlay.h"
 #include "shiftRecruit.h"
 #include "siegeCampHotkey.h"
+#include "startupQuitCrash.h"
 #include "stopTroopsHotkey.h"
 #include "zoomLimit.h"
 #include "zoomSpeed.h"
@@ -45,6 +46,7 @@ void applyUnofficialPatches() {
     installEndgameStats();
     installBarracksCrashFix();
     installMapEdgeCrashFix();
+    installStartupQuitCrashFix();
     installStopTroopsHotkey();
     installAttackHotkey();
     installZoomSpeed();
