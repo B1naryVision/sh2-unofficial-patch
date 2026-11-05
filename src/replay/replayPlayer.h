@@ -52,10 +52,27 @@ uint32_t replayPlayerControl(uint32_t mode, uint32_t multiplayerPhase = 0);
 
 // The first in-match tick of the current playback, 0 until it is sampled.
 uint32_t replayPlayerPlaybackEpoch();
+
+// Samples the epoch now instead of on the next frame tick. A load made from
+// inside a frame tick must call it straight after the load returns: the
+// player's own tick has already run for this frame, so the frame's update loop
+// would otherwise advance the world before the epoch, and every command would
+// then land on a world that is ahead of its schedule (a replay restarted that
+// way diverged from job 53; the same replay loaded from the menu stayed exact).
+// A load from a menu needs nothing: it runs in processEvents, before the frame
+// tick. True when the playback is now running.
+bool replayPlayerStartNow();
 // Playing (or finished) with an epoch: the current job relative to it.
 bool replayPlayerPlaybackJob(uint32_t *relativeJob);
 // Armed at all: waiting for the epoch, playing, or finished but not stopped.
 bool replayPlayerArmed();
+
+// Called at the pump once per job while a playback has an epoch (playing or
+// finished), with the relative job, before that job's injections. The pump is
+// a mid-function site: the observer must be float-free and must not format or
+// call the OS. One observer; nullptr removes it.
+typedef void (*ReplayJobObserver)(uint32_t relativeJob);
+void replayPlayerSetJobObserver(ReplayJobObserver fn);
 
 // Occupancy-list order restore. FUN_007875f0 slows an actor by 0.8 per actor
 // ahead of it in its head-inserted tile list, and a checkpoint load re-links

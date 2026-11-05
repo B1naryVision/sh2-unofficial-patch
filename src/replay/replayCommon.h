@@ -57,3 +57,10 @@ uint32_t replayPendingPlacements();
 // push + call. The site is opcode-verified and restored immediately after.
 // Game thread only.
 bool replayCheckpointSave(const wchar_t *path, int suppressState);
+
+// The game's own World::LoadGame(path, 0) (RVA 0x2ac60) followed by the screen
+// switch both stock callers make, exactly as the pause menu's load does it.
+// Runs synchronously; the World::LoadGame hook of the replay session sees it
+// like any other load (a replay save re-arms its playback). Refused while a
+// popup is up. Game thread only, inside an ObserverFpScope from a frame tick.
+bool replayLoadSave(const wchar_t *path);

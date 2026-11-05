@@ -613,6 +613,11 @@ static void advanceEpochState() {
     s_state = PLAYER_PLAYING;
 }
 
+bool replayPlayerStartNow() {
+    advanceEpochState();
+    return s_state == PLAYER_PLAYING;
+}
+
 static void replayPlayerFrameTick() {
     if (!replayInGame()) {
         g_replayMpCadence = 0;
@@ -677,7 +682,19 @@ static void replayPlayerSimulationTick() {
     s_state = PLAYER_DONE;
 }
 
-extern "C" void replayPlayerPump() { replayPlayerSimulationTick(); }
+static ReplayJobObserver s_jobObserver = nullptr;
+
+void replayPlayerSetJobObserver(ReplayJobObserver fn) { s_jobObserver = fn; }
+
+extern "C" void replayPlayerPump() {
+    // Before this job's injections, so the observer sees the same state at the
+    // same job whatever the frame pacing was.
+    if (s_jobObserver && (s_state == PLAYER_PLAYING || s_state == PLAYER_DONE) && s_playbackEpoch) {
+        s_jobObserver(replayTraceCurrentSimulationTick() - s_playbackEpoch);
+    }
+
+    replayPlayerSimulationTick();
+}
 
 // Calls the stock callee first, with the registers exactly as the game set
 // them, then pumps the schedule and resumes at the site + 5.

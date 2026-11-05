@@ -77,6 +77,8 @@ static bool s_canRecord = false;
 
 // Recording.
 static wchar_t s_savePath[MAX_PATH] = L"";
+// The save the current playback was loaded from (full path).
+static wchar_t s_playPath[MAX_PATH] = L"";
 static wchar_t s_sidecarPath[MAX_PATH] = L"";
 static bool s_armConfirmed = false;
 static bool s_exitWritten = false;
@@ -945,6 +947,7 @@ static void stopPlayback() {
     matchRulesReplayEnd();
     replayViewerSetEnded(false);
     replayViewerSetReplayName(L"");
+    s_playPath[0] = 0;
     s_mode = SESSION_IDLE;
 }
 
@@ -1152,6 +1155,7 @@ extern "C" void replaySessionOnLoadGame(const GameWString *arg) {
 
     if (armReplay(path)) {
         s_mode = SESSION_PLAYBACK;
+        memcpy(s_playPath, path, sizeof(s_playPath));
         setViewerName(path);
         replayViewerSetEnded(false);
     }
@@ -1272,6 +1276,14 @@ void replaySessionOnWindowClosing() {
         flushFinalLocked(false, REPLAY_END_PROCESS_EXIT);
         unlockWriter();
     }
+}
+
+const wchar_t *replaySessionPlaybackPath() {
+    if (s_mode != SESSION_PLAYBACK || !s_playPath[0]) {
+        return nullptr;
+    }
+
+    return s_playPath;
 }
 
 bool replaySessionRecordMultiplayer() { return s_recordMp; }

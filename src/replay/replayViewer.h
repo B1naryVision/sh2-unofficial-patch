@@ -47,6 +47,12 @@ bool replayViewerMenuOpen();
 // Requests a Game Speed value exactly as the slider would (clamped).
 void replayViewerRequestSpeed(uint32_t speed);
 
+// Runs exactly `updates` simulation updates per frame instead of the pacer's
+// count (0 = stock). Game thread. Ignored while paused, refused outside a
+// playback, and cleared when the playback ends. The caller zeroes the pacer's
+// time debt when it stops overriding, or the next frames burst.
+bool replayViewerSetUpdateOverride(uint32_t updates);
+
 // The replay session reports the end of the recording: the viewer holds the
 // simulation paused and shows the panel with an end notice. Cleared when the
 // playback ends.

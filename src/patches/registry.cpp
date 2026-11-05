@@ -6,6 +6,7 @@
 #include "../replay/replayTrace.h"
 #include "../replay/replayViewer.h"
 #include "../replay/replayVision.h"
+#include "../replay/seekProbe.h"
 #include "../replay/spectatorGuard.h"
 #include "attackHotkey.h"
 #include "autoMarket/autoMarket.h"
@@ -20,7 +21,6 @@
 #include "matchRules.h"
 #include "mpAiEnable.h"
 #include "mpConnectCompleteCrash.h"
-#include "orderTrace.h"
 #include "panSpeed.h"
 #include "pingCommand.h"
 #include "settingsOverlay.h"
@@ -55,7 +55,6 @@ void applyUnofficialPatches() {
     installShiftRecruit();
     installAutoMarket();
     installSiegeCampHotkey();
-    installOrderTrace();
 
     // Multiplayer replays (src/replay/). Every hook is stock-byte verified
     // and each module installs all of its sites or none. The session comes
@@ -69,6 +68,8 @@ void applyUnofficialPatches() {
     // guard's so the free-view key is seen before the guard swallows it.
     installReplayVision();
     installReplaySession();
+    // Debug builds only: replay seeking measurements (seek_probe.txt).
+    installSeekProbe();
 
     // Last: it reads every other feature's loaded binding, and its window
     // subclass must sit outside the auto-market editor's so it sees input first.

@@ -118,7 +118,9 @@ Replays carry it with the other rules.
 ## Investigation notes
 
 Found with a debug-only runtime trace (`src/patches/orderTrace.cpp`, built only
-by `make debug`), over three playtests. Kept for the next unit-behaviour bug:
+by `make debug`), over three playtests. The trace was removed once the fix
+shipped; it is in git history at `de93bce` for the next unit-behaviour bug.
+The lessons:
 
 - **Refusal at the order gate is real but not this bug.** `Soldier::moveTo`
   drops an order silently when the unit's action mask lacks bit `0x80` (the `je`
@@ -147,7 +149,8 @@ by `make debug`), over three playtests. Kept for the next unit-behaviour bug:
 
 ### Reading the trace
 
-`make debug` writes `order_trace.txt` next to `Stronghold2.exe`: every move
+With the trace restored from `de93bce`, `make debug` writes `order_trace.txt`
+next to `Stronghold2.exe`: every move
 order a tracked troop receives, then every clear, push and target change on that
 unit for 400 ticks, plus the player's clicks and Stop-button presses.
 

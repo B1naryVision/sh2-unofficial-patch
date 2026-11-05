@@ -51,7 +51,6 @@ SRCS = src/dllmain.cpp \
        src/patches/deadShieldPassThrough.cpp \
        src/patches/crimeExclusion.cpp \
        src/patches/rangedWalkGuard.cpp \
-       src/patches/orderTrace.cpp \
        src/patches/endgameStats.cpp \
        src/patches/endgameStats/unitTracker.cpp \
        src/patches/endgameStats/killTracker.cpp \
@@ -82,6 +81,7 @@ SRCS = src/dllmain.cpp \
        src/replay/replayTrace.cpp \
        src/replay/replayViewer.cpp \
        src/replay/replayVision.cpp \
+       src/replay/seekProbe.cpp \
        src/replay/spectatorGuard.cpp
 
 HDRS = $(wildcard src/*.h src/core/*.h src/proxy/*.h src/patches/*.h src/patches/endgameStats/*.h src/patches/autoMarket/*.h src/replay/*.h)

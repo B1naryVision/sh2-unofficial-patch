@@ -650,8 +650,11 @@ static void resetTallies() {
 }
 
 // Read by the loop-site detour on every frame. Not static: GAS names it.
+// A nonzero override replaces the pacer's update count for the frame
+// (World+0xce30c); pause wins over it.
 extern "C" {
 volatile uint32_t g_viewerSimPaused = 0;
+volatile uint32_t g_viewerUpdateOverride = 0;
 uintptr_t g_viewerLoopResume = 0;
 uintptr_t g_viewerLoopSkip = 0;
 }
@@ -659,6 +662,13 @@ uintptr_t g_viewerLoopSkip = 0;
 __declspec(naked) static void loopSiteHook() {
     __asm__ volatile("cmpl $0, _g_viewerSimPaused\n\t"
                      "jne 1f\n\t"
+                     "cmpl $0, _g_viewerUpdateOverride\n\t"
+                     "je 2f\n\t"
+                     "pushl %eax\n\t"
+                     "movl _g_viewerUpdateOverride, %eax\n\t"
+                     "movl %eax, 0xce30c(%esi)\n\t"
+                     "popl %eax\n\t"
+                     "2:\n\t"
                      "cmpl %edi, 0xce30c(%esi)\n\t" // stock; jbe at resume
                      "jmp *_g_viewerLoopResume\n\t"
                      "1:\n\t"
@@ -681,6 +691,7 @@ static void applyPause(uintptr_t base, bool want) {
 
 static void releasePause() {
     g_viewerSimPaused = 0;
+    g_viewerUpdateOverride = 0;
     s_paused = false;
 }
 
@@ -1010,6 +1021,16 @@ void replayViewerSetReplayName(const wchar_t *name) {
 }
 
 void replayViewerRequestToggle() { InterlockedExchange(&s_toggleRequest, 1); }
+
+bool replayViewerSetUpdateOverride(uint32_t updates) {
+    if (!s_loopHooked || (updates && !spectatorGuardActive())) {
+        g_viewerUpdateOverride = 0;
+        return false;
+    }
+
+    g_viewerUpdateOverride = updates;
+    return true;
+}
 
 void replayViewerRequestSpeed(uint32_t speed) {
     InterlockedExchange(&s_speedRequest, (LONG)clampSpeed((int)speed));

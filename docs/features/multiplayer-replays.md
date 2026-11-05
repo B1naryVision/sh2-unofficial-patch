@@ -382,6 +382,7 @@ survivors in the validation battle, but treat the counts as best-effort.
 | `src/replay/replayPlayer.*` | Schedules and injects commands during playback; restores checkpoint state. |
 | `src/replay/prngGuard.*` | Records and restores the shared random cursor per simulation update. |
 | `src/replay/spectatorGuard.*` | Blocks viewer input during playback. |
+| `src/replay/seekProbe.*` | Debug builds only: measurements for [replay seeking](replay-seeking.md). |
 | `src/replay/replayViewer.*` | The replay panel, pause and game speed. |
 | `src/replay/replayVision.*` | Ally vision and free view. |
 | `src/replay/replayCommon.*` | Shared helpers: in-game flag, popup check, checkpoint save, tile order, projectile state. |

@@ -42,6 +42,10 @@ void replaySessionNoteOutcome(bool won);
 // file I/O under the loader lock can hang the exit.
 void replaySessionOnWindowClosing();
 
+// The full path of the save the current playback was loaded from, or nullptr
+// when no playback is running. Game thread.
+const wchar_t *replaySessionPlaybackPath();
+
 // Settings panel: whether multiplayer matches are recorded ([replay]
 // RecordMultiplayer; takes effect from the next match), and how many replays
 // to keep in Saves ([replay] MaxReplays, 1..99, default 10). When a new match

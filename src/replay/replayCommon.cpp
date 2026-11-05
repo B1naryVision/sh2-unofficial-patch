@@ -514,3 +514,82 @@ bool replayCheckpointSave(const wchar_t *path, int suppressState) {
 
     return ok;
 }
+
+// ── Load ────────────────────────────────────────────────────────────────────
+//
+// The pause menu's load (VA 0x65ec3c..0x65ec90), and the main menu's at
+// 0x67d4a5, which matches it:
+//   push 0 ; sub esp,0x1c ; wstring copy-ctor ; mov ecx,World ; call LoadGame
+//   mov byte [0x1246306], 0
+//   Screen::instance().hidePopup(menu pane)
+//   Screen::instance().setWindow(std::string("in game interface"), false, true)
+// LoadGame does not switch screens itself. hidePopup is left out: this is only
+// called with no popup up. setWindow is the string overload (dragonfly RVA
+// 0x296b0, ret 0x24: a 0x1c-byte VC10 std::string and two bools).
+
+static const uintptr_t LOAD_GAME_RVA = 0x2ac60; // thiscall(wstring, int), ret 0x20
+static const uintptr_t STRING_CTOR_RVA = 0x76e0; // std::string(const char *), thiscall, ret 4
+static const uintptr_t LOAD_PENDING_BYTE_RVA = 0xe46306;
+static const uintptr_t IAT_SCREEN_SET_WINDOW = 0x50092c;
+static const char IN_GAME_WINDOW[] = "in game interface";
+
+bool replayLoadSave(const wchar_t *path) {
+    if (!path || !path[0] || replayScreenPopupOn()) {
+        return false;
+    }
+
+    typedef void *(__cdecl * ScreenInstanceFn)();
+    const uintptr_t instance = importedCode(IAT_SCREEN_INSTANCE);
+    const uintptr_t setWindow = importedCode(IAT_SCREEN_SET_WINDOW);
+
+    if (!instance || !setWindow) {
+        return false;
+    }
+
+    const uintptr_t base = exeBase();
+    GameWString src;
+    src.heap = const_cast<wchar_t *>(path);
+    src.size = static_cast<uint32_t>(wcslen(path));
+    src.res = src.size + 1;
+
+    if (src.res < 8) {
+        src.res = 8; // force the heap-pointer read path
+    }
+
+    void *srcPtr = &src;
+    const uintptr_t world = base + WORLD_RVA;
+    const uintptr_t wctor = base + WSTRING_COPY_CTOR_RVA;
+    const uintptr_t loadFn = base + LOAD_GAME_RVA;
+    __asm__ volatile("pushl $0\n\t"
+                     "subl $0x1c, %%esp\n\t"
+                     "movl %%esp, %%ecx\n\t"
+                     "pushl %[src]\n\t"
+                     "call *%[ctor]\n\t"
+                     "movl %[world], %%ecx\n\t"
+                     "call *%[load]\n\t"
+                     : [src] "+d"(srcPtr)
+                     : [ctor] "S"(wctor), [world] "b"(world), [load] "D"(loadFn)
+                     : "eax", "ecx", "cc", "memory");
+
+    *reinterpret_cast<volatile uint8_t *>(base + LOAD_PENDING_BYTE_RVA) = 0;
+    void *screen = reinterpret_cast<ScreenInstanceFn>(instance)();
+
+    if (!screen) {
+        return false;
+    }
+
+    const char *text = IN_GAME_WINDOW;
+    const uintptr_t sctor = base + STRING_CTOR_RVA;
+    __asm__ volatile("pushl $1\n\t"
+                     "pushl $0\n\t"
+                     "subl $0x1c, %%esp\n\t"
+                     "movl %%esp, %%ecx\n\t"
+                     "pushl %[text]\n\t"
+                     "call *%[ctor]\n\t"
+                     "movl %[screen], %%ecx\n\t"
+                     "call *%[set]\n\t"
+                     : [text] "+d"(text)
+                     : [ctor] "S"(sctor), [screen] "b"(screen), [set] "D"(setWindow)
+                     : "eax", "ecx", "cc", "memory");
+    return true;
+}
