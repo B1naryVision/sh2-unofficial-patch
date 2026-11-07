@@ -1,9 +1,10 @@
 # Replay Seeking (fast-forward and rewind)
 
-**Status:** Phase 0 (measurements) complete, 2026-11-05. Nothing player-facing yet.
+**Status:** Phase 0 (measurements) complete, 2026-11-05. Phase 1 (skip ahead)
+implemented, unreleased, awaiting its playtest. Rewind (phases 2 and 3) not built.
 **Affected version:** Stronghold 2 Steam v1.5.0
-**Patch type:** Debug-only probe (`make debug`); release builds contain only the
-three small APIs listed under [Code](#code), unused.
+**Patch type:** Part of [multiplayer replays](multiplayer-replays.md): works only
+while a replay plays. The phase 0 probe is debug-only (`make debug`).
 
 ---
 
@@ -112,6 +113,7 @@ session header per game launch.
 | `F8` | Turbo on / off. `Shift+F8` starts it without particles |
 | `F9` | Save a keyframe probe into `%TEMP%\sh2up-seekprobe\kf-<job>.sh2`, timed |
 | `Shift+F9` | Load the last keyframe probe (ends the playback; for timing only) |
+| `F10` | Toggle: later skips (phase 1) run without the kill tracker, to measure its cost. Kills during such a skip are not counted |
 | `F11` | Restart the replay at the next job with no queued command and no deferred placement: `LoadGame` of its own save, as the pause menu does it, then the playback epoch at once (`replayPlayerStartNow`). `Shift+F11` restarts at once, without waiting |
 
 `F12` is avoided because Windows reserves it for debuggers.
@@ -120,7 +122,8 @@ session header per game launch.
 
 | Line | Recorded |
 |------|----------|
-| `J <run> <job> <iter0> <hash> <worldTick>` | Every job of every playback, at the pump, before that job's injections. `iter0` is the simulation-only random cursor. `hash` is FNV-1a over each player's colour, honour, troops, siege, castle, gold, popularity, incomes and honour sources. Two runs of one replay must agree on every common job. |
+| `J <run> <job> <iter0> <hash> <worldTick> <frame> <dtUs>` | Every job of every playback, at the pump, before that job's injections. `iter0` is the simulation-only random cursor. `hash` is FNV-1a over each player's colour, honour, troops, siege, castle, gold, popularity, incomes and honour sources. Two runs of one replay must agree on every common job. `frame` is the probe's frame counter and `dtUs` the time since the previous job's pump, so within a frame `dtUs` is the simulation's cost per job and the first job of a frame also carries the frame's drawing. |
+| `SKIP …` | A player skip (phase 1): its start and target, its speed every 2 s, and its total jobs and wall time at the end. `fx` is the particle gate, `kills=0` when `F10` ran it without the kill tracker. |
 | `RUN <n>` | Each new playback epoch, with the world tick (`0xae8bd4`), the job-phase byte (`NetGameMgr+4`) and the address space in use. After `F11`, also the time from the load call to the epoch. |
 | `TURBO …` | Every 2 s: updates per frame, jobs/s, simulation updates/s, frame time and address space. Turbo aims for 100 ms frames. It switches off at the end of the recording, on a load, or when playback stops. |
 | `SAVE …` | Time, file size, queued commands and pending placements (a keyframe needs both 0), both random cursors before and after, address space. Changed cursors are put back. |
@@ -227,6 +230,148 @@ meaningless while the viewer is paused (the 36 s at job 2685 with `jobs=0`);
   earlier keep a rewind within about 10 s; at 1 MB and 200 ms each, that is
   under 200 MB of temporary files for a two-hour match.
 
+## Phase 1: skipping ahead
+
+### What the player gets
+
+The replay panel (`]`) shows the match time, `12:34 / 1:04:10`, above a
+timeline. Clicking a point ahead on the timeline, the **+30 s**, **+1 min** and
+**+5 min** buttons, or `.` (`[hotkeys] ReplaySkip`, a minute per press) start a
+skip. While it runs, the title reads SKIPPING, the time reads `12:34 → 20:00`
+and the target is marked on the timeline. Further presses add to the target. `P`
+or the **Stop** button ends a skip where it is (`P` also pauses there). The
+in-game menu holds a skip until it closes. A skip that reaches the end of the
+recording stops there. Clicks behind the current point do nothing until rewind
+exists.
+
+Match time is estimated per replay: the recording's own wall-clock span
+(`recordedUtc` to `updatedUtc` in the sidecar header) over its jobs, about 135
+ms per job in a live multiplayer match. An implausible span (outside 50–400 ms
+per job) falls back to 135 ms.
+
+### How it works (`src/replay/replaySeeker.cpp`)
+
+- **Speed.** Each frame the seeker sets the viewer's update-count override
+  (`World+0xce30c`, the loop site `0x21ea2` the viewer already owns). The count
+  starts at 20 and is scaled every frame toward a target frame length, at most
+  doubling or halving per frame, capped at 5,000. The game draws one frame per
+  batch, so the camera, the panel and the window stay responsive.
+- **Frame length.** Each frame draws the world once, and what that costs
+  depends on the view (below). The pump stamps the clock at every job of a
+  frame (`QueryPerformanceCounter`, FPU-free), so the seeker knows the frame's
+  simulation span and, by subtraction, its drawing overhead. The target frame
+  length is eight times the smoothed overhead, between 100 ms and 400 ms: a cheap
+  view keeps a smooth camera, a costly one is drawn less often.
+- **Stopping at the target.** The player's pump (`0x367a03`, once per job) calls
+  `replaySeekerOnJob` after the job's injections. At the target it writes `0` to
+  `World+0xce30c`; the update loop re-reads its bound every iteration, so the
+  frame ends after the current update, which runs as it always does. Float-free
+  and call-free, as the pump is mid-function.
+- **Afterwards.** The override goes back to 0 and the pacer's time debt
+  (`World+0xce34c`) is zeroed, so the next frames do not burst.
+- **Pause.** A skip runs through the player's own pause (`P` before the skip),
+  which holds again once it ends; the menu and the end hold still win over it.
+- **Sound.** `SoundUtil::setMuteSound(true)` (IAT VA `0x900618`, dragonfly
+  `0x1001ace0`) mutes stream types 1 and 2, the ones the stock options toggle
+  uses, presumably sound effects and speech. Music, type 0, is not touched. The
+  end of the skip calls `setMuteSound(!soundOn)`, with `soundOn` the player's own
+  setting (options object VA `0x1177d28` `+0x48`, the byte the options toggle at
+  `0x67164d` flips). It is never written, so nothing persists, and a change made
+  in the options during the skip is honoured. `setMuteAll` (`0x1001ac90`) would
+  mute music too, and is imported but never called by the game.
+
+- **Particles.** The particle gate (dword VA `0x10800b0`) is cleared for the
+  length of the skip and restored after, if it is still clear. It has three
+  readers: the emitter manager's per-frame pass (`0x75d350`, test at
+  `0x75d36f`), which is the only caller of the spawn `0x7bc330` (test at
+  `0x7bc340`), and the particle update in the simulation tick after `SIM_END`
+  (`0x76acff`). Emitters are simulation objects that exist whatever the gate
+  says; it only stops them emitting, so chimneys and fires emit again as soon as
+  the skip ends. No code writes the gate by its address (it is a member of the
+  object at VA `0x1080000`), so whether it is also an options setting is not
+  known; the measurement below is what clears it.
+
+### Speed (2026-11-07, the same 50 minutes of `replay-11.1.26-1115pm-e3` skipped twice)
+
+| | Particles on | Particles off |
+|---|---|---|
+| Jobs 126–22,347 (about 50 min of match) | 265 s, 83 jobs/s | 236 s, 94 jobs/s |
+| Exact against the recording | yes, every job | yes, every job |
+
+Where the time goes, from the per-job timing (`J` lines):
+
+| Jobs | Simulation per job | Jobs per frame | Per-frame overhead, particles on | off |
+|------|-------------------|----------------|--------------------------------|-----|
+| 0–2,000 (opening) | 2.0 ms | 43 | 12 ms | 10 ms |
+| 2,000–8,000 | 4.7–5.0 ms | 16–19 | 4–14 ms | 14–20 ms |
+| 8,000–14,000 | 5.7–9.4 ms | 10–16 | 6–15 ms | 5–34 ms |
+| 14,000–20,000 (big battles) | 15–18 ms | 4–6 | 8–35 ms | 6–7 ms |
+
+The simulation's own cost per job is the ceiling, and it is the game's code: at
+17 ms a job in the late battles, even a skip with no overhead at all could not
+pass about 58 jobs/s, roughly 8x real time. Particles are what the frame spends
+most on when battles are large (up to 30 ms a frame); with them off the per-frame
+overhead in those battles was 6–7 ms, under 10% of the frame.
+
+A second session (same replay, particles off in both runs) settled two more
+things:
+
+- **The kill tracker costs nothing measurable.** With it switched off (`F10`) the
+  simulation per job was the same as with it on (13.6–16.0 ms against
+  13.7–15.9 ms in the battles), within run-to-run noise.
+- **Drawing cost depends on the view.** The simulation per job matched the first
+  session, but the per-frame overhead in the late game was 25–55 ms of every
+  100 ms frame, against 6–7 ms before: the camera was over a busy town (the
+  tester saw bakery smoke and windmills). Turning such things off one by one
+  would take finding each system and proving it touches nothing; drawing less
+  often during a skip covers all of them at once, which is what the adaptive
+  frame length does. Bakery smoke kept showing with the particle gate off, so it
+  is drawn by another system; with longer frames its cost shrinks with the rest.
+
+A third session, with the adaptive frame length, measured where the remaining
+time goes. Debug builds time each update at the random guard's three hooks
+(entry, `SIM_END`, `SIM_DONE`; `prngGuardDebugTimes`):
+
+| Stretch | Tick-body subsystems (buildings, actors, projectiles, …) | Emitter manager (`0x76a610`) | Everything else (rest of the world update, drawing, window) |
+|---|---|---|---|
+| Opening | 57% | 0% | 43% |
+| Mid game | 70–78% | 0% | 22–30% |
+| Late battles | 80–85% | 0% | 15–20% |
+
+The emitter manager, the one presentation step inside the tick body, costs
+nothing measurable, so skipping it would gain nothing. Four-fifths of a
+late-game skip is the game's own simulation. The whole 50 minutes skipped in
+220 s (100 jobs/s on average, 13x real time), 40–60 jobs/s (5–8x) through the
+largest battles, and stayed exact. That is the practical limit of skipping by
+running the simulation faster; making late targets quick is what keyframes
+(phase 3) are for.
+
+### Exactness
+
+Nothing in the simulation changes: only how many updates run between two
+frames. Phase 0 showed that is invisible to the simulation (a turbo run matched
+the unskipped one at all 18,083 common jobs, and both matched the recording).
+The skip uses the same mechanism with an exact stop.
+
+### Verification (to do)
+
+With a debug build, the probe's fingerprints check any skip against the
+recording, as in phase 0:
+
+1. Load a long replay from the Load menu. Skip with each control: timeline click,
+   each button, `.` several times in a row, `P` and Stop mid-skip.
+2. Skip to the end of the recording; confirm it stops there and the panel says
+   ENDED, and that a replay ending on a victory screen still reaches it.
+3. Open the ESC menu during a skip; confirm it holds and resumes.
+4. Confirm sound effects are silent during a skip and come back after, music
+   plays throughout, and a player who had sound off still has it off. Confirm
+   smoke and fire show again right after a skip.
+5. Skip the late game twice, once with the camera over a busy town and once
+   over empty land, and compare the `SKIP` lines: with a busy view the frames
+   should lengthen toward 400 ms and the jobs/s should hold up.
+6. Check `seek_probe.txt`: every `J` line of every run stays in step with the
+   recording (the bracket check described under Results above).
+
 ## Code
 
 Release-visible additions, all inert unless called:
@@ -239,11 +384,15 @@ Release-visible additions, all inert unless called:
   playback. Cost when unset: one compare per job.
 - `replaySessionPlaybackPath()`: the save the current playback was loaded from.
 - `replayLoadSave(path)`: the pause-menu load sequence.
+- Phase 1: `replaySeeker.*`; `replaySessionTimeline()` (end job, ms per job);
+  the viewer's timeline, skip buttons and `[hotkeys] ReplaySkip`; one call per
+  job from the pump to `replaySeekerOnJob` (one compare when no skip runs).
 
 The probe adds no hook sites. It rides the viewer's loop site (`0x21ea2`), the
 player's pump (`0x367a03`) and the shared frame tick.
 
 ## Multiplayer Compatibility
 
-**Safe for version mismatch.** The probe works only during an offline playback
-under the spectator guard. It touches no live match.
+**Safe for version mismatch.** Skipping and the probe work only during an
+offline playback under the spectator guard. They touch no live match, and a
+replay plays the same whether or not it was skipped.

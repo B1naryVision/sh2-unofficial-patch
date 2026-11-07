@@ -6,6 +6,7 @@
 #include "replayCommon.h"
 #include "replayFormat.h"
 #include "replayRecorder.h"
+#include "replaySeeker.h"
 #include "replayTrace.h"
 #include "spectatorGuard.h"
 
@@ -687,13 +688,26 @@ static ReplayJobObserver s_jobObserver = nullptr;
 void replayPlayerSetJobObserver(ReplayJobObserver fn) { s_jobObserver = fn; }
 
 extern "C" void replayPlayerPump() {
+    const bool running = (s_state == PLAYER_PLAYING || s_state == PLAYER_DONE) && s_playbackEpoch;
+    uint32_t relative = 0;
+
+    if (running) {
+        relative = replayTraceCurrentSimulationTick() - s_playbackEpoch;
+    }
+
     // Before this job's injections, so the observer sees the same state at the
     // same job whatever the frame pacing was.
-    if (s_jobObserver && (s_state == PLAYER_PLAYING || s_state == PLAYER_DONE) && s_playbackEpoch) {
-        s_jobObserver(replayTraceCurrentSimulationTick() - s_playbackEpoch);
+    if (s_jobObserver && running) {
+        s_jobObserver(relative);
     }
 
     replayPlayerSimulationTick();
+
+    // A seek that reached its job ends the frame's update loop after this
+    // update, which itself runs as it always does.
+    if (running) {
+        replaySeekerOnJob(relative);
+    }
 }
 
 // Calls the stock callee first, with the registers exactly as the game set

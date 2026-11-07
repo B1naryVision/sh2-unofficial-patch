@@ -305,7 +305,32 @@ static void laterUpdate(uint32_t relative, uint32_t sub, bool recording) {
     ++s_updatesRestored;
 }
 
+#ifdef DEBUG
+// Where a simulation update spends its time, for the seek probe: the clock at
+// each of the three hooks, summed per span. Debug builds only.
+static int64_t s_dbgEntryQpc = 0, s_dbgEndQpc = 0;
+static uint64_t s_dbgSubsystems = 0, s_dbgEmitters = 0; // performance-counter ticks
+static uint32_t s_dbgUpdates = 0;
+
+static int64_t dbgClock() {
+    LARGE_INTEGER t;
+    QueryPerformanceCounter(&t); // reads the clock, leaves the FPU alone
+    return t.QuadPart;
+}
+
+void prngGuardDebugTimes(uint64_t *subsystems, uint64_t *emitters, uint32_t *updates) {
+    *subsystems = s_dbgSubsystems;
+    *emitters = s_dbgEmitters;
+    *updates = s_dbgUpdates;
+}
+#endif
+
 extern "C" void prngGuardTickEntry() {
+#ifdef DEBUG
+    s_dbgEntryQpc = dbgClock();
+    s_dbgEndQpc = 0;
+    ++s_dbgUpdates;
+#endif
     const uint32_t epoch = activeEpoch();
 
     if (!epoch) {
@@ -367,6 +392,14 @@ extern "C" void prngGuardTickEntry() {
 }
 
 extern "C" void prngGuardSimEnd() {
+#ifdef DEBUG
+    s_dbgEndQpc = dbgClock();
+
+    if (s_dbgEntryQpc) {
+        s_dbgSubsystems += s_dbgEndQpc - s_dbgEntryQpc;
+    }
+#endif
+
     if (!s_openTick) {
         return;
     }
@@ -380,6 +413,12 @@ extern "C" void prngGuardSimEnd() {
 
 // The live cursor is left untouched; the next update's entry restore handles it.
 extern "C" void prngGuardSimDone() {
+#ifdef DEBUG
+    if (s_dbgEndQpc) {
+        s_dbgEmitters += dbgClock() - s_dbgEndQpc;
+    }
+#endif
+
     if (!s_openTick) {
         return;
     }

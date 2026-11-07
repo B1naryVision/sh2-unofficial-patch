@@ -2,6 +2,15 @@
 
 ---
 
+## [Unreleased]
+
+### [Feature] - Skip Ahead in Replays
+
+- **What the issue was:** A replay could only be watched from the start, so getting to the fighting meant sitting through the whole peace time first, even at the fastest game speed.
+- **What we changed:** The replay panel (`]`) now shows the match time on a timeline. Click a point ahead on it, use the +30 s, +1 min and +5 min buttons, or press `.` to skip a minute, and the replay races ahead to that point with sound effects muted, then plays on exactly as the match went. Press `P` or Stop to end a skip early. Jumping back is not possible yet.
+
+---
+
 ## [0.8.1]
 
 ### [Fix] - Crash When the Game Closes While Starting Up

@@ -42,6 +42,11 @@ void replaySessionNoteOutcome(bool won);
 // file I/O under the loader lock can hang the exit.
 void replaySessionOnWindowClosing();
 
+// The current playback's last recorded job (relative to its epoch) and the
+// match time one job stands for, estimated from the recording's own span. False
+// when no playback is running or the sidecar has no end.
+bool replaySessionTimeline(uint32_t *endRelative, uint32_t *msPerJob);
+
 // The full path of the save the current playback was loaded from, or nullptr
 // when no playback is running. Game thread.
 const wchar_t *replaySessionPlaybackPath();

@@ -95,6 +95,9 @@ static volatile LONG s_lastFlushBytes = 0;
 
 // Playback.
 static uint32_t s_endRelative = 0;
+// Match milliseconds per job for the replay being played, from the recording's
+// own wall-clock span (recordedUtc to updatedUtc) over its jobs.
+static uint32_t s_msPerJob = 0;
 static uint32_t s_playEndReason = 0; // the sidecar's REPLAY_END_*
 
 // Victory/defeat screen activation (replaySessionNoteOutcome), 1 win 2 lose.
@@ -1009,6 +1012,27 @@ static uint32_t loadReplayFile(const wchar_t *path, uint8_t **data) {
     return read ? size : 0;
 }
 
+// A live multiplayer match runs about 7.4 jobs a second (one recording: 28,073
+// jobs in 64 minutes); used when the recording's own span is implausible.
+static const uint32_t DEFAULT_MS_PER_JOB = 135;
+static const uint32_t MIN_MS_PER_JOB = 50;
+static const uint32_t MAX_MS_PER_JOB = 400;
+
+static uint32_t computeMsPerJob(const ReplayBundleHeader &h) {
+    if (!h.endRelative || h.updatedUtc <= h.recordedUtc) {
+        return DEFAULT_MS_PER_JOB;
+    }
+
+    const uint64_t ms = (h.updatedUtc - h.recordedUtc) / 10000; // FILETIME is 100 ns
+    const uint64_t perJob = ms / h.endRelative;
+
+    if (perJob < MIN_MS_PER_JOB || perJob > MAX_MS_PER_JOB) {
+        return DEFAULT_MS_PER_JOB;
+    }
+
+    return (uint32_t)perJob;
+}
+
 // Arms playback from the sidecar beside `savePath`. False for an ordinary save,
 // or a sidecar that is refused for any reason; the save then loads untouched.
 static bool armReplay(const wchar_t *savePath) {
@@ -1080,6 +1104,7 @@ static bool armReplay(const wchar_t *savePath) {
 
         s_endRelative = h.endRelative;
         s_playEndReason = h.endReason;
+        s_msPerJob = computeMsPerJob(h);
         matchRulesReplayBegin(recorded, h.netMode == 2);
     } else {
         clearPlaybackState();
@@ -1276,6 +1301,16 @@ void replaySessionOnWindowClosing() {
         flushFinalLocked(false, REPLAY_END_PROCESS_EXIT);
         unlockWriter();
     }
+}
+
+bool replaySessionTimeline(uint32_t *endRelative, uint32_t *msPerJob) {
+    if (s_mode != SESSION_PLAYBACK || !s_endRelative) {
+        return false;
+    }
+
+    *endRelative = s_endRelative;
+    *msPerJob = s_msPerJob ? s_msPerJob : DEFAULT_MS_PER_JOB;
+    return true;
 }
 
 const wchar_t *replaySessionPlaybackPath() {

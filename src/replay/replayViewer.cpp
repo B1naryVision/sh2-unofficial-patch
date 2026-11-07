@@ -14,6 +14,8 @@
 #include "prngGuard.h"
 #include "replayCommon.h"
 #include "replayPlayer.h"
+#include "replaySeeker.h"
+#include "replaySession.h"
 #include "spectatorGuard.h"
 
 #include <array>
@@ -42,6 +44,14 @@ static const DWORD POLL_MS = 250;
 // Show / hide key, [hotkeys] ReplayPanel; rebindable from the settings panel.
 static Hotkey s_toggle = {VK_OEM_6, 0}; // ']'
 static const int PAUSE_VK = 'P';
+// Skip ahead ([hotkeys] ReplaySkip, '.' by default): a minute of match time per
+// press, added to a running skip's target. The panel's buttons, left to right;
+// 0 seconds is Stop. P during a skip stops it and pauses.
+static Hotkey s_skipKey = {VK_OEM_PERIOD, 0};
+static const int SKIP_KEY_SECONDS = 60;
+static const int SKIP_BUTTONS = 4;
+static const int SKIP_SECONDS[SKIP_BUTTONS] = {30, 60, 300, 0};
+static const wchar_t *SKIP_LABELS[SKIP_BUTTONS] = {L"+30 s", L"+1 min", L"+5 min", L"Stop"};
 // Pause. The stock pause flag (+0xe46305) cannot be used:
 // it freezes the world while FUN_00767950 keeps advancing the job counter
 // (NetGameMgr+6), so scheduled commands land on the wrong world state
@@ -94,6 +104,8 @@ static const int D_LABEL_PAD = 16;
 static const int D_SLIDER_W = 260;
 static const int D_SLIDER_H = 8;
 static const int D_THUMB_W = 10;
+static const int D_BUTTON_GAP = 6;
+static const int D_MARKER_W = 3;
 static const int D_SCREEN_GAP = 12;
 static const int NAME_CHARS = 16;
 // The stock HUD is drawn at fixed pixel size: a ~30 px resource bar along the
@@ -124,7 +136,7 @@ static ViewerPlayer s_players[kMaxPlayers];
 static int s_playerCount = 0;
 
 // ── Row model ───────────────────────────────────────────────────────────────
-enum class RowKind { Title, Slider, Header, Section, Values, Note, Gap };
+enum class RowKind { Title, Slider, Timeline, Buttons, Header, Section, Values, Note, Gap };
 
 struct Row {
     RowKind kind = RowKind::Gap;
@@ -146,6 +158,8 @@ static int s_valueColW = 0;
 static int s_columns = 0;
 static bool s_layoutReady = false;
 static int s_sliderL = 0, s_sliderR = 0, s_sliderT = 0, s_sliderB = 0; // panel-local
+static int s_timeL = 0, s_timeR = 0, s_timeT = 0, s_timeB = 0; // panel-local
+static RECT s_buttons[SKIP_BUTTONS] = {}; // panel-local
 
 static volatile LONG s_visible = 0;
 static volatile LONG s_toggleRequest = 0;
@@ -161,6 +175,16 @@ static uint32_t s_savedSpeed = 0;
 static uint32_t s_lastEpoch = 0;
 static uint32_t s_jobNow = 0;
 static volatile LONG s_pauseToggle = 0;
+// Skip requests from the window procedure, applied by the frame tick.
+static volatile LONG s_skipSeconds = 0;
+static volatile LONG s_seekToJob = -1;
+static volatile LONG s_stopRequest = 0;
+// The timeline: the recording's last job, the match time a job stands for, and
+// the running skip (frame tick; read by the painter).
+static uint32_t s_endJob = 0;
+static uint32_t s_msPerJob = 0;
+static bool s_seeking = false;
+static uint32_t s_seekTarget = 0;
 static volatile LONG s_menuOpen = 0;
 static bool s_userPaused = false;
 static bool s_loopHooked = false;
@@ -194,6 +218,20 @@ static int floatBitsToInt(uint32_t bits) {
     const uint32_t magnitude =
         exponent >= 23 ? mantissa << (exponent - 23) : mantissa >> (23 - exponent);
     return (bits >> 31) ? -(int)magnitude : (int)magnitude;
+}
+
+// "m:ss", or "h:mm:ss" past the hour, of match time.
+static void formatTime(uint32_t job, wchar_t *out, int cap) {
+    const uint32_t seconds = (uint32_t)((uint64_t)job * s_msPerJob / 1000);
+    const uint32_t hours = seconds / 3600;
+
+    if (hours) {
+        _snwprintf(out, cap, L"%u:%02u:%02u", hours, seconds / 60 % 60, seconds % 60);
+    } else {
+        _snwprintf(out, cap, L"%u:%02u", seconds / 60, seconds % 60);
+    }
+
+    out[cap - 1] = 0;
 }
 
 static int clampSpeed(int speed) {
@@ -380,14 +418,26 @@ static std::vector<Row> buildRows() {
         hotkeyDisplayName(s_toggle, keyName, sizeof(keyName));
     }
 
+    const wchar_t *state = L"";
+
+    if (s_ended) {
+        state = L"  ENDED";
+    } else if (s_seeking) {
+        state = L"  SKIPPING";
+    } else if (s_paused) {
+        state = L"  PAUSED";
+    }
+
+    wchar_t job[32] = L"";
+#ifdef DEBUG
+    _snwprintf(job, 32, L" \x2014 job %u", s_jobNow);
+    job[31] = 0;
+#endif
     wchar_t title[192];
     _snwprintf(
-        title, 192, L"%ls%lsjob %u%s   ( %hs%hsP pause )",
-        s_replayName[0] ? s_replayName : L"Replay viewer", L" \x2014 ", s_jobNow,
-        s_ended    ? L"  ENDED"
-        : s_paused ? L"  PAUSED"
-                   : L"",
-        keyName, keyName[0] ? " close, " : ""
+        title, 192, L"%ls%ls%ls   ( %hs%hsP pause )",
+        s_replayName[0] ? s_replayName : L"Replay viewer", job, state, keyName,
+        keyName[0] ? " close, " : ""
     );
     title[191] = 0;
     rows.push_back(makeRow(RowKind::Title, title, CLR_TEXT));
@@ -396,6 +446,24 @@ static std::vector<Row> buildRows() {
         rows.push_back(makeRow(
             RowKind::Note, L"End of the recording. Esc \x2192 Quit \x2192 Exit to leave.", CLR_KEY
         ));
+    }
+
+    if (s_endJob && s_msPerJob) {
+        wchar_t now[16], end[16], label[64];
+        formatTime(s_jobNow, now, 16);
+        formatTime(s_endJob, end, 16);
+
+        if (s_seeking) {
+            wchar_t target[16];
+            formatTime(s_seekTarget, target, 16);
+            _snwprintf(label, 64, L"%ls \x2192 %ls", now, target);
+        } else {
+            _snwprintf(label, 64, L"%ls / %ls", now, end);
+        }
+
+        label[63] = 0;
+        rows.push_back(makeRow(RowKind::Timeline, label, CLR_KEY));
+        rows.push_back(makeRow(RowKind::Buttons, L"Skip ahead", CLR_LABEL));
     }
 
     wchar_t speed[48];
@@ -537,6 +605,8 @@ static int measure(std::vector<Row> &rows, int scale) {
             row.height = line + S(6);
             break;
         case RowKind::Slider:
+        case RowKind::Timeline:
+        case RowKind::Buttons:
             row.height = line + S(8);
             break;
         case RowKind::Header:
@@ -560,8 +630,13 @@ static int measure(std::vector<Row> &rows, int scale) {
             row.kind == RowKind::Section) {
             const int w = textWidth(dc, row.label);
             titleW = w > titleW ? w : titleW;
-        } else if (row.kind == RowKind::Slider) {
-            const int w = textWidth(dc, L"Game speed  500") + S(D_LABEL_PAD) + S(D_SLIDER_W);
+        } else if (
+            row.kind == RowKind::Slider || row.kind == RowKind::Timeline ||
+            row.kind == RowKind::Buttons
+        ) {
+            // The widest label any of the three can show, so the panel does not
+            // change width as the time ticks over.
+            const int w = textWidth(dc, L"0:00:00 \x2192 0:00:00") + S(D_LABEL_PAD) + S(D_SLIDER_W);
             titleW = w > titleW ? w : titleW;
         } else if (!row.label.empty()) {
             const int w = textWidth(dc, row.label);
@@ -742,14 +817,28 @@ static void viewerTick() {
     const bool menuOpen = replayScreenPopupOn();
     InterlockedExchange(&s_menuOpen, menuOpen ? 1 : 0);
     bool pauseChanged = false;
+    uint32_t seekTarget = 0;
+    const bool seeking = replaySeekerActive(&seekTarget);
 
+    // P during a skip stops it where it is and pauses there.
     if (InterlockedExchange(&s_pauseToggle, 0)) {
-        s_userPaused = !s_userPaused;
+        if (seeking) {
+            replaySeekerCancel();
+            s_userPaused = true;
+        } else {
+            s_userPaused = !s_userPaused;
+        }
+
         pauseChanged = true;
     }
 
+    if (InterlockedExchange(&s_stopRequest, 0) && seeking) {
+        replaySeekerCancel();
+    }
+
+    // A skip runs through the viewer's own pause, and leaves it as it was.
     const bool wasPaused = s_paused;
-    applyPause(base, s_userPaused || menuOpen || s_ended);
+    applyPause(base, (s_userPaused && !seeking) || menuOpen || s_ended);
     pauseChanged = pauseChanged || wasPaused != s_paused;
 
     const uint32_t epoch = replayPlayerPlaybackEpoch();
@@ -767,7 +856,28 @@ static void viewerTick() {
         replayPlayerPlaybackJob(&s_jobNow);
     }
 
-    bool force = pauseChanged;
+    if (!replaySessionTimeline(&s_endJob, &s_msPerJob)) {
+        s_endJob = 0;
+        s_msPerJob = 0;
+    }
+
+    const LONG skipSeconds = InterlockedExchange(&s_skipSeconds, 0);
+    const LONG seekToJob = InterlockedExchange(&s_seekToJob, -1);
+
+    // A skip adds to a running skip's target rather than to where the playback
+    // is now, so pressing the key three times skips three minutes.
+    if (skipSeconds > 0 && s_msPerJob) {
+        const uint32_t from = seeking ? seekTarget : s_jobNow;
+        replaySeekerRequest(from + (uint32_t)((uint64_t)skipSeconds * 1000 / s_msPerJob));
+    }
+
+    if (seekToJob >= 0) {
+        replaySeekerRequest((uint32_t)seekToJob);
+    }
+
+    bool force = pauseChanged || seeking != s_seeking;
+    s_seeking = seeking;
+    s_seekTarget = seekTarget;
 
     if (s_ended && !s_endedShown) {
         s_endedShown = true;
@@ -808,6 +918,72 @@ static void viewerTick() {
 
 // ── Painting (render thread) ────────────────────────────────────────────────
 
+// Position of `job` on a track from `left` to `right`.
+static int trackX(uint32_t job, int left, int right) {
+    if (!s_endJob) {
+        return left;
+    }
+
+    if (job > s_endJob) {
+        job = s_endJob;
+    }
+
+    return left + (int)((int64_t)(right - left) * job / s_endJob);
+}
+
+// Played part filled; a running skip's target marked. Clicking ahead of the
+// current position skips there.
+static void paintTimeline(HDC dc, int y, int height) {
+    const int margin = S(D_MARGIN);
+    const int left = s_panel.w - margin - S(D_SLIDER_W);
+    const int right = s_panel.w - margin;
+    const int mid = y + (height - S(D_SLIDER_H)) / 2;
+    overlayPanelFill(dc, left, mid, right, mid + S(D_SLIDER_H), CLR_TRACK);
+    overlayPanelFill(
+        dc, left, mid, trackX(s_jobNow, left, right), mid + S(D_SLIDER_H), CLR_TRACK_FILL
+    );
+
+    if (s_seeking) {
+        const int x = trackX(s_seekTarget, left, right);
+        overlayPanelFill(
+            dc, x - S(D_MARKER_W) / 2, y + S(2), x + S(D_MARKER_W) - S(D_MARKER_W) / 2,
+            y + height - S(2), CLR_KEY
+        );
+    }
+
+    s_timeL = left;
+    s_timeR = right;
+    s_timeT = y;
+    s_timeB = y + height;
+}
+
+// Skip buttons in the slider's column; Stop only while skipping, the others not
+// once the recording has ended.
+static void paintButtons(HDC dc, int y, int height) {
+    const int margin = S(D_MARGIN);
+    const int left = s_panel.w - margin - S(D_SLIDER_W);
+    const int gap = S(D_BUTTON_GAP);
+    const int width = (S(D_SLIDER_W) - gap * (SKIP_BUTTONS - 1)) / SKIP_BUTTONS;
+
+    for (int b = 0; b < SKIP_BUTTONS; ++b) {
+        RECT r;
+        r.left = left + b * (width + gap);
+        r.right = r.left + width;
+        r.top = y + S(2);
+        r.bottom = y + height - S(2);
+        bool enabled = !s_ended;
+
+        if (SKIP_SECONDS[b] == 0) {
+            enabled = s_seeking;
+        }
+
+        overlayPanelFill(dc, r.left, r.top, r.right, r.bottom, CLR_TRACK);
+        SetTextColor(dc, enabled ? CLR_TEXT : CLR_NOTE);
+        DrawTextW(dc, SKIP_LABELS[b], -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+        s_buttons[b] = r;
+    }
+}
+
 static void paint(HDC dc) {
     overlayPanelFill(dc, 0, 0, s_panel.w, s_panel.h, CLR_BACKGROUND);
     overlayPanelFrame(dc, 0, 0, s_panel.w, s_panel.h, CLR_BORDER);
@@ -840,6 +1016,14 @@ static void paint(HDC dc) {
             s_sliderR = right;
             s_sliderT = y;
             s_sliderB = y + row.height;
+        }
+
+        if (row.kind == RowKind::Timeline) {
+            paintTimeline(dc, y, row.height);
+        }
+
+        if (row.kind == RowKind::Buttons) {
+            paintButtons(dc, y, row.height);
         }
 
         SetTextColor(dc, row.cellColor);
@@ -902,6 +1086,33 @@ static void speedFromPanelX(int lx) {
     replayViewerRequestSpeed((uint32_t)(SPEED_MIN + offset * (SPEED_MAX - SPEED_MIN) / span));
 }
 
+// A click on the timeline skips to that point (ahead of the current one only;
+// the seeker ignores the rest); a click on a button adds its time or stops.
+static void skipFromPanelPoint(int lx, int ly) {
+    if (ly >= s_timeT && ly < s_timeB && lx >= s_timeL && lx <= s_timeR && s_timeR > s_timeL &&
+        s_endJob) {
+        const int64_t job = (int64_t)s_endJob * (lx - s_timeL) / (s_timeR - s_timeL);
+        InterlockedExchange(&s_seekToJob, (LONG)job);
+        return;
+    }
+
+    POINT pt = {lx, ly};
+
+    for (int b = 0; b < SKIP_BUTTONS; ++b) {
+        if (!PtInRect(&s_buttons[b], pt)) {
+            continue;
+        }
+
+        if (SKIP_SECONDS[b] == 0) {
+            InterlockedExchange(&s_stopRequest, 1);
+        } else {
+            InterlockedExchangeAdd(&s_skipSeconds, SKIP_SECONDS[b]);
+        }
+
+        return;
+    }
+}
+
 static bool onSlider(int lx, int ly) {
     const int slack = S(D_THUMB_W);
     return ly >= s_sliderT && ly < s_sliderB && lx >= s_sliderL - slack && lx <= s_sliderR + slack;
@@ -927,10 +1138,19 @@ bool replayViewerHandleMessage(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam
             return true;
         }
 
+        if (hotkeyMatchesKeyDown(s_skipKey, (int)wparam)) {
+            if (!(lparam & (1 << 30))) {
+                InterlockedExchangeAdd(&s_skipSeconds, SKIP_KEY_SECONDS);
+            }
+
+            return true;
+        }
+
         return false;
     case WM_KEYUP:
     case WM_SYSKEYUP:
         return (hotkeyIsBound(s_toggle) && wparam == (WPARAM)s_toggle.vk) ||
+               (hotkeyIsBound(s_skipKey) && wparam == (WPARAM)s_skipKey.vk) ||
                wparam == (WPARAM)PAUSE_VK;
     default:
         break;
@@ -952,6 +1172,10 @@ bool replayViewerHandleMessage(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam
         if (inside && onSlider(lx, ly)) {
             s_dragging = true;
             speedFromPanelX(lx);
+        }
+
+        if (inside) {
+            skipFromPanelPoint(lx, ly);
         }
 
         return inside;
@@ -1063,12 +1287,17 @@ static void installLoopSiteHook() {
 
 Hotkey replayViewerBinding() { return s_toggle; }
 
+Hotkey replayViewerSkipBinding() { return s_skipKey; }
+
+void replayViewerSetSkipBinding(const Hotkey &hk) { s_skipKey = hk; }
+
 void replayViewerSetBinding(const Hotkey &hk) { s_toggle = hk; }
 
 bool replayViewerInstalled() { return true; }
 
 void installReplayViewer() {
     s_toggle = hotkeyLoad("hotkeys", "ReplayPanel", s_toggle);
+    s_skipKey = hotkeyLoad("hotkeys", "ReplaySkip", s_skipKey);
     installLoopSiteHook();
     InitializeCriticalSection(&s_lock);
     overlayPanelInit(s_panel, 0, 0, 1, 1); // real bounds are set on first show

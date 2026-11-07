@@ -11,8 +11,10 @@ void installSeekProbe() {}
 #include "../core/hotkey.h"
 #include "../core/observerContext.h"
 #include "../patches/endgameStats/gameOffsets.h"
+#include "prngGuard.h"
 #include "replayCommon.h"
 #include "replayPlayer.h"
+#include "replaySeeker.h"
 #include "replaySession.h"
 #include "replayViewer.h"
 #include "spectatorGuard.h"
@@ -27,6 +29,7 @@ void installSeekProbe() {}
 static const int KEY_TURBO = VK_F8;
 static const int KEY_KEYFRAME = VK_F9;
 static const int KEY_RESTART = VK_F11;
+static const int KEY_SKIP_NO_KILLS = VK_F10;
 
 static const uintptr_t GAME_PTR_RVA = 0x6e8bcc;
 static const uintptr_t ITER0_CURSOR_OFF = 0x40078;
@@ -130,7 +133,15 @@ struct JobPrint {
     uint32_t iter0;
     uint32_t hash;
     uint32_t worldTick;
+    uint32_t frame; // probe frame counter when the job ran
+    uint32_t dtUs; // since the previous job's pump
 };
+
+// Frames seen by the probe's frame tick. Jobs of one frame share a number, so
+// the first job of a frame carries the frame's drawing and the rest only the
+// simulation.
+static uint32_t s_frame = 0;
+static int64_t s_lastJobQpc = 0;
 
 static uint32_t worldTick() { return *(const volatile uint32_t *)(exeBase() + WORLD_TICK_RVA); }
 
@@ -185,6 +196,12 @@ static void observeJob(uint32_t rel) {
     e.iter0 = readCursor(ITER0_CURSOR_OFF);
     e.hash = h;
     e.worldTick = worldTick();
+    e.frame = s_frame;
+    // QueryPerformanceCounter reads the clock without touching the FPU.
+    const int64_t now = qpcNow();
+    const int64_t dt = s_lastJobQpc ? qpcMicros(now - s_lastJobQpc) : 0;
+    e.dtUs = dt > 0xffffffffll ? 0xffffffffu : (uint32_t)dt;
+    s_lastJobQpc = now;
     ++s_ringWrite;
 }
 
@@ -205,7 +222,10 @@ static void drainPrints() {
         const JobPrint &e = s_ring[s_ringRead % RING_SIZE];
 
         if (s_log) {
-            fprintf(s_log, "J %u %u %u %08x %u\n", s_run, e.rel, e.iter0, e.hash, e.worldTick);
+            fprintf(
+                s_log, "J %u %u %u %08x %u %u %u\n", s_run, e.rel, e.iter0, e.hash, e.worldTick,
+                e.frame, e.dtUs
+            );
         }
     }
 }
@@ -538,6 +558,12 @@ static void turboFrame() {
         return;
     }
 
+    // The player's skip owns the same update override.
+    if (replaySeekerActive(nullptr)) {
+        stopTurbo("skip");
+        return;
+    }
+
     const int64_t now = qpcNow();
     const int64_t frameUs = qpcMicros(now - s_lastFrameQpc);
     s_lastFrameQpc = now;
@@ -594,6 +620,113 @@ static void turboFrame() {
     s_winStartRel = rel;
     s_winUpdates = 0;
     s_winFrames = 0;
+}
+
+// ── Skips ───────────────────────────────────────────────────────────────────
+//
+// The player's skip (replaySeeker), observed: how fast it runs, every 2 s and in
+// total. F10 makes later skips run without the kill tracker, to measure what it
+// costs in battles. Measurement only: kills during such a skip are not counted.
+
+extern "C" uint32_t g_killTrackerActive;
+
+static bool s_skipNoKills = false;
+static bool s_skipSeen = false;
+static bool s_killsSuspended = false;
+static int64_t s_skipStartQpc = 0, s_skipWinQpc = 0;
+static uint64_t s_skipWinSubsystems = 0, s_skipWinEmitters = 0;
+static uint32_t s_skipWinUpdates = 0;
+
+// Of the window's wall time: the tick body's subsystems, the emitter manager,
+// and the update count; the rest of the frame is everything else (the world
+// update outside the tick body, drawing, the window).
+static void skipWindowStart() {
+    prngGuardDebugTimes(&s_skipWinSubsystems, &s_skipWinEmitters, &s_skipWinUpdates);
+}
+static uint32_t s_skipStartRel = 0, s_skipWinRel = 0, s_skipWinFrames = 0;
+
+static int particleGate() { return *(volatile uint32_t *)(exeBase() + FX_FLAG_RVA) ? 1 : 0; }
+
+static void skipFrame() {
+    uint32_t target = 0;
+    const bool active = replaySeekerActive(&target);
+    const int64_t now = qpcNow();
+    const uint32_t rel = currentRel();
+
+    if (active && !s_skipSeen) {
+        s_skipSeen = true;
+        s_skipStartQpc = s_skipWinQpc = now;
+        s_skipStartRel = s_skipWinRel = rel;
+        s_skipWinFrames = 0;
+        skipWindowStart();
+
+        if (s_skipNoKills && g_killTrackerActive) {
+            g_killTrackerActive = 0;
+            s_killsSuspended = true;
+        }
+
+        logLine(
+            "SKIP start run=%u rel=%u target=%u fx=%d kills=%d", s_run, rel, target, particleGate(),
+            s_killsSuspended ? 0 : 1
+        );
+        return;
+    }
+
+    if (!active && s_skipSeen) {
+        s_skipSeen = false;
+
+        // The guard may have dropped meanwhile (playback left); only then stay off.
+        if (s_killsSuspended) {
+            g_killTrackerActive = spectatorGuardActive() ? 1u : 0u;
+            s_killsSuspended = false;
+        }
+
+        const int64_t us = qpcMicros(now - s_skipStartQpc);
+        const uint32_t jobs = rel - s_skipStartRel;
+        uint64_t perSec = 0;
+
+        if (us > 0) {
+            perSec = (uint64_t)jobs * 1000000 / (uint64_t)us;
+        }
+
+        logLine(
+            "SKIP end run=%u rel=%u jobs=%u wall=%lldms jobs/s=%llu", s_run, rel, jobs,
+            (long long)(us / 1000), (unsigned long long)perSec
+        );
+        return;
+    }
+
+    if (!active) {
+        return;
+    }
+
+    ++s_skipWinFrames;
+    const int64_t winUs = qpcMicros(now - s_skipWinQpc);
+
+    if (winUs < TURBO_REPORT_US) {
+        return;
+    }
+
+    const uint32_t jobs = rel - s_skipWinRel;
+    uint64_t subsystems = 0, emitters = 0;
+    uint32_t updates = 0;
+    prngGuardDebugTimes(&subsystems, &emitters, &updates);
+    const uint64_t subUs = (uint64_t)qpcMicros((int64_t)(subsystems - s_skipWinSubsystems));
+    const uint64_t emitUs = (uint64_t)qpcMicros((int64_t)(emitters - s_skipWinEmitters));
+    logLine(
+        "SKIP rel=%u jobs/s=%llu frames=%u frame=%lldus fx=%d kills=%d va=%uMB "
+        "updates=%u subsystems=%llu%% emitters=%llu%% rest=%llu%%",
+        rel, (unsigned long long)((uint64_t)jobs * 1000000 / (uint64_t)winUs), s_skipWinFrames,
+        (long long)(winUs / (s_skipWinFrames ? s_skipWinFrames : 1)), particleGate(),
+        s_killsSuspended ? 0 : 1, addressSpaceMb(), updates - s_skipWinUpdates,
+        (unsigned long long)(subUs * 100 / (uint64_t)winUs),
+        (unsigned long long)(emitUs * 100 / (uint64_t)winUs),
+        (unsigned long long)(100 - (subUs + emitUs) * 100 / (uint64_t)winUs)
+    );
+    skipWindowStart();
+    s_skipWinQpc = now;
+    s_skipWinRel = rel;
+    s_skipWinFrames = 0;
 }
 
 // ── Save and load probes ────────────────────────────────────────────────────
@@ -783,17 +916,25 @@ static void probeTick() {
         fflush(s_log);
     }
 
+    ++s_frame;
     trackRuns();
     turboFrame();
+    skipFrame();
     maintainWatch();
     const bool focused = gameWindowFocused();
     const bool watchKey = pressed(KEY_WATCH);
     const bool turboKey = pressed(KEY_TURBO);
     const bool keyframeKey = pressed(KEY_KEYFRAME);
     const bool restartKey = pressed(KEY_RESTART);
+    const bool noKillsKey = pressed(KEY_SKIP_NO_KILLS);
 
     if (!focused || !spectatorGuardActive() || !replayInGame()) {
         return;
+    }
+
+    if (noKillsKey) {
+        s_skipNoKills = !s_skipNoKills;
+        logLine("SKIP kill tracking %s from the next skip", s_skipNoKills ? "off" : "on");
     }
 
     if (watchKey) {

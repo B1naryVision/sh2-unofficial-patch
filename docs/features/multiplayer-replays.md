@@ -26,7 +26,13 @@ While a replay plays, the viewer is a spectator:
   change the match.
 - **`]`** shows or hides the **replay panel**: live per-player stats (gold,
   honour, popularity, troops, siege, gold and honour by source, units recruited,
-  units killed by type) and a **Game Speed** slider.
+  units killed by type), the **match time** with a timeline, and a **Game
+  Speed** slider.
+- **Skip ahead**: click a point ahead on the panel's timeline, use its **+30 s**,
+  **+1 min** and **+5 min** buttons, or press **`.`** (a minute per press). The
+  match runs as fast as the computer allows to that point, with sound effects
+  muted, and plays on from there exactly as it would have. **`P`** or the
+  panel's **Stop** ends a skip early. See [replay seeking](replay-seeking.md).
 - **`P`** pauses and resumes. **`Esc`** opens the game's menu (the replay pauses
   while it is open); leaving the match from there ends the replay.
 - **`F`** toggles **free view** (the camera panel's eye button): the HUD is
@@ -63,10 +69,11 @@ panel (`Ctrl+Shift+O`):
 | `[replay] AllyVision` | `1` | Ally vision while a replay plays. |
 | `[replay] RecorderId` | generated | Written by the patch the first time it records; identifies this install's replays for `MaxReplays`. Do not copy it to another install. |
 | `[hotkeys] ReplayPanel` | `RBracket` | Show / hide the replay panel. |
+| `[hotkeys] ReplaySkip` | `Period` | Skip a minute ahead while a replay plays. |
 | `[hotkeys] ReplayFreeView` | `F` | Free view while a replay plays. |
 
 The settings panel has rows for **Multiplayer replays**, **Replays to keep**,
-**Replay panel** and **Replay free view**.
+**Replay panel**, **Replay skip ahead** and **Replay free view**.
 
 ---
 
@@ -339,7 +346,9 @@ the last job whose timing is fully known, so everything kept is exact.
    setting; the value it had when the playback started is put back when it
    ends. Ally vision answers "allied" only at the draw-path call sites of the
    game's `allied(local, owner)` check, and only while the spectator guard is
-   up and the session is not networked.
+   up and the session is not networked. Skipping ahead (`replaySeeker.cpp`)
+   replaces the update count per frame and stops at the target job from the
+   pump; see [replay seeking](replay-seeking.md).
 7. **End.** Playback holds at the last recorded job, or plays into the
    victory/defeat screen if the match ended on one. The session alone ends a
    playback: when the match is left (World+4 falls), after the same 30-frame
@@ -383,7 +392,8 @@ survivors in the validation battle, but treat the counts as best-effort.
 | `src/replay/prngGuard.*` | Records and restores the shared random cursor per simulation update. |
 | `src/replay/spectatorGuard.*` | Blocks viewer input during playback. |
 | `src/replay/seekProbe.*` | Debug builds only: measurements for [replay seeking](replay-seeking.md). |
-| `src/replay/replayViewer.*` | The replay panel, pause and game speed. |
+| `src/replay/replayViewer.*` | The replay panel, pause, game speed and the skip controls. |
+| `src/replay/replaySeeker.*` | Skipping ahead: many updates per frame, stopped at the target job. |
 | `src/replay/replayVision.*` | Ally vision and free view. |
 | `src/replay/replayCommon.*` | Shared helpers: in-game flag, popup check, checkpoint save, tile order, projectile state. |
 | `src/patches/endgameStats/killTracker.*` | Per-player kill counts. |

@@ -302,7 +302,7 @@ const PATCHES = [
     title:"Watch your multiplayer matches again",
     was:"The game has no replays, so once a multiplayer match was over there was no way to see it again.",
     now:"Every multiplayer match you play can be saved as a replay and watched later from a spectator's seat, with live stats for every player, a speed slider and a free camera. It plays under the same match rules the match had, such as ballista auto-fire.",
-    how:"Switch on Multiplayer replays in the settings panel (Ctrl+Shift+O). After a match, open Load and pick the save called replay-... . Press ] for the stats panel, P to pause and F for free view. To share a replay, send both the save and the .s2replay file next to it. The patch keeps your 10 newest replays and never deletes one someone sent you. It is still experimental: recording saves the game a moment after the match starts, which can cause a short pause."
+    how:"Switch on Multiplayer replays in the settings panel (Ctrl+Shift+O). After a match, open Load and pick the save called replay-... . Press ] for the stats panel, P to pause and F for free view. To skip ahead, click ahead on the panel's timeline, use its skip buttons or press . for a minute at a time. To share a replay, send both the save and the .s2replay file next to it. The patch keeps your 10 newest replays and never deletes one someone sent you. It is still experimental: recording saves the game a moment after the match starts, which can cause a short pause."
   }
 ];
 
@@ -311,6 +311,9 @@ const PATCHES = [
    the bottom of the page. Keep it in step with CHANGELOG.md.
    ================================================================== */
 const HISTORY = [
+  { v:"next", date:"", items:[
+    "Skip ahead in replays with a timeline, skip buttons and the . key"
+  ]},
   { v:"0.8.1", date:"", items:[
     "Fixed a crash when the game closes while it is still starting up",
     "The army-nearly-full warning now matches the 550 unit cap"
@@ -386,6 +389,7 @@ const SETTINGS = [
     ["AttackToggle","Mouse4","Turns the Attack stance on and off for selected troops."],
     ["AutoMarketPanel","Backtick","Opens the automatic buying and selling panel."],
     ["ReplayPanel","RBracket","Shows or hides the stats panel while you watch a replay."],
+    ["ReplaySkip","Period","Skips a minute ahead while you watch a replay."],
     ["ReplayFreeView","F","Free camera while you watch a replay."]
   ]},
   { group:"Camera", rows:[

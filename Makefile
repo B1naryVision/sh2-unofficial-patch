@@ -77,6 +77,7 @@ SRCS = src/dllmain.cpp \
        src/replay/replayPlayer.cpp \
        src/replay/replayRecorder.cpp \
        src/replay/replayRetime.cpp \
+       src/replay/replaySeeker.cpp \
        src/replay/replaySession.cpp \
        src/replay/replayTrace.cpp \
        src/replay/replayViewer.cpp \

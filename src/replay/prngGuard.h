@@ -131,3 +131,10 @@ const ReplayPrngUpdates *prngGuardRecordUpdates();
 // of those found the live cursor somewhere other than the recorded value (a
 // draw the simulation would otherwise have taken from the wrong place).
 void prngGuardRestoreStats(uint32_t *restored, uint32_t *corrected);
+
+#ifdef DEBUG
+// Running totals, in performance-counter ticks, of the simulation tick body's
+// subsystem updates (entry to SIM_END) and of the emitter manager (SIM_END to
+// SIM_DONE), with the number of updates. For the seek probe.
+void prngGuardDebugTimes(uint64_t *subsystems, uint64_t *emitters, uint32_t *updates);
+#endif

@@ -2,6 +2,7 @@
 #include "../core/config.h"
 #include "../replay/prngGuard.h"
 #include "../replay/replayPlayer.h"
+#include "../replay/replaySeeker.h"
 #include "../replay/replaySession.h"
 #include "../replay/replayTrace.h"
 #include "../replay/replayViewer.h"
@@ -63,6 +64,7 @@ void applyUnofficialPatches() {
     installReplayPlayer();
     installPrngGuard();
     installSpectatorGuard();
+    installReplaySeeker();
     installReplayViewer();
     // After the spectator guard: its window subclass must sit outside the
     // guard's so the free-view key is seen before the guard swallows it.
