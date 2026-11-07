@@ -9,6 +9,11 @@
 - **What the issue was:** A replay could only be watched from the start, so getting to the fighting meant sitting through the whole peace time first, even at the fastest game speed.
 - **What we changed:** The replay panel (`]`) now shows the match time on a timeline. Click a point ahead on it, use the +30 s, +1 min and +5 min buttons, or press `.` to skip a minute, and the replay races ahead to that point with sound effects muted, then plays on exactly as the match went. Press `P` or Stop to end a skip early. Jumping back is not possible yet.
 
+### [Feature] - Replays Are Named After the Teams
+
+- **What the issue was:** Every replay in the Load menu was named only by the date and time, so it was hard to tell which match was which.
+- **What we changed:** A new replay is now named after the players and their teams, for example `Alice+Bob vs Carol+Dave` followed by the date. Each player's name is cut to 10 characters so the list stays readable, and replays you already have keep their old names and still play.
+
 ---
 
 ## [0.8.1]

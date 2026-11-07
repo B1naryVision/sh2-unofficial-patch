@@ -5,10 +5,12 @@
 
 #include "replay/replayFormat.h"
 #include "replay/replayRetime.h"
+#include "replay/replayTitle.h"
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cwchar>
 #include <vector>
 
 static int s_failures = 0;
@@ -672,6 +674,84 @@ static void fuzzValidators() {
     }
 }
 
+// ── Replay file name ────────────────────────────────────────────────────────
+
+static bool
+titleIs(const ReplayTitlePlayer *players, int count, size_t budget, const wchar_t *expected) {
+    wchar_t out[256];
+    wmemset(out, L'#', 256);
+    const size_t n = replayFormatTitle(players, count, out, budget);
+    return n == wcslen(expected) && !wcscmp(out, expected) && n <= budget;
+}
+
+static void testTitle() {
+    const ReplayTitlePlayer twoVsTwo[] = {
+        {L"Alice", L"Red", 0}, {L"Carol", L"Blue", 1}, {L"Bob", L"Green", 0}, {L"Dave", L"Pink", 1}
+    };
+    CHECK(titleIs(twoVsTwo, 4, 96, L"Alice+Bob vs Carol+Dave"));
+
+    const ReplayTitlePlayer ffa[] = {
+        {L"Alice", L"Red", 0}, {L"Bob", L"Blue", 1}, {L"Carol", L"Green", 2}
+    };
+    CHECK(titleIs(ffa, 3, 96, L"Alice vs Bob vs Carol"));
+    CHECK(titleIs(ffa, 1, 96, L"Alice"));
+
+    // Empty or shared names fall back to the colour; unusable characters become `_`.
+    const ReplayTitlePlayer odd[] = {
+        {L"", L"Red", 0},        {L"Lord Grey", L"Blue", 1}, {L"Lord Grey", L"Green", 2},
+        {L"a/b:c?", L"Pink", 3}, {L"  pad  ", L"Gray", 4},   {nullptr, nullptr, 5},
+        {L"   ", L"Cyan", 6}
+    };
+    CHECK(titleIs(odd, 7, 96, L"Red vs Blue vs Green vs a_b_c_ vs pad vs Player vs Cyan"));
+
+    const ReplayTitlePlayer ctl[] = {{L"x\ty\x7f", L"Red", 0}};
+    CHECK(titleIs(ctl, 1, 96, L"x_y_"));
+
+    // Long names are cut, shorter each time, until the title fits.
+    const ReplayTitlePlayer longNames[] = {
+        {L"Abcdefghijklmnopqrstuvw", L"Red", 0}, {L"Zyxwvutsrqponmlkjihgfed", L"Blue", 1}
+    };
+    CHECK(titleIs(longNames, 2, 96, L"Abcdefghij vs Zyxwvutsrq"));
+    CHECK(titleIs(longNames, 2, 24, L"Abcdefghij vs Zyxwvutsrq"));
+    CHECK(titleIs(longNames, 2, 23, L"Abcdef vs Zyxwvu"));
+    CHECK(titleIs(longNames, 2, 16, L"Abcdef vs Zyxwvu"));
+    CHECK(titleIs(longNames, 2, 10, L"Abc vs Zyx"));
+    CHECK(titleIs(longNames, 2, 9, L""));
+    CHECK(titleIs(longNames, 2, 0, L""));
+    CHECK(titleIs(longNames, 0, 96, L""));
+
+    // A cut never leaves trailing spaces.
+    const ReplayTitlePlayer spaced[] = {{L"Sir Lance of the Lake", L"Red", 0}};
+    CHECK(titleIs(spaced, 1, 96, L"Sir Lance"));
+
+    // Eight full-length names in a free-for-all fit in the session's 108.
+    static const wchar_t *const NAMES[8] = {
+        L"Aaaaaaaaaaaaa", L"Bbbbbbbbbbbbb", L"Ccccccccccccc", L"Ddddddddddddd",
+        L"Eeeeeeeeeeeee", L"Fffffffffffff", L"Ggggggggggggg", L"Hhhhhhhhhhhhh",
+    };
+    ReplayTitlePlayer ffa8[8];
+
+    for (int i = 0; i < 8; ++i) {
+        ffa8[i] = {NAMES[i], L"Red", i};
+    }
+
+    wchar_t full[256];
+    CHECK(replayFormatTitle(ffa8, 8, full, 108) == 108);
+
+    // Eight players, every name at full length, still respects the budget.
+    ReplayTitlePlayer eight[8];
+
+    for (int i = 0; i < 8; ++i) {
+        eight[i] = {L"Abcdefghijklmnopqrstuvw", L"Red", i % 2};
+    }
+
+    for (size_t budget = 0; budget <= 200; ++budget) {
+        wchar_t out[256];
+        const size_t n = replayFormatTitle(eight, 8, out, budget);
+        CHECK(n <= budget && n == wcslen(out));
+    }
+}
+
 int main() {
     if (!replayRetimeAcquire()) {
         std::printf("retime storage unavailable\n");
@@ -696,6 +776,7 @@ int main() {
     testFlyState();
     testPrng();
     fuzzValidators();
+    testTitle();
     replayRetimeRelease();
     std::printf("%d checks, %d failed\n", s_checks, s_failures);
     return s_failures ? 1 : 0;

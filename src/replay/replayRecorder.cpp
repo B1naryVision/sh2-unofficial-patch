@@ -38,6 +38,7 @@ static uint32_t s_armDelayFrames = 0;
 static uint32_t s_armFrames = 0;
 static uint32_t s_armQueueWait = 0;
 static wchar_t s_armPath[MAX_PATH] = L"";
+static ReplayArmPathFn s_armPathFn = nullptr;
 // RandomIter #0's cursor (Game at RVA 0x6e8bcc, +0x40078) either side of the
 // checkpoint save, written to the sidecar. A save that draws from it would
 // desync a networked match; these two tell (docs, Known Issues).
@@ -118,6 +119,11 @@ void replayRecorderFrame() {
     const int suppress = replayTraceSessionIsNetworked() ? 2 : 0;
     bool saved = false;
 
+    if (!s_armPathFn(s_armPath, MAX_PATH)) {
+        s_armState = REPLAY_ARM_FAILED;
+        return;
+    }
+
     {
         // SaveGame computes floats, and the frame tick is a mid-function site.
         ObserverFpScope fp;
@@ -144,12 +150,13 @@ void replayRecorderFrame() {
     replayCaptureFlyState();
 }
 
-bool replayRecorderAutoArm(const wchar_t *savePath, uint32_t delayFrames) {
-    if (!s_arena || !savePath || !*savePath || wcslen(savePath) >= MAX_PATH) {
+bool replayRecorderAutoArm(ReplayArmPathFn savePath, uint32_t delayFrames) {
+    if (!s_arena || !savePath) {
         return false;
     }
 
-    wcscpy(s_armPath, savePath);
+    s_armPathFn = savePath;
+    s_armPath[0] = 0;
     s_armDelayFrames = delayFrames;
     s_armFrames = 0;
     s_armQueueWait = 0;

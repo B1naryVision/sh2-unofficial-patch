@@ -54,7 +54,8 @@ validated (see Known Issues).
 1. Switch on **Multiplayer replays** in the settings panel, or set
    `[replay] RecordMultiplayer=1`.
 2. Play a multiplayer match.
-3. From the main menu, open **Load** and pick the save named `replay-...`.
+3. From the main menu, open **Load** and pick the save named after the match's
+   teams, such as `Alice+Bob vs Carol+Dave-11.7.26-905pm-k3`.
 4. Watch. Press `]` for the panel.
 
 All settings live in the `[replay]` and `[hotkeys]` sections of
@@ -83,13 +84,13 @@ Each recorded match is two files in `Documents\Stronghold 2\Saves`:
 
 | File | What it is |
 |------|------------|
-| `replay-<m>.<d>.<yy>-<h><mm><am/pm>-<xx>.sh2` | A normal game save, taken by the game's own save routine a moment after the match starts. This is the replay's starting point and what the Load menu lists. The name is the local date and time the match started, plus two random characters so two matches started in the same minute never collide. |
-| `replay-....s2replay` | The **sidecar**, with the same name as the save. It holds everything the save cannot carry: the command log and the timing data that makes playback exact. |
+| `<teams>-<m>.<d>.<yy>-<h><mm><am/pm>-<xx>.sh2` | A normal game save, taken by the game's own save routine a moment after the match starts. This is the replay's starting point and what the Load menu lists. The name lists the players by team (see [File name](#file-name)), then the local date and time the save was taken, plus two random characters so two matches started in the same minute never collide. |
+| `<same name>.s2replay` | The **sidecar**, with the same name as the save. It holds everything the save cannot carry: the command log and the timing data that makes playback exact. |
 
 A replay needs both files. To share one, send both; to delete one, delete both.
 Without its sidecar the save is just an ordinary save and loads normally.
 
-`MaxReplays` cleanup only ever deletes a `replay-*.s2replay` sidecar and the
+`MaxReplays` cleanup only ever deletes a `*.s2replay` sidecar and the
 `.sh2` save beside it, and only when the sidecar header carries this install's
 recorder id (`REPLAY_BUNDLE_RECORDER_ID`, `reserved[1]`). The id is 32 random
 bits from the OS generator, written once to `[replay] RecorderId` the first time
@@ -100,8 +101,8 @@ a received replay could be pruned.) Age is the header's `recordedUtc`, not a
 file time: copying, unzipping or downloading a replay keeps the sender's write
 time, so ordering by mtime made a received replay look oldest and deleted it
 first. A replay without the id (received, or from another install), an
-unreadable sidecar, and a save without a sidecar are never touched, even if
-named `replay-...`. Pruning happens only once a match's checkpoint is known to
+unreadable sidecar, and a save without a sidecar are never touched, whatever
+their name; the name decides nothing, since replays are named after their teams. Pruning happens only once a match's checkpoint is known to
 be good, so a match that is never recorded never costs the oldest replay.
 
 The `.s2replay` extension is deliberately not `.sh2...`: with 8.3 short names a
@@ -109,6 +110,40 @@ The `.s2replay` extension is deliberately not `.sh2...`: with 8.3 short names a
 
 Debug builds (`make debug`) also write `killtrace.txt` to the game directory.
 Release builds write no log files.
+
+### File name
+
+The teams part reads `Alice+Bob vs Carol+Dave` (a free-for-all is
+`Alice vs Bob vs Carol`). It is built on the checkpoint frame, when the arm
+fires, not on the match's first frame: the recorder asks the session for the
+path (`ReplayArmPathFn`) just before it calls `SaveGame`, once the players and
+their alliances are settled.
+
+- **Players** are the slots the replay panel counts: a readable player object
+  with a colour and a castle (`+0x10f8` 1 or 2), not the all-zero template.
+  Order is player-table slot.
+- **Names** come from the session name array by colour (`sessionLoadName`,
+  [endgame stats](endgame-stats.md#player-name-mapping)), which is reliable in a
+  live match. An empty name, or one two players share, is replaced by the
+  colour (`Red`, `Blue`, ...).
+- **Teams** are mutual alliances: two players are on one team when the game's
+  own `allied(a, b)` (VA `0x4219e0`, thiscall on `S2Game`, the same check ally
+  vision answers at its draw sites) is true both ways. It only reads the
+  diplomacy tables, so calling it changes nothing in the match.
+- **Characters** Windows refuses in a file name (`< > : " / \ | ? *` and
+  control characters) become `_`.
+- **Length.** Each name is cut to 10 characters. The title is at most 108
+  characters (eight such names in a free-for-all), and less if the Saves path
+  is long, so the sidecar's path stays under `MAX_PATH`. If it does not fit,
+  names are cut to 6 characters, then 3; if even that does not fit, or no player
+  can be read, the teams give way to `replay-` and the name is
+  `replay-<date>-<time>-<xx>`, as before.
+
+The formatter (`src/replay/replayTitle.cpp`) is pure and covered by
+`make test`. Nothing reads the name back: playback finds the sidecar by the
+save's name, and `MaxReplays` cleanup matches any `*.s2replay` by its header's
+recorder id, so older replays named `replay-<date>` keep working and are still
+counted.
 
 ### Sidecar format
 
@@ -211,7 +246,7 @@ exactly as the live one did. Most of the replay code exists to make that true.
 
 1. **Checkpoint.** About 30 frames into a match, the session calls the game's
    own `SaveGame` (the same call the Esc-menu save makes) to write the
-   `replay-...sh2` save into Saves, with the x87/SSE state saved and reset
+   checkpoint save into Saves, with the x87/SSE state saved and reset
    around it (`ObserverFpScope`), since the frame tick is a mid-function site. In a networked session the save's
    "game state" announcement is suppressed for the duration of the call, the
    same way the [multiplayer save recovery](mp-save-recovery.md) save is made,
@@ -392,6 +427,7 @@ survivors in the validation battle, but treat the counts as best-effort.
 | `src/replay/prngGuard.*` | Records and restores the shared random cursor per simulation update. |
 | `src/replay/spectatorGuard.*` | Blocks viewer input during playback. |
 | `src/replay/seekProbe.*` | Debug builds only: measurements for [replay seeking](replay-seeking.md). |
+| `src/replay/replayTitle.*` | The teams part of a replay's file name. Pure; covered by `make test`. |
 | `src/replay/replayViewer.*` | The replay panel, pause, game speed and the skip controls. |
 | `src/replay/replaySeeker.*` | Skipping ahead: many updates per frame, stopped at the target job. |
 | `src/replay/replayVision.*` | Ally vision and free view. |
@@ -407,7 +443,7 @@ hook, the trace, the player and the random guard are all in: a replay this
 build could not play back is not worth writing.
 
 `make test` builds `tests/replayTests.cpp` with the host compiler under
-AddressSanitizer and UBSan and runs it: the retimer (delays 0/1/2, autonomous
+AddressSanitizer and UBSan and runs it: the replay file-name formatter, the retimer (delays 0/1/2, autonomous
 commands, never-executed commands, thousands of them, reuse of a dropped
 command's address, missing hooks, witness overflow, the event cap, an external
 limit, execution-order plans) and every sidecar validator, with table tests for
@@ -488,6 +524,7 @@ All RVAs (VA - `0x400000`). The main sites; each file documents its own in full.
 | Site | RVA | Use |
 |------|-----|-----|
 | `World::LoadGame` | `0x2ac60` | Detect replay loads |
+| `allied(a, b)` | `0x219e0` | Teams in the replay's file name (called, not hooked) |
 | `SaveGame` | `0x2a2e0` | Called for the checkpoint (`0x2a37d` state announcement suppressed in MP) |
 | World command admission | `0x37efb0` | Command log |
 | Queued execution (NetGameMgr tick list) | `0x367c61` | Execution witness |
@@ -546,6 +583,11 @@ All RVAs (VA - `0x400000`). The main sites; each file documents its own in full.
   is recorded up to that point, and the replay ends there.
 - A hard crash loses up to the last sidecar write interval (10-60 seconds).
 - Single-player recording is off by default.
+- The teams in a replay's file name are untested in a live match, in a
+  free-for-all, with computer players and with names using characters outside
+  Latin-1, and it is not yet known how much of a long name the Load menu shows.
+  The session name array has also not been checked in single player, where a
+  name that cannot be read falls back to the player's colour.
 - A replay is watched from a single viewpoint. Ally vision shows every player's
   hidden units and interiors, but there is no per-player fog of war.
 - Untested in multiplayer games with computer players (the patch's MP AI

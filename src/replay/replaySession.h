@@ -7,7 +7,8 @@
 // Recording. Every match of the enabled kinds (multiplayer by default; single
 // player off) is recorded without any tooling: at match start the recorder
 // arms against a fresh checkpoint save in the player's own Saves folder, named
-// like `replay-1.31.26-905pm-k3.sh2`. Beside it the session writes a sidecar,
+// after its teams, like `Alice+Bob vs Carol+Dave-1.31.26-905pm-k3.sh2`. Beside it the session
+// writes a sidecar,
 // `<same name>.s2replay`, holding everything playback needs that the save
 // cannot carry (replayFormat.h). The sidecar is rewritten atomically every few
 // seconds while the match runs -- on a worker thread, from a snapshot taken on

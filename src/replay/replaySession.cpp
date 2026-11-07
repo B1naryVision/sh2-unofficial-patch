@@ -5,7 +5,10 @@
 #include "../core/frameTick.h"
 #include "../core/gameWString.h"
 #include "../core/hook.h"
+#include "../core/readableMemory.h"
+#include "../patches/endgameStats/gameOffsets.h"
 #include "../patches/endgameStats/killTracker.h"
+#include "../patches/endgameStats/session.h"
 #include "../patches/matchRules.h"
 #include "prngGuard.h"
 #include "replayCommon.h"
@@ -13,6 +16,7 @@
 #include "replayPlayer.h"
 #include "replayRecorder.h"
 #include "replayRetime.h"
+#include "replayTitle.h"
 #include "replayTrace.h"
 #include "replayViewer.h"
 
@@ -256,13 +260,107 @@ static uint32_t localRecorderId() {
     return s_id;
 }
 
-// `replay-1.31.26-905pm-k3`: local date and 12-hour time, plus two random
-// base-36 characters so two matches started in the same minute never collide.
+// allied(a, b): thiscall on S2Game, `ret 8`, answer in AL. True when a == b or
+// b's stance in a's diplomacy table is below 3 (replayVision.cpp). Pure reads;
+// the draw path calls it every frame.
+static const uintptr_t S2GAME_RVA = 0xd781d0;
+static const uintptr_t ALLIED_RVA = 0x219e0;
+
+static const wchar_t *const COLOR_NAMES[] = {L"Player", L"Red",      L"Orange", L"Green",
+                                             L"Cyan",   L"Blue",     L"Pink",   L"Yellow",
+                                             L"Violet", L"Dark Red", L"Gray"};
+
+// The match's players by team, `Alice+Bob vs Carol+Dave`, in at most `budget`
+// characters; 0 when it cannot be read or does not fit. A player is a slot with
+// a readable object, a colour and a castle, as the replay panel counts them.
+// Teams are mutual alliances at the checkpoint. Game thread, integer-only.
+static size_t matchTitle(wchar_t *out, size_t budget) {
+    typedef uint8_t(__attribute__((thiscall)) * AlliedFn)(void *game, int a, int b);
+    const uintptr_t base = exeBase();
+    const AlliedFn allied = (AlliedFn)(base + ALLIED_RVA);
+    void *game = (void *)(base + S2GAME_RVA);
+    static wchar_t names[PLAYER_TABLE_SLOTS][kMaxNameChars];
+    ReplayTitlePlayer players[PLAYER_TABLE_SLOTS];
+    int slots[PLAYER_TABLE_SLOTS];
+    int count = 0;
+
+    for (int slot = 0; slot < PLAYER_TABLE_SLOTS; ++slot) {
+        const uintptr_t ptr = playerTable(base)[slot];
+
+        if (!ptr || !observerReadable(ptr, OFF_CASTLE + 4)) {
+            continue;
+        }
+
+        PlayerView pv = {ptr};
+        const int color = pv.color();
+        const int castle = pv.castle();
+
+        if (!isValidColor(color) || (castle != 1 && castle != 2) ||
+            (pv.goldBits() == 0 && pv.honor() == 0)) {
+            continue;
+        }
+
+        sessionLoadName(color, names[count]);
+        players[count].name = names[count];
+        players[count].fallback = COLOR_NAMES[color];
+        players[count].team = count;
+        slots[count] = slot;
+        ++count;
+    }
+
+    for (int i = 0; i < count; ++i) {
+        for (int j = i + 1; j < count; ++j) {
+            if (players[j].team == players[i].team || !allied(game, slots[i], slots[j]) ||
+                !allied(game, slots[j], slots[i])) {
+                continue;
+            }
+
+            const int merged = players[j].team;
+
+            for (int k = 0; k < count; ++k) {
+                if (players[k].team == merged) {
+                    players[k].team = players[i].team;
+                }
+            }
+        }
+    }
+
+    return replayFormatTitle(players, count, out, budget);
+}
+
+// `Alice+Bob vs Carol+Dave-1.31.26-905pm-k3`: the teams, then the local date
+// and 12-hour time, plus two random base-36 characters so two matches started
+// in the same minute never collide. Without readable players, or when the
+// Saves path leaves no room for them, the teams give way to `replay-`.
 static bool newReplayPath(wchar_t *out, size_t cap) {
+    // Eight players at ten characters, apart in a free-for-all.
+    static const size_t TITLE_MAX = 8 * 10 + 7 * 4;
+    // `\`, `-12.31.26-1259pm-xx`, `.s2replay` (the longer extension).
+    static const size_t FIXED = 1 + 19 + 9;
     wchar_t dir[MAX_PATH];
 
     if (!savesDirectory(dir, MAX_PATH)) {
         return false;
+    }
+
+    const size_t dirLen = wcslen(dir);
+    wchar_t title[TITLE_MAX + 2] = L"replay-";
+
+    if (dirLen + FIXED + 1 < cap) {
+        size_t budget = cap - 1 - dirLen - FIXED;
+
+        if (budget > TITLE_MAX) {
+            budget = TITLE_MAX;
+        }
+
+        wchar_t teams[TITLE_MAX + 1];
+        const size_t n = matchTitle(teams, budget);
+
+        if (n) {
+            wmemcpy(title, teams, n);
+            title[n] = L'-';
+            title[n + 1] = 0;
+        }
     }
 
     SYSTEMTIME t;
@@ -277,7 +375,7 @@ static bool newReplayPath(wchar_t *out, size_t cap) {
         seed = seed * 1664525u + 1013904223u;
         const wchar_t a = DIGITS[(seed >> 8) % 36], b = DIGITS[(seed >> 20) % 36];
         _snwprintf(
-            out, cap, L"%ls\\replay-%u.%u.%02u-%u%02u%ls-%lc%lc.sh2", dir, t.wMonth, t.wDay,
+            out, cap, L"%ls\\%ls%u.%u.%02u-%u%02u%ls-%lc%lc.sh2", dir, title, t.wMonth, t.wDay,
             t.wYear % 100, hour12, t.wMinute, t.wHour < 12 ? L"am" : L"pm", a, b
         );
         out[cap - 1] = 0;
@@ -292,13 +390,25 @@ static bool newReplayPath(wchar_t *out, size_t cap) {
     return false;
 }
 
+// The recorder asks for the checkpoint's name on the frame it saves it, once
+// the players and their alliances are settled.
+static bool armSavePath(wchar_t *out, size_t cap) {
+    if (!newReplayPath(s_savePath, MAX_PATH) || !sidecarFor(s_savePath, s_sidecarPath, MAX_PATH) ||
+        wcslen(s_savePath) >= cap) {
+        return false;
+    }
+
+    wcscpy(out, s_savePath);
+    return true;
+}
+
 // Keeps at most `keep` of this install's replays in Saves, deleting the oldest
-// first. A replay is a `replay-*.s2replay` sidecar and the `.sh2` save beside
-// it, and only one whose header carries localRecorderId() is a candidate: a
-// replay someone sent, an older-format one, or anything unreadable is never
-// touched. Age is the header's recording time, not a file time, which a copy
-// preserves. Nothing without a sidecar is ever touched either, so an ordinary
-// save that happens to be named `replay-...` is safe.
+// first. A replay is a `*.s2replay` sidecar and the `.sh2` save beside it, and
+// only one whose header carries localRecorderId() is a candidate: a replay
+// someone sent, an older-format one, or anything unreadable is never touched.
+// The name decides nothing (replays are named after their teams). Age is the
+// header's recording time, not a file time, which a copy preserves. Nothing
+// without a sidecar is ever touched either, so an ordinary save is safe.
 static void pruneReplays(int keep) {
     wchar_t dir[MAX_PATH];
 
@@ -307,7 +417,7 @@ static void pruneReplays(int keep) {
     }
 
     wchar_t pattern[MAX_PATH];
-    _snwprintf(pattern, MAX_PATH, L"%ls\\replay-*.s2replay", dir);
+    _snwprintf(pattern, MAX_PATH, L"%ls\\*.s2replay", dir);
     pattern[MAX_PATH - 1] = 0;
 
     struct Entry {
@@ -844,15 +954,14 @@ static void beginRecording() {
         return;
     }
 
-    if (!newReplayPath(s_savePath, MAX_PATH) || !sidecarFor(s_savePath, s_sidecarPath, MAX_PATH)) {
-        return;
-    }
+    s_savePath[0] = 0;
+    s_sidecarPath[0] = 0;
 
     if (!acquireRecordingBuffers()) {
         return;
     }
 
-    if (!replayRecorderAutoArm(s_savePath, ARM_DELAY_FRAMES)) {
+    if (!replayRecorderAutoArm(armSavePath, ARM_DELAY_FRAMES)) {
         releaseRecordingBuffers();
         return;
     }

@@ -79,6 +79,7 @@ SRCS = src/dllmain.cpp \
        src/replay/replayRetime.cpp \
        src/replay/replaySeeker.cpp \
        src/replay/replaySession.cpp \
+       src/replay/replayTitle.cpp \
        src/replay/replayTrace.cpp \
        src/replay/replayViewer.cpp \
        src/replay/replayVision.cpp \
@@ -139,7 +140,8 @@ tool-test: $(TOOL_TEST)
 # read fails the run. tests/host/windows.h stands in for the two Win32 calls the
 # retimer makes. Not shipped.
 TEST_BIN  = tests/replay-tests
-TEST_SRCS = tests/replayTests.cpp src/replay/replayFormat.cpp src/replay/replayRetime.cpp
+TEST_SRCS = tests/replayTests.cpp src/replay/replayFormat.cpp src/replay/replayRetime.cpp \
+            src/replay/replayTitle.cpp
 HOSTCXX   = g++
 
 $(TEST_BIN): $(TEST_SRCS) $(HDRS) tests/host/windows.h

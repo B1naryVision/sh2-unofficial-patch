@@ -100,12 +100,17 @@ enum ReplayArmState : uint32_t {
     REPLAY_ARM_FAILED = 3, // no checkpoint: the save failed or the queue never drained
 };
 
+// Names the checkpoint save, on the frame it is taken: the file name lists the
+// players, who are only certain once the match has settled. False = no save.
+typedef bool (*ReplayArmPathFn)(wchar_t *out, size_t cap);
+
 // Arms the recorder for the current match: after `delayFrames` frames, and on
 // the first frame with no command in the lockstep queue and no deferred
-// building placement, it calls the game's own SaveGame on `savePath` and starts
-// the log in the same frame, so no admission can fall between the checkpoint
-// and the log. The checkpoint's tick becomes the recording's epoch.
-bool replayRecorderAutoArm(const wchar_t *savePath, uint32_t delayFrames);
+// building placement, it asks `savePath` for the file, calls the game's own
+// SaveGame on it and starts the log in the same frame, so no admission can fall
+// between the checkpoint and the log. The checkpoint's tick becomes the
+// recording's epoch.
+bool replayRecorderAutoArm(ReplayArmPathFn savePath, uint32_t delayFrames);
 void replayRecorderCancelAutoArm();
 
 // Advances a pending arm. The replay session calls it from its frame tick while
