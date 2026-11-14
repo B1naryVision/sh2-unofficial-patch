@@ -51,6 +51,7 @@ SRCS = src/dllmain.cpp \
        src/patches/deadShieldPassThrough.cpp \
        src/patches/crimeExclusion.cpp \
        src/patches/rangedWalkGuard.cpp \
+       src/patches/moatTileGuard.cpp \
        src/patches/endgameStats.cpp \
        src/patches/endgameStats/unitTracker.cpp \
        src/patches/endgameStats/killTracker.cpp \

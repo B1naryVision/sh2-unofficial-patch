@@ -53,7 +53,7 @@ static const char *RULE_OFF = "off";
 static const char *RULE_UNAVAILABLE = "unavailable";
 static const char *HOST_HINT = "Click a rule to switch it on or off";
 
-static const int MAX_RULES = 8;
+static const int MAX_RULES = 16;
 
 enum Status { STATUS_WAITING, STATUS_EVERYONE, STATUS_NOT_EVERYONE };
 

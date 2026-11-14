@@ -14,6 +14,7 @@ settings of a match, not of a player.
 | Disband peasant fix | fix | — | `0x2` | [disband-peasant-duplication.md](../bugs/disband-peasant-duplication.md) |
 | Stuck-worker crime fix | fix | — | `0x8` | [stuck-worker-crime.md](../bugs/stuck-worker-crime.md) |
 | Ranged move-order fix | fix | — | `0x10` | [ranged-move-orders.md](../bugs/ranged-move-orders.md) |
+| Outlaw moat crash fix | fix | — | `0x80` | [outlaw-moat-crash.md](../bugs/outlaw-moat-crash.md) |
 | Ballista auto-fire | option | `BallistaAutoFire` | `0x1` | [ballista-auto-fire.md](ballista-auto-fire.md) |
 | No market | option | `NoMarket` | `0x4` | [no-market.md](no-market.md) |
 | Unit cap 550 | option | `UnitCap550` | `0x20` | [unit-cap-raise.md](unit-cap-raise.md) |

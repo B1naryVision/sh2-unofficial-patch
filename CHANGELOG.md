@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### [Fix] - Outlaws No Longer Crash the Game While Filling a Moat
+
+- **What the issue was:** When outlaws were sent to fill in a moat and stopped on the way to throw javelins at defenders on the walls, the game could close to the desktop. Whether it crashed depended on the computer, which is why some players never saw it and others found it went away in Windows 7 compatibility mode.
+- **What we changed:** An outlaw that gets distracted on its way to the moat now simply picks another nearby patch of moat to fill, or goes back, instead of crashing the game. In multiplayer the fix switches itself on for any match where every player has a patch version that supports it, with nothing for the host to set, and the lobby panel shows it; with anyone missing it, the match keeps the old behaviour so it stays in sync. In single player it is always on.
+
 ### [Feature] - Skip Ahead in Replays
 
 - **What the issue was:** A replay could only be watched from the start, so getting to the fighting meant sitting through the whole peace time first, even at the fastest game speed.

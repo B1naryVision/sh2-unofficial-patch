@@ -201,6 +201,7 @@ per-rule replay code:
 | `0x10` | `RULE_RANGED_WALK_FIX` | fix | [ranged-move-orders.md](../bugs/ranged-move-orders.md) |
 | `0x20` | `RULE_UNIT_CAP_RAISE` | option | [unit-cap-raise.md](unit-cap-raise.md) |
 | `0x40` | `RULE_DEAD_SHIELD_PASS` | option | [dead-shield-pass-through.md](dead-shield-pass-through.md) |
+| `0x80` | `RULE_MOAT_TILE_FIX` | fix | [outlaw-moat-crash.md](../bugs/outlaw-moat-crash.md) |
 
 This holds because each rule is a pure function of its bit and of state the
 save carries: none reads lobby data, the ini, the wall clock or the network

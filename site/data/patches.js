@@ -117,6 +117,12 @@ const PATCHES = [
     was:"If the game closed while it was still opening, whether you closed the window or something else made it quit, it crashed on the way out.",
     now:"The game closes cleanly at any point during startup."
   },
+  {
+    id:"outlaw-moat-crash", cat:"crashes", kind:"fix", version:"next", mp:"all",
+    title:"Crash when outlaws fill in a moat",
+    was:"Outlaws sent to fill in a moat could crash the game to the desktop if they stopped on the way to throw javelins at defenders on the walls. It only happened on some computers.",
+    now:"A distracted outlaw picks another nearby patch of moat to fill, or goes back, and the game carries on. It is always on in single player, and on in any multiplayer match where every player has the patch."
+  },
 
   /* ---------- MULTIPLAYER ---------------------------------------- */
   {
@@ -313,7 +319,8 @@ const PATCHES = [
 const HISTORY = [
   { v:"next", date:"", items:[
     "Skip ahead in replays with a timeline, skip buttons and the . key",
-    "Replays are named after the players and their teams"
+    "Replays are named after the players and their teams",
+    "Fixed a crash when outlaws filling a moat stop to attack"
   ]},
   { v:"0.8.1", date:"", items:[
     "Fixed a crash when the game closes while it is still starting up",

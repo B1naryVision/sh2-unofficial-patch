@@ -25,6 +25,7 @@ static const uint32_t RULE_CRIME_EXCLUSION_FIX = 1u << 3;
 static const uint32_t RULE_RANGED_WALK_FIX = 1u << 4;
 static const uint32_t RULE_UNIT_CAP_RAISE = 1u << 5;
 static const uint32_t RULE_DEAD_SHIELD_PASS = 1u << 6;
+static const uint32_t RULE_MOAT_TILE_FIX = 1u << 7;
 
 // Bumped whenever the member-data format changes; a player on another protocol
 // is treated as supporting nothing.

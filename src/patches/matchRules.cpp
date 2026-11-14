@@ -10,6 +10,7 @@
 #include "deadShieldPassThrough.h"
 #include "disbandRefundGuard.h"
 #include "handshake.h"
+#include "moatTileGuard.h"
 #include "noMarket.h"
 #include "rangedWalkGuard.h"
 #include "unitCapRaise.h"
@@ -66,6 +67,8 @@ static const Rule RULES[] = {
      crimeExclusionSetEnabled},
     {RULE_RANGED_WALK_FIX, "Ranged move-order fix", true, nullptr, installRangedWalkGuard,
      rangedWalkGuardSetEnabled},
+    {RULE_MOAT_TILE_FIX, "Outlaw moat crash fix", true, nullptr, installMoatTileGuard,
+     moatTileGuardSetEnabled},
     {RULE_BALLISTA_AUTOFIRE, "Ballista auto-fire", false, "BallistaAutoFire",
      installBallistaAutoFire, ballistaAutoFireSetEnabled},
     {RULE_NO_MARKET, "No market", false, "NoMarket", installNoMarket, noMarketSetEnabled},
