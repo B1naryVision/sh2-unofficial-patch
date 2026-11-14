@@ -315,7 +315,7 @@ const PATCHES = [
     title:"Watch your multiplayer matches again",
     was:"The game has no replays, so once a multiplayer match was over there was no way to see it again.",
     now:"Every multiplayer match you play can be saved as a replay and watched later from a spectator's seat, with live stats for every player, a speed slider and a free camera. It plays under the same match rules the match had, such as ballista auto-fire.",
-    how:"Switch on Multiplayer replays in the settings panel (Ctrl+Shift+O). After a match, open Load and pick the save named after the match's teams, such as Alice+Bob vs Carol+Dave. Press ] for the stats panel, P to pause and F for free view. To skip ahead, click ahead on the panel's timeline, use its skip buttons or press . for a minute at a time. To share a replay, send both the save and the .s2replay file next to it. The patch keeps your 10 newest replays and never deletes one someone sent you. It is still experimental: recording saves the game a moment after the match starts, which can cause a short pause."
+    how:"Switch on Multiplayer replays in the settings panel (Ctrl+Shift+O). After a match, open Load and pick the save named after the match's teams, such as Alice+Bob vs Carol+Dave. Press ] for the stats panel, P to pause and F for free view. To skip ahead or jump back, click the panel's timeline, use its buttons, or press . and , for a minute at a time. To share a replay, send both the save and the .s2replay file next to it. The patch keeps your 10 newest replays and never deletes one someone sent you. It is still experimental: recording saves the game a moment after the match starts, which can cause a short pause."
   }
 ];
 
@@ -325,7 +325,7 @@ const PATCHES = [
    ================================================================== */
 const HISTORY = [
   { v:"next", date:"", items:[
-    "Skip ahead in replays with a timeline, skip buttons and the . key",
+    "Skip ahead and jump back in replays with a timeline, buttons and the . and , keys",
     "Replays no longer play the marching and hooves of the recording player's orders",
     "Replays are named after the players and their teams",
     "Fixed a crash when outlaws filling a moat stop to attack",
@@ -408,6 +408,7 @@ const SETTINGS = [
     ["AutoMarketPanel","Backtick","Opens the automatic buying and selling panel."],
     ["ReplayPanel","RBracket","Shows or hides the stats panel while you watch a replay."],
     ["ReplaySkip","Period","Skips a minute ahead while you watch a replay."],
+    ["ReplaySkipBack","Comma","Jumps a minute back while you watch a replay."],
     ["ReplayFreeView","F","Free camera while you watch a replay."]
   ]},
   { group:"Camera", rows:[

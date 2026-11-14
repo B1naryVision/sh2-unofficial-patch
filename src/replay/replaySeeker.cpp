@@ -9,6 +9,7 @@
 #include "replayViewer.h"
 #include "spectatorGuard.h"
 
+#include <cstring>
 #include <windows.h>
 
 // World (RVA 0xd781d0) fields read by the main-loop body FUN_00421e00:
@@ -54,6 +55,27 @@ static const int64_t OVERHEAD_SHARE = 8;
 static const uint32_t UPDATES_START = 20;
 static const uint32_t UPDATES_MAX = 5000;
 
+// Rewinding. The replay is reloaded from its own save and then skipped forward
+// to the target, which is exact for the same reason any playback is. Two rules
+// from the phase 0 restarts (docs/features/replay-seeking.md), both of which a
+// restart broke when ignored:
+//   - Load only at a job with no command queued and no placement deferred:
+//     LoadGame keeps the lockstep queue, and the new world would execute the
+//     old one's commands. Until such a job comes the simulation runs on, a few
+//     updates a frame, so the wait is a frame or two even with the replay
+//     paused (logged waits: 0-8 frames).
+//   - Sample the playback epoch straight after the load. The load runs here, in
+//     the frame tick after the player's own; left to the next frame, this
+//     frame's update loop would run the new world ahead of its schedule.
+static const uint32_t REWIND_WAIT_UPDATES = 10;
+static const uint32_t REWIND_WAIT_FRAMES_MAX = 600;
+
+enum SeekPhase : uint32_t {
+    SEEK_IDLE = 0,
+    SEEK_REWIND_WAIT = 1, // running to a quiet job, then reloading
+    SEEK_FORWARD = 2, // running fast to the target
+};
+
 typedef bool(__cdecl *SetMuteSoundFn)(bool muted);
 
 static bool s_installed = false;
@@ -64,6 +86,8 @@ static volatile uint32_t *s_updateCount = nullptr; // World+0xce30c, for the pum
 static volatile LONG s_request = -1; // target job, or -1
 static volatile LONG s_cancel = 0;
 static bool s_active = false;
+static uint32_t s_phase = SEEK_IDLE;
+static uint32_t s_waitFrames = 0;
 static uint32_t s_target = 0;
 static volatile uint32_t s_reached = 0; // set by the pump at the target
 static uint32_t s_updates = 0;
@@ -114,9 +138,44 @@ static void finish() {
 
     s_particlesOff = false;
     s_active = false;
+    s_phase = SEEK_IDLE;
     s_reached = 0;
 }
 
+// What every seek, either way, turns off while it runs.
+static void enter() {
+    if (soundOn()) {
+        setSoundMuted(true);
+        s_muted = true;
+    }
+
+    volatile uint32_t *gate = (volatile uint32_t *)(exeBase() + PARTICLE_GATE_RVA);
+    s_particleGate = *gate;
+    s_particlesOff = s_particleGate != 0;
+    *gate = 0;
+    s_active = true;
+}
+
+static void beginForward() {
+    s_reached = 0;
+    s_updates = UPDATES_START;
+    s_lastQpc = qpcNow();
+    s_frameTargetUs = FRAME_MIN_US;
+    s_overheadUs = 0;
+    s_frameJobs = 0;
+    s_phase = SEEK_FORWARD;
+    replayViewerSetUpdateOverride(s_updates);
+}
+
+static void beginRewindWait() {
+    s_waitFrames = 0;
+    s_phase = SEEK_REWIND_WAIT;
+    replayViewerSetUpdateOverride(REWIND_WAIT_UPDATES);
+}
+
+// A target ahead of the current job runs forward; one behind it rewinds; one
+// on it ends a seek. A new request replaces the running seek's target, so
+// further presses keep adding to it, either way.
 static void start(uint32_t target) {
     uint32_t now = 0, end = 0, msPerJob = 0;
 
@@ -128,34 +187,84 @@ static void start(uint32_t target) {
         target = end;
     }
 
-    if (target <= now) {
+    if (target == now) {
+        if (s_active) {
+            finish();
+        }
+
         return;
     }
 
     s_target = target;
 
-    if (s_active) {
-        return; // a new target for the running seek
+    if (!s_active) {
+        enter();
     }
 
-    s_reached = 0;
-    s_updates = UPDATES_START;
-    s_lastQpc = qpcNow();
-    s_frameTargetUs = FRAME_MIN_US;
-    s_overheadUs = 0;
-    s_frameJobs = 0;
+    if (target > now) {
+        if (s_phase != SEEK_FORWARD) {
+            beginForward();
+        }
 
-    if (soundOn()) {
-        setSoundMuted(true);
-        s_muted = true;
+        return;
     }
 
-    volatile uint32_t *gate = (volatile uint32_t *)(exeBase() + PARTICLE_GATE_RVA);
-    s_particleGate = *gate;
-    s_particlesOff = s_particleGate != 0;
-    *gate = 0;
-    s_active = true;
-    replayViewerSetUpdateOverride(s_updates);
+    if (s_phase != SEEK_REWIND_WAIT) {
+        beginRewindWait();
+    }
+}
+
+// The rewind's load, once the job is quiet. A target of the very start needs
+// nothing more; anything later is a forward seek from there.
+static void reload() {
+    const wchar_t *playing = replaySessionPlaybackPath();
+
+    if (!playing) {
+        finish();
+        return;
+    }
+
+    // The session rewrites its own copy inside the load.
+    wchar_t path[MAX_PATH];
+    memcpy(path, playing, sizeof(path));
+    bool loaded = false;
+
+    {
+        // LoadGame computes floats, and the frame tick is a mid-function site.
+        ObserverFpScope fp;
+        loaded = replayLoadSave(path);
+    }
+
+    if (!loaded || !replayPlayerStartNow()) {
+        finish();
+        return;
+    }
+
+    if (s_target == 0) {
+        finish();
+        return;
+    }
+
+    beginForward();
+}
+
+static void rewindWaitFrame() {
+    // The in-game menu holds a rewind as it holds any seek.
+    if (replayScreenPopupOn()) {
+        return;
+    }
+
+    if (replayNetQueuedCommands() == 0 && replayPendingPlacements() == 0) {
+        reload();
+        return;
+    }
+
+    if (++s_waitFrames >= REWIND_WAIT_FRAMES_MAX) {
+        finish(); // never quiet: give up rather than load into a broken run
+        return;
+    }
+
+    replayViewerSetUpdateOverride(REWIND_WAIT_UPDATES);
 }
 
 // The frame's time outside the simulation: the frame minus the span from its
@@ -231,7 +340,19 @@ static void seekerTick() {
         return;
     }
 
-    if (s_reached || !spectatorGuardActive() || !replayInGame() || replayViewerEnded()) {
+    if (!spectatorGuardActive() || !replayInGame()) {
+        finish();
+        return;
+    }
+
+    // A rewind may start from the end of the recording, which is what it is
+    // for; a forward seek stops there.
+    if (s_phase == SEEK_REWIND_WAIT) {
+        rewindWaitFrame();
+        return;
+    }
+
+    if (s_reached || replayViewerEnded()) {
         finish();
         return;
     }
@@ -252,7 +373,7 @@ static void seekerTick() {
 }
 
 void replaySeekerOnJob(uint32_t relativeJob) {
-    if (!s_active || s_reached) {
+    if (s_phase != SEEK_FORWARD || s_reached) {
         return;
     }
 

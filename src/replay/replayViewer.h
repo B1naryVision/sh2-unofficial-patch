@@ -9,9 +9,11 @@
 // playback. `]` (rebindable) toggles it while playback is armed (spectatorGuardActive());
 // it is inert and invisible otherwise.
 //
-// Skip ahead. The panel shows the match time and a timeline; clicking ahead on
-// it, the skip buttons or the skip key run the simulation fast to that point
-// (replaySeeker.h). `P` during a skip stops it and pauses.
+// Seeking. The panel shows the match time and a timeline. Clicking ahead on it,
+// the skip-ahead buttons or the skip key run the simulation fast to that point;
+// clicking behind, the jump-back buttons or the jump-back key reload the replay
+// and run it fast to that point (replaySeeker.h). `P` during a seek stops it and
+// pauses.
 //
 // Pause and exit. `P` toggles a pause and the ESC menu (stock popup) pauses
 // while it is open. Pausing skips whole simulation updates in the main loop
@@ -41,6 +43,12 @@ void replayViewerSetBinding(const Hotkey &hk);
 // timeline and +30 s / +1 min / +5 min buttons skip too (replaySeeker.h).
 Hotkey replayViewerSkipBinding();
 void replayViewerSetSkipBinding(const Hotkey &hk);
+
+// Jump back a minute ([hotkeys] ReplaySkipBack, `,` by default). The panel's
+// timeline behind the current point and its -30 s / -1 min / -5 min / Start
+// buttons rewind too: the replay is reloaded and skipped forward to the point.
+Hotkey replayViewerSkipBackBinding();
+void replayViewerSetSkipBackBinding(const Hotkey &hk);
 
 bool replayViewerInstalled();
 

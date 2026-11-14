@@ -33,6 +33,10 @@ While a replay plays, the viewer is a spectator:
   match runs as fast as the computer allows to that point, with sound effects
   muted, and plays on from there exactly as it would have. **`P`** or the
   panel's **Stop** ends a skip early. See [replay seeking](replay-seeking.md).
+- **Jump back**: click a point behind on the timeline, use **−30 s**, **−1 min**,
+  **−5 min** or **Start**, or press **`,`** (a minute per press). The replay is
+  started again from its save and skips forward to that point, so a jump back
+  costs the skip from 0:00 and takes longer the later the point is.
 - **`P`** pauses and resumes. **`Esc`** opens the game's menu (the replay pauses
   while it is open); leaving the match from there ends the replay.
 - **`F`** toggles **free view** (the camera panel's eye button): the HUD is
@@ -75,10 +79,12 @@ panel (`Ctrl+Shift+O`):
 | `[replay] RecorderId` | generated | Written by the patch the first time it records; identifies this install's replays for `MaxReplays`. Do not copy it to another install. |
 | `[hotkeys] ReplayPanel` | `RBracket` | Show / hide the replay panel. |
 | `[hotkeys] ReplaySkip` | `Period` | Skip a minute ahead while a replay plays. |
+| `[hotkeys] ReplaySkipBack` | `Comma` | Jump a minute back while a replay plays. |
 | `[hotkeys] ReplayFreeView` | `F` | Free view while a replay plays. |
 
 The settings panel has rows for **Multiplayer replays**, **Replays to keep**,
-**Replay panel**, **Replay skip ahead** and **Replay free view**.
+**Replay panel**, **Replay skip ahead**, **Replay jump back** and **Replay free
+view**.
 
 ---
 

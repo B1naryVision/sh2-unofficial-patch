@@ -82,6 +82,18 @@ static void logLine(const char *fmt, ...) {
     fflush(s_log);
 }
 
+// A path for the log, as UTF-8: replay names carry player names, and a narrow
+// %ls goes through the C locale and mangles anything outside ASCII.
+static const char *utf8(const wchar_t *text) {
+    static char buf[MAX_PATH * 3];
+
+    if (!text || !WideCharToMultiByte(CP_UTF8, 0, text, -1, buf, (int)sizeof(buf), NULL, NULL)) {
+        return "?";
+    }
+
+    return buf;
+}
+
 static void openLog() {
     char path[MAX_PATH];
     DWORD n = GetModuleFileNameA(NULL, path, MAX_PATH);
@@ -238,9 +250,8 @@ static void trackRuns() {
         ++s_run;
         const wchar_t *path = replaySessionPlaybackPath();
         logLine(
-            "RUN %u epoch=%u worldTick=%u phase=%u va=%uMB path=%ls", s_run, epoch, worldTick(),
-            *(const volatile uint8_t *)(exeBase() + JOB_PHASE_RVA), addressSpaceMb(),
-            path ? path : L"?"
+            "RUN %u epoch=%u worldTick=%u phase=%u va=%uMB path=%s", s_run, epoch, worldTick(),
+            *(const volatile uint8_t *)(exeBase() + JOB_PHASE_RVA), addressSpaceMb(), utf8(path)
         );
 
         if (s_restartQpc) {
@@ -634,6 +645,7 @@ static bool s_skipNoKills = false;
 static bool s_skipSeen = false;
 static bool s_killsSuspended = false;
 static int64_t s_skipStartQpc = 0, s_skipWinQpc = 0;
+static uint32_t s_skipRun = 0; // the run the skip's counts belong to
 static uint64_t s_skipWinSubsystems = 0, s_skipWinEmitters = 0;
 static uint32_t s_skipWinUpdates = 0;
 
@@ -658,6 +670,7 @@ static void skipFrame() {
         s_skipStartQpc = s_skipWinQpc = now;
         s_skipStartRel = s_skipWinRel = rel;
         s_skipWinFrames = 0;
+        s_skipRun = s_run;
         skipWindowStart();
 
         if (s_skipNoKills && g_killTrackerActive) {
@@ -666,9 +679,24 @@ static void skipFrame() {
         }
 
         logLine(
-            "SKIP start run=%u rel=%u target=%u fx=%d kills=%d", s_run, rel, target, particleGate(),
-            s_killsSuspended ? 0 : 1
+            "SKIP start run=%u rel=%u target=%u%s fx=%d kills=%d", s_run, rel, target,
+            target < rel ? " (back)" : "", particleGate(), s_killsSuspended ? 0 : 1
         );
+        return;
+    }
+
+    // A rewind reloaded the replay: a new run, counting from its job 0. The
+    // time until here is the wait for a quiet job plus the load.
+    if (active && s_run != s_skipRun) {
+        logLine(
+            "SKIP rewind run=%u reloaded after %lldms, now to target=%u", s_run,
+            (long long)(qpcMicros(now - s_skipStartQpc) / 1000), target
+        );
+        s_skipRun = s_run;
+        s_skipStartQpc = s_skipWinQpc = now;
+        s_skipStartRel = s_skipWinRel = rel;
+        s_skipWinFrames = 0;
+        skipWindowStart();
         return;
     }
 
@@ -682,7 +710,12 @@ static void skipFrame() {
         }
 
         const int64_t us = qpcMicros(now - s_skipStartQpc);
-        const uint32_t jobs = rel - s_skipStartRel;
+        uint32_t jobs = 0;
+
+        // A rewind to 0:00 ends at the reload, before any new run is seen.
+        if (s_run == s_skipRun && rel >= s_skipStartRel) {
+            jobs = rel - s_skipStartRel;
+        }
         uint64_t perSec = 0;
 
         if (us > 0) {
@@ -795,10 +828,10 @@ static void saveKeyframe() {
 
     logLine(
         "SAVE run=%u rel=%u ok=%d time=%lld.%03lldms bytes=%u queued=%u placements=%u "
-        "iter0 %u->%u iter1 %u->%u va %uMB->%uMB path=%ls",
+        "iter0 %u->%u iter1 %u->%u va %uMB->%uMB path=%s",
         s_run, rel, ok ? 1 : 0, (long long)(us / 1000), (long long)(us % 1000), fileBytes(path),
         queued, placements, iter0Before, iter0After, iter1Before, iter1After, vaBefore,
-        addressSpaceMb(), path
+        addressSpaceMb(), utf8(path)
     );
 
     if (ok) {
@@ -825,10 +858,10 @@ static void timedLoad(const char *what, const wchar_t *path, bool rearms) {
     const int64_t us = qpcMicros(qpcNow() - t0);
     logLine(
         "%s ok=%d started=%d time=%lld.%03lldms queued %u->%u placements %u->%u va %uMB->%uMB "
-        "path=%ls",
+        "path=%s",
         what, ok ? 1 : 0, started ? 1 : 0, (long long)(us / 1000), (long long)(us % 1000),
         queuedBefore, replayNetQueuedCommands(), placementsBefore, replayPendingPlacements(),
-        vaBefore, addressSpaceMb(), path
+        vaBefore, addressSpaceMb(), utf8(path)
     );
 
     if (ok) {

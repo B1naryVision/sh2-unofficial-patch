@@ -1,7 +1,8 @@
 # Replay Seeking (fast-forward and rewind)
 
 **Status:** Phase 0 (measurements) complete, 2026-11-05. Phase 1 (skip ahead)
-implemented, unreleased, awaiting its playtest. Rewind (phases 2 and 3) not built.
+implemented and playtested, unreleased. Phase 2 (rewind by restart)
+implemented and playtested, 2026-11-14. Phase 3 (keyframes) not built.
 **Affected version:** Stronghold 2 Steam v1.5.0
 **Patch type:** Part of [multiplayer replays](multiplayer-replays.md): works only
 while a replay plays. The phase 0 probe is debug-only (`make debug`).
@@ -371,6 +372,72 @@ recording, as in phase 0:
    should lengthen toward 400 ms and the jobs/s should hold up.
 6. Check `seek_probe.txt`: every `J` line of every run stays in step with the
    recording (the bracket check described under Results above).
+
+## Phase 2: jumping back
+
+### What the player gets
+
+A second row of buttons, **Jump back**: **−30 s**, **−1 min**, **−5 min** and
+**Start**. Clicking behind the current point on the timeline jumps there, and `,`
+(`[hotkeys] ReplaySkipBack`) jumps a minute per press. Presses add to a running
+seek's target either way, so `,` three times goes three minutes back. The title
+reads REWINDING until the replay has been reloaded, then SKIPPING while it runs
+forward to the point. A jump back also works from the end-of-recording hold.
+
+### How it works
+
+A rewind is a restart plus a forward seek, so it is exact for the same reason
+every playback is. `replaySeeker.cpp` runs it as one more phase of the seek:
+
+1. **Wait for a quiet job.** `LoadGame` keeps the lockstep queue, and the new
+   world would execute the old one's commands (phase 0: two of three restarts
+   that carried queued commands diverged). The seeker runs the simulation at 10
+   updates a frame, through the player's pause and the end hold, until a frame
+   tick finds `replayNetQueuedCommands()` and `replayPendingPlacements()` both 0
+   (logged waits in phase 0: 0–8 frames). It gives up after 600 frames. The
+   in-game menu holds the wait.
+2. **Reload.** `replayLoadSave(path)` with the save the playback came from
+   (`replaySessionPlaybackPath()`), inside `ObserverFpScope`, from the seeker's
+   frame tick. The session's `LoadGame` hook re-arms the playback as for any
+   replay load: sidecar, random stream, tile order, match rules.
+3. **Start at once.** `replayPlayerStartNow()` samples the epoch before this
+   frame's update loop can run; leaving it to the next frame tick ran the world
+   ahead of its schedule (phase 0: divergence from job 53). The spectator guard
+   drops inside the load and is raised again here, all within the seeker's
+   frame-tick call, so the viewer, whose tick comes later, sees an unbroken
+   playback: its pause, speed and panel survive. Its tallies restart at the new
+   epoch and are rebuilt by the forward seek, which counts kills as playback
+   does.
+4. **Seek forward** to the target as in phase 1. A target of 0:00 ends there.
+
+A rewind costs the forward seek from the start: a few seconds early in a match,
+about a minute at 25 minutes, over three minutes at 50 minutes in a large match.
+Keyframes (phase 3) are what would make late rewinds quick; this path stays as
+their fallback.
+
+### Result (2026-11-14, a 3-player match of about 12,400 jobs)
+
+Six rewinds in one session, from the timeline, the buttons and `,`, including a
+rewind issued while a forward skip was running and one straight after another.
+Every one of the seven runs (the first playback and each reload) stayed exact
+against the recording at every job; the last run's final 29 jobs are the quit,
+with the world tick frozen. Rewinds to points 3,400 and 8,000 jobs in (about 8
+and 18 minutes of match) took 5 s and 21 s of forward skipping after the reload.
+
+### Verification
+
+With a debug build:
+
+1. Jump back with each control: a timeline click behind, each button, `,`
+   several times, Start. Check the title reads REWINDING, then SKIPPING, and the
+   playback lands on the point.
+2. Jump back while paused; it should land paused. Jump back from the end of the
+   recording.
+3. Open the ESC menu during the wait; it should hold and carry on.
+4. Check `seek_probe.txt`: every run after a rewind (each reload is a new `RUN`)
+   stays in step with the recording, with the bracket check described above.
+5. Panel stats after a rewind should match what they showed at that point the
+   first time (kills, units recruited).
 
 ## Code
 
