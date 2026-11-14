@@ -76,6 +76,7 @@ SRCS = src/dllmain.cpp \
        src/replay/prngGuard.cpp \
        src/replay/replayCommon.cpp \
        src/replay/replayFormat.cpp \
+       src/replay/replayOrderSounds.cpp \
        src/replay/replayPlayer.cpp \
        src/replay/replayRecorder.cpp \
        src/replay/replayRetime.cpp \

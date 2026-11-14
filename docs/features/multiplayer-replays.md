@@ -41,6 +41,10 @@ While a replay plays, the viewer is a spectator:
   the way that player's allies see them - building interiors when the camera is
   close enough, hidden Assassins and Outlaws, Thieves out of disguise, and
   unsprung Man Traps and Killing Pits.
+- **No order sounds**: the marching, hooves and siege-engine rolls the game plays
+  for the local player's own move and attack orders stay silent, so the
+  recording player's orders do not follow the viewer around the map. Every
+  other sound plays as usual.
 
 When the recording runs out, the replay holds on the last recorded moment and
 the panel says so. A match that ended on a victory or defeat screen plays into
@@ -427,6 +431,7 @@ survivors in the validation battle, but treat the counts as best-effort.
 | `src/replay/replayPlayer.*` | Schedules and injects commands during playback; restores checkpoint state. |
 | `src/replay/prngGuard.*` | Records and restores the shared random cursor per simulation update. |
 | `src/replay/spectatorGuard.*` | Blocks viewer input during playback. |
+| `src/replay/replayOrderSounds.*` | Silences the order sounds of the recording player during playback. |
 | `src/replay/seekProbe.*` | Debug builds only: measurements for [replay seeking](replay-seeking.md). |
 | `src/replay/replayTitle.*` | The teams part of a replay's file name. Pure; covered by `make test`. |
 | `src/replay/replayViewer.*` | The replay panel, pause, game speed and the skip controls. |
@@ -525,6 +530,7 @@ All RVAs (VA - `0x400000`). The main sites; each file documents its own in full.
 | Site | RVA | Use |
 |------|-----|-----|
 | `World::LoadGame` | `0x2ac60` | Detect replay loads |
+| Order group sound `FUN_005993d0` | `0x1993d0` | Returns at once during playback (`55 8b ec 83 ec 48` re-emitted otherwise) |
 | `allied(a, b)` | `0x219e0` | Teams in the replay's file name (called, not hooked) |
 | `SaveGame` | `0x2a2e0` | Called for the checkpoint (`0x2a37d` state announcement suppressed in MP) |
 | World command admission | `0x37efb0` | Command log |

@@ -4,6 +4,7 @@
 #include "../core/exeBase.h"
 #include "../core/hotkey.h"
 #include "../patches/endgameStats/killTracker.h"
+#include "replayOrderSounds.h"
 #include "replaySession.h"
 #include "replayViewer.h"
 
@@ -240,6 +241,7 @@ void spectatorGuardSetActive(uint32_t active) {
     }
 
     killTrackerSetActive(on);
+    replayOrderSoundsSetMuted(on);
 }
 
 // Subclassing needs the device window, which does not exist at install time.

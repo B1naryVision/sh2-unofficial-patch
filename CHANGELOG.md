@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### [Fix] - Replays No Longer Play the Recording Player's Orders
+
+- **What the issue was:** While watching a replay you heard the marching, hooves and siege engines of every order the recording player gave, wherever you were looking on the map.
+- **What we changed:** Those order sounds stay silent while a replay plays, so you only hear what is happening where you are watching. Everything else sounds as it did, and nothing changes in your own games.
+
 ### [Fix] - Bug Fixes Now Work in Kingmaker and the Campaign
 
 - **What the issue was:** The bug fixes that switch themselves on in multiplayer were meant to be always on in single player, but in Kingmaker and almost every campaign mission they stayed off, so disbanding could still hand back extra peasants, ranged troops could still ignore move orders, and outlaws filling a moat could still crash the game.

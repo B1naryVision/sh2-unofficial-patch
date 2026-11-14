@@ -326,6 +326,7 @@ const PATCHES = [
 const HISTORY = [
   { v:"next", date:"", items:[
     "Skip ahead in replays with a timeline, skip buttons and the . key",
+    "Replays no longer play the marching and hooves of the recording player's orders",
     "Replays are named after the players and their teams",
     "Fixed a crash when outlaws filling a moat stop to attack",
     "Troops answer attack orders with their own attack lines",

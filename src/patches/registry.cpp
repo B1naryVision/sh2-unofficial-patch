@@ -1,6 +1,7 @@
 #include "registry.h"
 #include "../core/config.h"
 #include "../replay/prngGuard.h"
+#include "../replay/replayOrderSounds.h"
 #include "../replay/replayPlayer.h"
 #include "../replay/replaySeeker.h"
 #include "../replay/replaySession.h"
@@ -65,6 +66,7 @@ void applyUnofficialPatches() {
     installReplayTrace();
     installReplayPlayer();
     installPrngGuard();
+    installReplayOrderSounds();
     installSpectatorGuard();
     installReplaySeeker();
     installReplayViewer();
