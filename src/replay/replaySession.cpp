@@ -1214,7 +1214,7 @@ static bool armReplay(const wchar_t *savePath) {
         s_endRelative = h.endRelative;
         s_playEndReason = h.endReason;
         s_msPerJob = computeMsPerJob(h);
-        matchRulesReplayBegin(recorded, h.netMode == 2);
+        matchRulesReplayBegin(recorded);
     } else {
         clearPlaybackState();
     }

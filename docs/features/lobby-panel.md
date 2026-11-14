@@ -5,7 +5,7 @@ lobby, hides in the match, toggle works, unpatched row reads `0.7 or older`), an
 with four patched players, including the host's rule switches and the read-only view as a
 joining player.
 **Config**: `[hotkeys] LobbyPanel` (default `Ctrl+Shift+L`) shows or hides the panel; it
-appears by itself whenever the multiplayer lobby screen is up.
+appears by itself whenever the lobby screen is up, multiplayer or Kingmaker.
 
 ---
 
@@ -41,6 +41,32 @@ switch it**; available rules get a button outline on the host's screen only. Eve
 panel is read-only, and `matchRuleToggle` refuses a click from anyone but the lobby owner, or
 on a rule someone cannot run. The host's change shows at once and reaches the other players
 through lobby data within about a second.
+
+### Single player (Kingmaker)
+
+The Kingmaker setup screen is the same `ScenarioLobbyScreen`, so the panel shows there too.
+With no Steam lobby it used to read `Waiting for the Steam lobby...` with every rule
+`unavailable`, because the common rule set is empty outside a lobby. It now uses the same
+test the match rules use to switch every fix on (`matchRulesSinglePlayer`: no Steam lobby and
+no other peer in the network session's peer table), so what the panel says is what the
+match will do:
+
+```text
+ Unofficial Patch
+ Single player - every fix is on
+ Match rules
+ Disband peasant fix          on (fix)
+ ...
+ Ballista auto-fire           multiplayer only
+```
+
+A fix whose sites did not verify on this machine still reads `unavailable`. The host options
+read `multiplayer only` because single player runs fixes only. Playtested 2026-11-14 on the
+Kingmaker setup screen.
+
+Not yet confirmed: whether a host's multiplayer lobby screen can appear before its Steam
+lobby exists. If it can, the host sees `Single player` for that moment instead of `Waiting`.
+That is cosmetic, because the decision that matters is made when the match screen comes up.
 
 ---
 

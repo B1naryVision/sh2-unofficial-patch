@@ -567,8 +567,9 @@ All RVAs (VA - `0x400000`). The main sites; each file documents its own in full.
   starts multiplayer playback vanilla and takes the first replayed rules line
   from any sender, since the host's peer id is unknown. That recovers a match
   whose rules line came after the checkpoint; one whose line came before it
-  plays vanilla and diverges. Single-player sidecars of that age get every fix,
-  as live.
+  plays vanilla and diverges. Single-player sidecars of that age also start
+  vanilla: the builds that wrote them switched fixes on only in a handful of
+  campaign missions (see the single-player note in `match-rules.md`).
 - Replaying match rules was playtested 2026-11-01 and seems to work as
   expected, with dead shields' own replay test (test 7 in its doc) passing.
   The full check, a ballista auto-fire match recorded on both the host and a

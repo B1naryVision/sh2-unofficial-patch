@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### [Fix] - Bug Fixes Now Work in Kingmaker and the Campaign
+
+- **What the issue was:** The bug fixes that switch themselves on in multiplayer were meant to be always on in single player, but in Kingmaker and almost every campaign mission they stayed off, so disbanding could still hand back extra peasants, ranged troops could still ignore move orders, and outlaws filling a moat could still crash the game.
+- **What we changed:** Every one of those fixes is now on in any single-player game, including Kingmaker, campaign missions and loaded saves. The patch panel on the Kingmaker setup screen now says so, instead of waiting for a Steam lobby and listing every rule as unavailable. Multiplayer is unchanged.
+
 ### [Feature] - Troops Answer Attack Orders
 
 - **What the issue was:** Troops always said something when you ordered them to move, but stayed silent when you ordered an attack, even though the game ships with recordings of them doing just that.

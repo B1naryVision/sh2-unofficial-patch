@@ -17,9 +17,15 @@ struct MatchRuleView {
     bool fix; // a bug fix: on whenever everyone supports it, never switchable
     bool everyoneSupports; // every player in the lobby can run it
     bool proposed; // the host has it on for the next match
+    bool multiplayerOnly; // a host option, shown outside multiplayer
 };
 
+// Single player: fixes this build can run show as on, options as multiplayer only.
 int matchRulesView(MatchRuleView *out, int max);
+
+// No Steam lobby and no other network peer: the lobby screen is a single-player
+// setup (Kingmaker), and a match started from it gets every fix.
+bool matchRulesSinglePlayer();
 
 // The host switches rule `index` (as listed by matchRulesView) for the next match
 // and saves it to the ini. False, and nothing changes, when this client is not
@@ -38,8 +44,7 @@ void matchRulesCapture(MatchRulesState *out);
 
 // A replay load: the recorded state replaces the live one until ReplayEnd, and a
 // rules line in the replay commits exactly as it did live. `state` null is an
-// older sidecar that did not record it: single player then gets every fix, as
-// live, and multiplayer starts vanilla and takes the first rules line from
-// anyone.
-void matchRulesReplayBegin(const MatchRulesState *state, bool networked);
+// older sidecar that did not record it: playback then starts vanilla and takes
+// the first rules line from anyone.
+void matchRulesReplayBegin(const MatchRulesState *state);
 void matchRulesReplayEnd();

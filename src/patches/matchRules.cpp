@@ -3,6 +3,7 @@
 #include "../core/cleanFpu.h"
 #include "../core/config.h"
 #include "../core/frameTick.h"
+#include "../core/maintChannel.h"
 #include "../core/screens.h"
 #include "../core/steamLobby.h"
 #include "ballistaAutoFire.h"
@@ -31,11 +32,6 @@
 //             execute) and switches the tagged rules on there.
 static const uintptr_t NETWORK_RVA = 0x26cd7d8; // GameSpy::Network
 static const uintptr_t NET_HOST_PEER_OFF = 0x50; // the host's peer id, as this client knows it
-
-// S2Game (VA 0x11781d0) +0x40089: when set, S2Game::post executes a command at
-// once instead of queueing it for lockstep, so there is no other client to stay
-// in step with. Reads 0 in a multiplayer match.
-static const uintptr_t COMMANDS_IMMEDIATE_RVA = 0xd781d0 + 0x40089;
 
 static const char *LOBBY_RULES_KEY = "sh2up_rules";
 static const char *INI_SECTION = "matchrules";
@@ -92,17 +88,23 @@ static uint32_t s_lastRefreshMs = 0;
 static uint32_t s_published = 0xffffffff;
 static bool s_inSteamLobby = false; // cached by the refresh, which may call Steam
 static bool s_wasInLobbyScreen = false;
+static bool s_wasInGame = false;
+static bool s_solo = false; // this match has no one to stay in step with, decided at its start
 static bool s_replay = false; // a replay is loaded: its recorded rules, not the lobby's
 static bool s_replayAnyHost = false; // older sidecar: the host's peer id was not recorded
 static uint32_t s_replayHostPeer = 0;
 
-static bool commandsImmediate() {
-    return *(uint8_t *)((uintptr_t)GetModuleHandleA(NULL) + COMMANDS_IMMEDIATE_RVA) != 0;
-}
-
 // What the host offers for the next match: its options plus every fix, then only
 // what everyone in the lobby can run.
 static uint32_t hostProposal() { return (s_chosen | s_fixes) & handshakeCommonRules(); }
+
+// Another player in the network session's peer table, the session signal that
+// does not depend on Steam.
+static bool networkSession() {
+    MaintPeer peers[1];
+
+    return maintPeers(peers, 1) > 0;
+}
 
 static uint32_t hostPeer() {
     return *(uint32_t *)((uintptr_t)GetModuleHandleA(NULL) + NETWORK_RVA + NET_HOST_PEER_OFF);
@@ -314,15 +316,29 @@ static void matchRulesTick() {
         cleanFpu(refreshLobby);
     }
 
+    // Single player (Kingmaker, a campaign mission, a loaded save) is decided once,
+    // as the match screen comes up: no Steam lobby and no network peers. Latched
+    // for the whole match, so a multiplayer client that loses its Steam lobby
+    // mid-match never turns solo and switches a rule off while the others still
+    // run it.
+    if (inGame && !s_wasInGame) {
+        cleanFpu(refreshLobby);
+        s_solo = !s_inSteamLobby && !networkSession();
+    }
+
+    if (!inGame) {
+        s_solo = false;
+    }
+
+    s_wasInGame = inGame;
+
     // A match with nobody to stay in step with: a bug fix needs no agreement, so
     // every fix is simply on. Everywhere else outside a Steam lobby (the menus),
-    // vanilla. Never while a lockstep match is on screen: a client that lost its
-    // Steam lobby mid-match must not switch a rule off while the others still run
-    // it.
-    if (!s_inSteamLobby && (!inGame || commandsImmediate())) {
+    // vanilla.
+    if (s_solo || (!s_inSteamLobby && !inGame)) {
         uint32_t solo = 0;
 
-        if (inGame) {
+        if (s_solo) {
             solo = s_fixes;
         }
 
@@ -377,15 +393,26 @@ static void matchRulesTick() {
     }
 }
 
+bool matchRulesSinglePlayer() { return !s_inSteamLobby && !networkSession(); }
+
 int matchRulesView(MatchRuleView *out, int max) {
     uint32_t common = handshakeCommonRules();
+    uint32_t proposed = s_proposed;
+    bool solo = matchRulesSinglePlayer();
     int n = 0;
+
+    // Single player has only this build to agree with, and runs every fix.
+    if (solo) {
+        common = s_supported;
+        proposed = s_fixes;
+    }
 
     for (int i = 0; i < RULE_COUNT && n < max; ++i) {
         out[n].label = RULES[i].label;
         out[n].fix = RULES[i].fix;
         out[n].everyoneSupports = (common & RULES[i].bit) != 0;
-        out[n].proposed = (s_proposed & RULES[i].bit) != 0;
+        out[n].proposed = (proposed & RULES[i].bit) != 0;
+        out[n].multiplayerOnly = solo && !RULES[i].fix;
         ++n;
     }
 
@@ -428,7 +455,9 @@ void matchRulesCapture(MatchRulesState *out) {
 
 // A rule this build cannot run stays off, as a rules line naming one would leave
 // it live: the replay then diverges, which nothing here can avoid.
-void matchRulesReplayBegin(const MatchRulesState *state, bool networked) {
+// An older sidecar without the recorded state starts vanilla: in single player
+// those builds switched fixes on only in a handful of campaign missions.
+void matchRulesReplayBegin(const MatchRulesState *state) {
     uint32_t active = 0;
 
     s_replay = true;
@@ -441,8 +470,6 @@ void matchRulesReplayBegin(const MatchRulesState *state, bool networked) {
         active = state->active;
         s_replayHostPeer = state->hostPeer;
         s_committed = state->committed;
-    } else if (!networked) {
-        active = s_fixes;
     }
 
     setActive(active & s_supported);
@@ -459,6 +486,8 @@ void matchRulesReplayEnd() {
     s_committed = false;
     s_posted = false;
     s_gameSeenMs = 0;
+    s_wasInGame = false; // decide afresh: a pause-menu load can end playback in game
+    s_solo = false;
     setActive(0);
 }
 

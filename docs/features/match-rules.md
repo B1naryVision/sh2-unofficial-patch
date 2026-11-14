@@ -34,12 +34,25 @@ group there; the bits are independent of the order.
   everyone in the lobby supports, and the lobby panel shows it as `on (fix)` with no switch.
   With anyone lacking it, it is `unavailable` and the match keeps the stock behaviour, which
   is the same on every client and so stays in sync.
-- **In single player** every fix is simply on. The test is the byte `S2Game+0x40089`
-  (RVA `0xdb8259`). `S2Game::post` executes commands at once when it is set instead of
-  queueing them for lockstep, so there is no other client to stay in step with. It reads `0`
-  in a multiplayer match (dump). Fixes switch on when `GameScreen` attaches with that byte set
-  and no Steam lobby, and off again in the menus. If the byte turned out not to be set in
-  single player, the fix would just stay off there, which is safe.
+- **In single player** (Kingmaker, campaign missions, loaded saves) every fix is simply on.
+  The decision is made once, on the frame `GameScreen` attaches: no Steam lobby and no active
+  peer in `GameSpy::Network`'s peer table (`maintPeers` returns 0) means there is no one to
+  stay in step with. It is held for the whole match, and fixes go off again in the menus.
+  Holding it is what keeps a multiplayer client safe if it loses its Steam lobby mid-match:
+  that client decided "multiplayer" at the start and keeps that decision. The peer table is
+  the second, independent signal, so a failed Steam call alone cannot make a networked match
+  look solo. Both checks failing in the wrong direction only leaves a fix off, which is safe.
+  A replay that ends with `GameScreen` still up (a pause-menu load) clears the held decision,
+  so the next frame decides again.
+
+  **Dead end, shipped until 2026-11-14:** the first version tested `byte [S2Game+0x40089]`
+  (VA `0x11b8259`), the byte that makes `S2Game::post` execute a command at once instead of
+  queueing it. It is not a single-player flag. Its only writer (VA `0x42b62c`) sets it when
+  `[0x11b8454] == 2`, `byte [0x11b845e] != 0` and the mission index from `0x435b10` is one of
+  2, 16, 17, 20, 21, 22 or 24 (switch tables `0x42c3b8`/`0x42c3c0`). It is cleared at VA
+  `0x42c383`. Everywhere else, Kingmaker and most of the campaign included, single player
+  queues its commands through the same lockstep path as a networked match, so the byte read 0
+  and every fix stayed off in single player.
 
 A fix still commits through the rules line in multiplayer. It changes the simulation, so
 switching it on is exactly as much a lockstep decision as an option. The host's game includes
@@ -80,7 +93,7 @@ game already solves agreement for every player command, so the commit rides on t
    `[S2Game+0x20]` (`S2Game` at `0x11781d0`). This is the same slot and object the recruit
    helper `0x4ef700` posts recruit commands through.
 2. `S2Game::post` (`0x77efb0`) executes the chore immediately only when
-   `byte [S2Game+0x40089]` is set (single player). Otherwise it calls `0x767050` on the
+   `byte [S2Game+0x40089]` is set (only a handful of campaign missions, see above). Otherwise it calls `0x767050` on the
    sync-check object `0x1be6a30`, whose `+9` byte is the desync flag.
 3. `0x767050` does **not** execute the chore. It looks up the chore's class in its
    registered list, drops it unless `[0x1be6a30+0x48] == 2`, pushes it onto a pending queue
@@ -205,3 +218,9 @@ where a rule is on, because their missing member data makes every rule unavailab
    off, then play each back at 1x and at 5x. Each must reach the recorded outcome, and the
    rule's effect must be visible in the first and absent in the second. Repeat with a
    multiplayer recording from a joining client, whose rules line arrives as a remote command.
+7. **Single player gets every fix:** start a Kingmaker game, recruit a few troops and click
+   Disband on one of them rapidly: exactly one peasant comes back. Repeat in a campaign mission
+   and after loading a single-player save. Then host a multiplayer lobby with an unpatched
+   player: the fixes show `unavailable` and the match stays in sync, which confirms that the
+   single-player test did not fire there. The Kingmaker setup screen's lobby panel must read
+   `Single player - every fix is on`, and a host's own multiplayer lobby must not.

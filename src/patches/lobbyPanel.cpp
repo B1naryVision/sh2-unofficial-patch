@@ -45,17 +45,19 @@ static const char *TITLE = "Unofficial Patch";
 static const char *STATUS_WAIT = "Waiting for the Steam lobby...";
 static const char *STATUS_ALL = "Everyone has the patch";
 static const char *STATUS_SOME = "Vanilla rules only - not everyone has it";
+static const char *STATUS_SINGLE = "Single player - every fix is on";
 static const char *HOST_TAG = "host";
 static const char *RULES_HEAD = "Match rules";
 static const char *RULE_ON = "on";
 static const char *RULE_FIX_ON = "on (fix)";
 static const char *RULE_OFF = "off";
 static const char *RULE_UNAVAILABLE = "unavailable";
+static const char *RULE_MP_ONLY = "multiplayer only";
 static const char *HOST_HINT = "Click a rule to switch it on or off";
 
 static const int MAX_RULES = 16;
 
-enum Status { STATUS_WAITING, STATUS_EVERYONE, STATUS_NOT_EVERYONE };
+enum Status { STATUS_WAITING, STATUS_EVERYONE, STATUS_NOT_EVERYONE, STATUS_SINGLE_PLAYER };
 
 // What the panel shows. Rebuilt only when this differs from the last build.
 struct Content {
@@ -129,10 +131,18 @@ static const char *statusText(Status status) {
         return STATUS_SOME;
     }
 
+    if (status == STATUS_SINGLE_PLAYER) {
+        return STATUS_SINGLE;
+    }
+
     return STATUS_WAIT;
 }
 
 static const char *ruleStateText(const MatchRuleView &rule) {
+    if (rule.multiplayerOnly) {
+        return RULE_MP_ONLY;
+    }
+
     if (!rule.everyoneSupports) {
         return RULE_UNAVAILABLE;
     }
@@ -152,6 +162,10 @@ static void readContent(Content &c) {
     memset(&c, 0, sizeof(c));
     c.count = handshakePlayers(c.players, LOBBY_MAX_MEMBERS);
     c.status = STATUS_WAITING;
+
+    if (c.count == 0 && matchRulesSinglePlayer()) {
+        c.status = STATUS_SINGLE_PLAYER;
+    }
 
     if (c.count > 0) {
         c.status = STATUS_EVERYONE;
@@ -325,7 +339,7 @@ static void paintPanel(HDC dc) {
 
     COLORREF statusColor = COL_DIM;
 
-    if (s_content.status == STATUS_EVERYONE) {
+    if (s_content.status == STATUS_EVERYONE || s_content.status == STATUS_SINGLE_PLAYER) {
         statusColor = COL_OK;
     } else if (s_content.status == STATUS_NOT_EVERYONE) {
         statusColor = COL_BAD;
@@ -346,7 +360,9 @@ static void paintPanel(HDC dc) {
         int y = s_layout.rulesTop + i * s_layout.rowH;
         COLORREF stateColor = COL_DIM;
 
-        if (!rule.everyoneSupports) {
+        if (rule.multiplayerOnly) {
+            stateColor = COL_DIM;
+        } else if (!rule.everyoneSupports) {
             stateColor = COL_BAD;
         } else if (rule.proposed) {
             stateColor = COL_OK;

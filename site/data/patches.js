@@ -328,7 +328,8 @@ const HISTORY = [
     "Skip ahead in replays with a timeline, skip buttons and the . key",
     "Replays are named after the players and their teams",
     "Fixed a crash when outlaws filling a moat stop to attack",
-    "Troops answer attack orders with their own attack lines"
+    "Troops answer attack orders with their own attack lines",
+    "Bug fixes that were meant to be always on in single player now really are, in Kingmaker and the campaign too"
   ]},
   { v:"0.8.1", date:"", items:[
     "Fixed a crash when the game closes while it is still starting up",
