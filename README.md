@@ -80,6 +80,7 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [Crash when the game closes during startup](docs/bugs/startup-quit-crash.md) | `base+0x30331` | Fixed in v0.8.1 |
 | [Skip ahead in replays: timeline, skip buttons and `.`](docs/features/replay-seeking.md) | `base+0x21ea2`, `base+0x367a03` | Unreleased |
 | [Crash when outlaws filling a moat stop to attack, on automatically when every player has it](docs/bugs/outlaw-moat-crash.md) | `base+0xfa229` | Unreleased |
+| [Troops answer attack orders with their attack lines](docs/features/attack-voices.md) | `base+0x2316a1`, `base+0x2319ac` | Unreleased |
 
 ---
 

@@ -10,6 +10,7 @@
 #include "../replay/seekProbe.h"
 #include "../replay/spectatorGuard.h"
 #include "attackHotkey.h"
+#include "attackVoices.h"
 #include "autoMarket/autoMarket.h"
 #include "barracksCrash.h"
 #include "endgameStats.h"
@@ -56,6 +57,7 @@ void applyUnofficialPatches() {
     installShiftRecruit();
     installAutoMarket();
     installSiegeCampHotkey();
+    installAttackVoices();
 
     // Multiplayer replays (src/replay/). Every hook is stock-byte verified
     // and each module installs all of its sites or none. The session comes

@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### [Feature] - Troops Answer Attack Orders
+
+- **What the issue was:** Troops always said something when you ordered them to move, but stayed silent when you ordered an attack, even though the game ships with recordings of them doing just that.
+- **What we changed:** One of your selected troops now answers an attack order with its own attack line, a different one depending on whether the enemy is stronger or weaker than it is. Only you hear it, so it works in any multiplayer match, whether or not the other players have the patch. You can turn it off in the settings panel (Ctrl+Shift+O).
+
 ### [Fix] - Outlaws No Longer Crash the Game While Filling a Moat
 
 - **What the issue was:** When outlaws were sent to fill in a moat and stopped on the way to throw javelins at defenders on the walls, the game could close to the desktop. Whether it crashed depended on the computer, which is why some players never saw it and others found it went away in Windows 7 compatibility mode.

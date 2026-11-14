@@ -40,6 +40,7 @@ Two lists in one panel:
 | Camera pan speed | `[camera] PanSpeedMultiplier` | slider, 0.1x–10.0x | [pan-speed.md](pan-speed.md) |
 | Zoom out limit | `[camera] ZoomOutLimit` | Vanilla / Auto | [zoom-limit.md](zoom-limit.md) |
 | Siege camp shortcut | `[interface] SiegeCampJumpOnSecondPress` | Jump at once / Open first | [siege-camp-hotkey.md](siege-camp-hotkey.md) |
+| Attack voices | `[sound] AttackVoices` | Off / On | [attack-voices.md](attack-voices.md) |
 | Shift-click recruits | `[recruitment] RecruitmentShiftMultiplier` | slider, Off–100 | [shift-click-recruitment.md](shift-click-recruitment.md) |
 | Started games in the list | `[multiplayer] HideInProgressLobbies` | Show all / Hide started | [in-progress-lobbies.md](../bugs/in-progress-lobbies.md) |
 | Panel size | `[ui] Scale` | slider, Auto–300% | [ui-scale.md](ui-scale.md) |

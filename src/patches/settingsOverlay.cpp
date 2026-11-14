@@ -9,6 +9,7 @@
 #include "../replay/replayViewer.h"
 #include "../replay/replayVision.h"
 #include "attackHotkey.h"
+#include "attackVoices.h"
 #include "autoMarket/overlay.h"
 #include "lobbyInProgressFilter.h"
 #include "lobbyPanel.h"
@@ -267,6 +268,10 @@ static int siegeCampGet() { return siegeCampTwoStep() ? 1 : 0; }
 
 static void siegeCampSet(int v) { siegeCampSetTwoStep(v != 0); }
 
+static int attackVoicesGet() { return attackVoicesEnabled() ? 1 : 0; }
+
+static void attackVoicesSet(int v) { attackVoicesSetEnabled(v != 0); }
+
 static int lobbyFilterGet() { return lobbyFilterEnabled() ? 1 : 0; }
 
 static void lobbyFilterSet(int v) { lobbyFilterSetEnabled(v != 0); }
@@ -381,6 +386,23 @@ static OptionRow s_optRows[] = {
      siegeCampGet,
      siegeCampSet,
      siegeCampFailed,
+     nullptr,
+     nullptr,
+     false,
+     {}},
+    {"Attack voices",
+     "sound",
+     "AttackVoices",
+     OPTION_CHOICE,
+     0,
+     1,
+     1,
+     CHOICE_RECORD,
+     INI_BOOL,
+     2,
+     attackVoicesGet,
+     attackVoicesSet,
+     attackVoicesFailed,
      nullptr,
      nullptr,
      false,

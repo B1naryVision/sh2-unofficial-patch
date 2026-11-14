@@ -203,6 +203,13 @@ const PATCHES = [
     now:"Ranged troops keep to a move order until they arrive, then pick targets as before. It is always on in single player, and on in any multiplayer match where every player has the patch."
   },
   {
+    id:"attack-voices", cat:"controls", kind:"improvement", version:"next", mp:"solo",
+    title:"Troops answer when you order an attack",
+    was:"Troops always answered a move order out loud, but went silent when ordered to attack, so a small group sent into battle sounded no different from one going for a walk.",
+    now:"One of your troops now answers an attack order with its own attack line, as the game's recordings intended. Only you hear it.",
+    how:"On by default. Turn it off with Attack voices in the settings panel (Ctrl+Shift+O)."
+  },
+  {
     id:"stop-troops", cat:"controls", kind:"feature", version:"0.4.0", mp:"solo",
     title:"A key to stop your troops",
     was:"Halting a group of troops meant finding and clicking the Stop button on the command panel every single time.",
@@ -320,7 +327,8 @@ const HISTORY = [
   { v:"next", date:"", items:[
     "Skip ahead in replays with a timeline, skip buttons and the . key",
     "Replays are named after the players and their teams",
-    "Fixed a crash when outlaws filling a moat stop to attack"
+    "Fixed a crash when outlaws filling a moat stop to attack",
+    "Troops answer attack orders with their own attack lines"
   ]},
   { v:"0.8.1", date:"", items:[
     "Fixed a crash when the game closes while it is still starting up",
@@ -406,6 +414,7 @@ const SETTINGS = [
     ["ZoomOutLimit","Vanilla","Set to Auto to pull the camera back much further than the game normally allows."]
   ]},
   { group:"Everything else", rows:[
+    ["AttackVoices","1","1 lets your troops answer attack orders out loud. 0 keeps them silent, as in the original game."],
     ["SiegeCampJumpOnSecondPress","1","1 opens the panel first and travels on a second press. 0 restores the old jump-at-once behaviour."],
     ["Scale","Auto","Size of the patch's panels, as a percentage between 50 and 300."],
     ["HideInProgressLobbies","1","Hides games that have already started from the multiplayer list."],
