@@ -48,6 +48,12 @@ void replaySessionOnWindowClosing();
 // when no playback is running or the sidecar has no end.
 bool replaySessionTimeline(uint32_t *endRelative, uint32_t *msPerJob);
 
+// The next World::LoadGame of `path` is a keyframe of the running playback
+// (replayKeyframes.h): the session keeps the playback, re-arms the player for
+// the keyframe and puts `rules` back. A null path cancels.
+struct MatchRulesReplayPosition;
+void replaySessionExpectKeyframe(const wchar_t *path, const MatchRulesReplayPosition *rules);
+
 // The full path of the save the current playback was loaded from, or nullptr
 // when no playback is running. Game thread.
 const wchar_t *replaySessionPlaybackPath();

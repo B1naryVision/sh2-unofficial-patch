@@ -33,4 +33,10 @@ void killTrackerSetActive(bool active);
 const uint32_t *killCountsForSlot(int slot);
 
 void resetKillCounts();
+
+// The tallies alone as raw bytes, for a replay keyframe: Save copies
+// killCountsBytes() bytes out, Restore puts as many back.
+uint32_t killCountsBytes();
+void killCountsSave(void *out);
+void killCountsRestore(const void *in);
 void resetKillCountsForSlot(int slot);

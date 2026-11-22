@@ -2,7 +2,10 @@
 
 **Status:** Phase 0 (measurements) complete, 2026-11-05. Phase 1 (skip ahead)
 implemented and playtested, unreleased. Phase 2 (rewind by restart)
-implemented and playtested, 2026-11-14. Phase 3 (keyframes) not built.
+implemented and playtested, 2026-11-14. Phase 3 (keyframes) implemented and
+playtested, 2026-11-22: automatic capture is on, and every run resumed from a
+keyframe is checked against the recording and redone from an older point when it
+differs.
 **Affected version:** Stronghold 2 Steam v1.5.0
 **Patch type:** Part of [multiplayer replays](multiplayer-replays.md): works only
 while a replay plays. The phase 0 probe is debug-only (`make debug`).
@@ -438,6 +441,346 @@ With a debug build:
    stays in step with the recording, with the bracket check described above.
 5. Panel stats after a rewind should match what they showed at that point the
    first time (kills, units recruited).
+
+## Phase 3: keyframes
+
+### What changes for the player
+
+Nothing to press. While a replay plays, watched or skipped, it saves itself
+once per minute of match time. A jump back then loads the newest keyframe at or
+before the point and skips the rest, so it costs a load (about 0.4 s with the
+wait for a quiet job) plus at most a minute of skipping, anywhere in the match.
+A skip ahead past a keyframe 600 or more jobs beyond the current point loads
+that keyframe instead of simulating up to it. Without a keyframe (the first
+minute, or a point the playback has not passed yet) a jump back restarts as in
+phase 2.
+
+### What a keyframe holds (`src/replay/replayKeyframes.cpp`)
+
+A keyframe is the replay's own checkpoint taken later, so it carries what the
+checkpoint carries, plus where the playback stands:
+
+| Part | Taken by | Put back by |
+|------|----------|-------------|
+| The game's state | `replayCheckpointSave(path, 2)` (no state announcement) | the keyframe's `LoadGame` |
+| Tile and region list order | `replayCaptureTileOrder`, stored as a `TILE` section | `replayPlayerLoadTileOrderBytes`, applied at the epoch |
+| Projectile damage in flight | `replayCaptureFlyState`, as a `FLYS` section | `replayPlayerLoadFlyStateBytes`, at the epoch |
+| Iterator-0 cursor (a load draws it) | read before the save | `replayPlayerSetIter0AtSave`, at the epoch |
+| Monastery stage clocks | `prngGuardSaveClocks` | `prngGuardRestoreClocks`, at the next update |
+| Relative job, command cursor, MP cadence byte (`NetGameMgr+4`) | `replayPlayerSavePosition` | `replayPlayerStartAt`, which sets the epoch back by the job |
+| Random-stream position, render gates, the update's index in its job | `prngGuardSavePosition` | `prngGuardRestorePosition` |
+| Match rules, with the replay's own host | `matchRulesReplaySave` | `matchRulesReplayRestore`, inside the load |
+| Panel tallies (units recruited, kills) | `unitCountsSave`, `killCountsSave` | `…Restore`, plus `sessionRebindSlots` |
+
+Taking one needs a frame with nothing queued and no deferred placement, like
+the checkpoint; the update's index in its job is restored because a frame can
+end between two updates of one job, and the next update after the resume must
+read as the one that followed.
+
+The keyframe's `LoadGame` goes through the session's hook like any load, but
+`replaySessionExpectKeyframe` marks it first, so the hook keeps the playback:
+it re-arms the player (`replayPlayerRearmForKeyframe`, every buffer stays
+loaded), puts the rules back, clears the end hold and returns. The spectator
+guard never drops, and the viewer resets its tallies only on a new playback
+(`replayPlayerGeneration`), not on a resume.
+
+### Storage
+
+About 1 MB each, at most 150 (two and a half hours), in
+`%TEMP%\sh2up-keyframes\<process id>`. They are kept while the same replay plays,
+a restart included, and deleted when another save loads or the playback ends.
+At startup, folders of processes that no longer run are deleted.
+
+### First playtest (2026-11-15): taking a keyframe breaks the playback
+
+Two replays, 17 runs. Every fresh playback that captured keyframes left the
+recording shortly after its first capture, and a restart that captured none
+stayed exact:
+
+| Run | What | First keyframe | First job out of step |
+|---|---|---|---|
+| 1 | fresh load, skipping | 752 | 773 |
+| 5 | fresh load, other replay | 527 | 564 |
+| 12 | fresh load, same replay as 5 | 556 | 564 |
+| 7 | restart; every window already had a keyframe, so none taken | — | none |
+
+Every resumed run was out of step from its first job, as it must be when
+resumed from a keyframe taken in a run already off, or from a save that itself
+changed something. Runs 5 and 12 failing at the same job (564) from captures at
+527 and 556 says the save changes some state that only matters when a
+particular event comes round. The capture's own reads (tile order, projectile
+damage, clocks, positions) were checked to write nothing, so `SaveGame` itself
+changes live state the save file does not carry. The replay's own checkpoint
+never showed this because there the live match carried on with the same side
+effect the loaded save starts from; a keyframe changes the playback's world,
+which the recording never had. Phase 0 had timed mid-playback saves but never
+checked that the playback stayed exact after one: the run it saved in was
+already broken by the old restart bug.
+
+Automatic capture was switched off while the cause was found
+(`replayKeyframesSetEnabled`; the probe's `F10` toggles it). The probe's `F9` diffs memory
+around one save: the exe's writable sections, and the first 2 KB of every actor,
+building and projectile, reported as `DIFF exe` runs (VA, length, first word
+before and after) and `DIFF field` lines (class, field offset, how many objects
+changed there).
+
+### What the save changes (diff of 2026-11-15, one save at job 11441)
+
+The `F9` diff of one stock save, `replay-11.14.26-634pm-5n`, 2,556 objects:
+
+| Changed | Objects | Cause |
+|---|---|---|
+| `+0xdc` on every actor class (Mantlet 6.55 → 6.0, Child 4.05 → 4.0, Hunter 0.9 → 0) | 700+ | `GlowWorm::Actor::serialize` (VA `0x789600`, version-2 path `0x7896b8`–`0x7896fb`) writes the path progress as a whole number (`fistp` with truncation) and stores that number back into the live actor. The only float-to-int round trip of this shape in the exe |
+| `{Actor*, id}` pairs zeroed (Knight `+0x194`/`+0x198`, the S2Actor target handle, and `+0x3e4`/`+0x3e8`; HorseArcher `+0x440`/`+0x444`) | ~30 | The handle serializer: when the stream is writing (`vt+0x18`, `isOutput`) and the id is set, it re-resolves the handle, stores the result as the cached pointer and **zeroes the id when it no longer resolves**. 148 inlined copies, each calling the actor resolver `0x769360` or the building resolver `0x768550` |
+| 4 `Arrow` objects overwritten with the save's path strings | 4 | Freed during the save; not yet explained (see below) |
+| `0x107faf8` in the exe | — | The delay-load import slot `SaveGame` calls (`0x42a327`), resolved on first use. Harmless |
+
+Both named causes are invisible at the recorder's checkpoint: the live match
+carries on from the same rounded values and cleared handles that the loaded
+save starts from. In the middle of a playback, they change a world the
+recording never changed. The rounded path progress alone moves units, so it
+explains the drift. The cleared ids matter to any code that tests an id
+without resolving it (the ballista target at `+0x198` is one such field).
+
+Keeping a stale id is safe across a load. An id is `generation << 16 | slot`,
+the generation coming from one 16-bit counter on the manager (`+0x4`,
+incremented at each creation, `0x769e9b`), which the save carries. So a stale
+id is just as unresolvable after the load as it is live.
+
+**Keyframe mode** (`src/replay/keyframeSerial.cpp`), on only around a
+keyframe's save and its load; every other save is stock:
+
+- Path progress is written and read as its raw float bits: a jump at
+  `0x7896b8` calls the stream's io on `+0xdc` and continues at `0x789701`.
+  Keyframe files are therefore not stock saves, and only a keyframe load reads
+  them.
+- Both resolvers are hooked at entry. While a keyframe save runs (game thread
+  only), the hook runs the stock body, then decodes the caller's next bytes. A
+  caller of the serializer's shape (`mov [h],eax / test eax,eax / jne / mov
+  [h+4],eax`, with `h` in `ebx`/`esi`/`edi`/`ebp`) has its handle's cached
+  pointer and id logged. A handle that does not resolve gets a non-zero answer
+  (its old cached pointer, or a zeroed static block), so the stock code skips
+  the id store and the file holds the stale id, as the live world does. After
+  the save, every logged handle gets both fields back. Handles on the stack
+  (serializer temporaries) are answered the same way but not logged, since
+  their frames are gone by then. Any other caller gets the stock answer.
+- The log holds 128 K handles (1.5 MB, allocated for the save only; a late
+  save logs about 8,000). On an overflow the rest get stock behaviour and the
+  keyframe is discarded.
+
+**Second playtest (2026-11-15): capture exact, restore crashed in our own
+ballista cave.**
+
+- **Capture was exact.** 19 keyframes taken from job 592 to 11442 while
+  skipping, and the playback stayed in step with the recording through all of
+  them. It left the recording only after a deliberate stock save (`Ctrl+F9`) at
+  11503. The keyframe-mode diff changed 40 objects, all four arrows' (below),
+  against 822 for the stock save.
+- **Every restore late in the match crashed** on the world's first update:
+  `0xc0000005` in `S2Actor::isAlive` (RVA `0x15ed0`) reading `0x98`, i.e.
+  `isAlive(0)`. The first guess, that the loader relies on a stock save never
+  writing an id that fails to resolve, was wrong: writing stock (cleared)
+  handles crashed in the same way. The probe's crash report settled it. The
+  return address on top of the stack was not in the exe, and the frame below
+  was `Actor::tick`'s action update (`0x787d68`): the call came from the patch's
+  **ballista auto-fire cave**, which passed the target's *cached* pointer to
+  `isAlive`. A load restores only the id, so the cache is null until something
+  resolves it. That is a real bug in ballista auto-fire: any save loaded while
+  a field ballista holds a target crashed. Fixed in the cave
+  (`docs/features/ballista-auto-fire.md`), and keyframe files keep stale ids
+  again.
+
+**Third playtest (2026-11-15): one restore exact in structure, capture still
+drifts.** With the ballista cave fixed, a jump back from job 15,664 to 13,838
+loaded and played without a crash; a second, to 11,267, crashed 21 jobs later in
+the pathfinder, on a `TunnelSetTargetChore` whose tunnel hole's `Navigator`
+(`+0xe8`) had a garbage vtable. That is a consequence, not a cause: the bracket
+check shows the uninterrupted run left the recording at 11,381, 114 jobs after
+its keyframe at 11,267, and the run restored from that keyframe was out of step
+two jobs after the load. A recording fed to a world it no longer matches can
+reach states the stock game never does.
+
+Two leads:
+
+- **The save still changed the live world.** A census of every serializer-shaped
+  call site, grouped by callee, found five handle resolvers, not two: actors
+  (107 sites), buildings (41), clans `0x774e20` (22), projectiles `0x76a000`
+  (12) and elements `0x767e40` (6, a different prologue). Clan, projectile and
+  element handles to dead objects were still being zeroed live. All five are
+  hooked now.
+- **The load loses something the live world keeps.** The restore drifted much
+  sooner than the capture did, so the file itself lacks state. The probe's
+  `Shift+F10` round trip finds it: at the next quiet job it copies every object
+  of the five managers by slot (sized by `HeapSize` on the game CRT's heap, up to
+  8 KB) and the 32 player objects, takes a keyframe, restores it at once, and
+  reports every field that differs and is not merely a moved pointer
+  (`ROUNDTRIP field`), plus objects missing, extra or of another class, and the
+  exe's globals (`ROUNDTRIP exe`).
+
+The four "arrows" in the keyframe-mode diff were a false lead: an arrow is far
+smaller than the 2 KB window, which reached into the next heap blocks, where the
+save's own strings were allocated.
+
+Automatic capture is on in debug builds, and stays off in release until a
+playtest confirms restores are exact. The probe's `Ctrl+F10` switches keyframe
+files to stock (rounded) path progress, with the live value put back after the
+save; it was added to isolate the crash and is kept for comparison. The probe's `F9` takes a keyframe-mode save with the
+diff and `Ctrl+F9` a stock one (which changes the playback; use it last); `SAVE` lines
+record the mode, `handles` (handles put back) and `complete`.
+
+### Fourth and fifth playtests (2026-11-15, 2026-11-21): two separate problems
+
+**The drift at job 11381 was the ballista fix, not the keyframes.** Recording
+`634pm-5n` (ballista auto-fire on, recorded with the 82-byte cave) left the
+bracket at job 11381 in every run with the first load-crash fix, with keyframes
+on or off and with the skip or with turbo and particles on. That fix resolved the
+held target afresh for every check instead of testing the cached pointer, which
+is not the same test. The cave now uses the cache whenever it is set and resolves
+only when it is null (after a load), and the same playback stayed exact to job
+11895 (2026-11-21). Details in `ballista-auto-fire.md`.
+
+**The reloaded world drifts on its first job.** Run B was exact up to a round
+trip at job 11199, and was out of the bracket from job 11200, the first job after
+the load. The round-trip diff is too noisy to name the cause (3553 of 3684
+objects "differ": caches a load clears, the stale action mask `+0x16c`, padding
+bytes compared as whole words). One lost state is now known from the tunnel crash
+below: an Engineer that is busy in the live world is idle after the load.
+
+**The tunnel crash is a stock out-of-bounds write that the load triggers.** The
+probe watched each `TunnelHole`'s second-base vtable pointer (`+0xe8`) with a
+hardware write watchpoint on the game thread (a vectored handler sets `Dr0..3`
+from a raised exception). It caught the writer on the first tunnel update after
+the load, at VA `0x4c8c41`:
+
+- `TunnelHole` (0x160 bytes) holds five engineer handles at `+0xec + 8·i`
+  (cache, id), five pending bytes at `+0x120`, and wants `+0x118` engineers.
+- Its update (`0x4c9e90`, every 20 ticks) counts the slots that resolve or are
+  pending, keeps the first free one in a local that starts at `-1`, and when
+  the count is below `+0x118` calls the recruit (`0x4c8c50`) with that index.
+  The recruit takes an idle engineer from the player (`0x41a960`, idle =
+  `[eng+0x448] == 0 && [eng+0x300] == 0 && [eng+0x440] == 0`), or a new one from
+  a guild, and stores it with `0x4c8c00` at `+0xec + 8·index`.
+- The ctor (`0x4c8820`) sets `byte +0x114 = 1`, "send the first engineer". The
+  first update recruits into slot 0, increments `+0x118` and clears the flag.
+  The serializer (`0x4c9080`) does not write `+0x114`, so **every load
+  re-arms it**: the first update after a load replaces slot 0's engineer and
+  raises the wanted count by one. A tunnel with five engineers wants **6**
+  after a load (both tunnels in this match), although the add-engineer chore
+  (`0x4c8da0`) stops at 5.
+- From then on every update finds no free slot and recruits into slot `-1` as
+  soon as an engineer is idle: the cache goes to `+0xe4` and the id over the
+  vtable pointer at `+0xe8`, and the next `TunnelSetTargetChore` calls through
+  the broken pointer (`0x7cd99d`).
+
+A live match cannot reach it (no saves in multiplayer); single player needs a
+load of a tunnel with five engineers and an idle sixth, and it has never been
+reported. No stock fix is planned. For keyframes it is a confirmed source of
+post-load drift, and the first tunnel update runs on the first tick after the
+load, which matches run B leaving the bracket at job 11200. Keyframes now
+record `+0x114` per tunnel (building slot and id) at capture and write it back
+straight after the load, before any update (`replayKeyframes.cpp`,
+`saveTunnels`/`restoreTunnels`). As far as anyone knows no other building
+behaves like this; the next round trip shows whether anything else is lost.
+
+With the tunnel flag restored there was no corruption and no crash, but every
+jump-back still drifted within a few jobs (2026-11-21: from keyframes at 5149,
+8204, 8748, 10263, 11267, 10757; the restart run stayed exact). The probe's
+`Ctrl+Shift+F10` draw trace looks for the cause: at a quiet job it takes a
+keyframe, records every simulation draw of both random iterators for 40 jobs
+(a hardware write watchpoint on each cursor; the draw is inlined at each call
+site, so the trapping EIP is the code that drew), restores the keyframe and
+records the same jobs again. The first differing draw (`TRACE first
+difference`, with EIP and three callers) names the code whose input the load
+lost. Only draws from update entry to SIM_END count (debug-only
+`g_prngGuardInSimulation`), since the emitters and rendering draw iterator 1 on
+a frame schedule.
+
+### What else a load loses (2026-11-21 and 11-22)
+
+The draw trace and a per-update record of actors in both passes (live and
+restored, matched by actor slot, filtered to *words that agree at first and
+then differ*) found three more things the save does not carry. Whole-object
+diffs drown in padding and render state; that filter does not.
+
+**Actor list order.** Each actor is in four intrusive lists, node `{owner,
+next, back-link}`: `+0x64` (spatial grid cell, kept at node `+0xc`, grid
+`0xae5440`), `+0x74` (tile, table `0xae8eec`), `+0x80` (16×16-tile block,
+`0xba8eec`), `+0x8c` (region, `0x288d5f0+0x2c`). Every position update moves the
+actor to the front of its lists. A load leaves every node unlinked and relinks
+an actor only when it next moves, so standing actors drop out of their tile and
+the order changes. The order is simulation input: the speed routine
+`0x7875f0` multiplies by 0.8 for each actor ahead of this one on its tile (up
+to three), which is what made a walking Mother 0.8x faster on the first update
+after a load. The existing tile-order restore (`applyTileOrder`, made for the
+checkpoint) only reorders lists the load had already linked, so it did nothing
+here. Each keyframe now keeps every chain of all four lists by head slot (the
+tables and the grid cells keep their addresses across a load) and rebuilds
+them straight after the load, marking occupied grid cells with `0x787810`
+(`saveChains`/`restoreChains`).
+
+**Formation spots.** A movement cluster (`GlowWorm::Cluster`, vtable
+`0x9f4bcc`, 0xc8 bytes, each clan's vector at `+0x14`) keeps its members'
+formation spots in 16-byte records `{actor cache, handle, x, y}` at
+`+0x18`/`+0x1c`/`+0x20`, and a flag byte at `+0x90`. Its serializer
+(`0x79ddf0`) writes neither. A load leaves the records empty, and a moving
+cluster rebuilds them from scratch, so its path progress (`+0x8c`, advanced in
+`0x79d130` from the members' distances to their spots) and its members' next
+paths come out on other ticks (eight Mantlets, 2026-11-21). Keyframes keep them
+per clan slot and cluster index, checked against the member handles, and write
+them back into a vector from the game's `operator new` (`0x80fbb6`), with each
+cache resolved by the game's own resolver (`saveClusters`/`restoreClusters`).
+
+**A Mother's sound timer** (`+0x2f8`, reset to `0x4b0` by a load) draws
+iterator 1 inside the update when it runs out, which shifts any later draw of
+that update. Kept per actor slot.
+
+**Not restored: the pathfinder's region map.** Static reading suggests the
+pathfinder (`0x2101788`; tile → region word table `0x2101c6c`, region graph at
+`+0x4c4`) answers "can I get there" (`0x783f70`, reached from `0x45ad10`) from a
+region map that a load rebuilds from scratch. A Child picking a stroll target
+got "no" live and "yes" after a load, from the same random offsets (job 5127 of
+`634pm-5n`). Whether the live map lags behind building changes was not
+confirmed. Two restores of the same keyframe behaved identically, so this is
+the keyframe's content, not leftover memory. Capturing the map is a larger job
+and is left for later, because of the check below.
+
+### The check against the recording
+
+A keyframe may still leave the recording, so a run that starts from one is
+checked. The recorder samples iterator 0 at the entry of each job's first
+update (`ReplayPrngEntry::startCursor0`); during playback `prngGuardTickEntry`
+compares the live cursor at the same point with the recorded one and keeps the
+first job that differs (`prngGuardVerifyMismatch`). An exact playback matches
+on every job, so the comparison is equality, not the probe's bracket. When the
+current run came from a keyframe and a job differs, the seeker
+(`verifyFrame`, every frame before any capture) deletes that keyframe and every
+keyframe this run took from the differing job on, and seeks again to the same
+target: an older keyframe, or the replay's own save, which is always exact. A
+bad keyframe therefore costs a second load and a longer skip, never a wrong
+picture, and divergences have so far appeared within 2 to 40 jobs of the load,
+inside the skip to the target. With that in place automatic capture is on in
+release.
+
+The first release playtest showed why the skip has to be long enough: a
+jump-back landing just after a keyframe was already playing when its run left
+the recording, and the viewer saw one or two automatic re-jumps. A seek
+therefore uses only a keyframe at least `VERIFY_JOBS` (60) jobs before its
+target, unless that keyframe is already verified: a run resumed from it has
+matched the recording for 60 jobs, which marks it trusted
+(`replayKeyframesMarkVerified`). The check keeps running after that, so a later
+divergence is still repaired, just visibly.
+
+### Playtest (2026-11-22, `634pm-5n`)
+
+| Run | What | Result |
+|---|---|---|
+| 1 | Plain playback to 6101 | Exact; the check reported nothing over every job |
+| 2 | Jump back, keyframe 5183 | Left the recording at 5185; caught two jobs in, keyframe dropped, seek redone |
+| 3 | The redo, keyframe 4667 | Exact to 8084 |
+| 4 | Jump back, keyframe 7168 (taken in run 3) | Exact to 11286, then the game was closed |
+
+The draw trace at job 7160 (after the list and cluster fixes) matched the live
+pass on all 10,597 simulation draws of iterator 0 and all of iterator 1.
 
 ## Code
 

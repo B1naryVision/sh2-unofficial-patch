@@ -32,6 +32,11 @@ static uint32_t s_cursorOffset = 0;
 static uint16_t s_state = PLAYER_IDLE;
 static bool s_multiplayerTiming = false;
 static uint8_t s_multiplayerPhase = 0;
+// Jobs the next epoch is set back by, so a playback resumed from a keyframe
+// carries on at the keyframe's job.
+static uint32_t s_epochBack = 0;
+// A fresh playback (not a keyframe resume), for the viewer's tallies.
+static uint32_t s_generation = 0;
 static bool s_installed = false;
 // Keep MoveTroopsChore's World+5 scatter checks stock. Forcing their MP branch
 // regressed playback actor movement and box geometry (A/B tested): the stock
@@ -225,7 +230,38 @@ uint32_t replayPlayerControl(uint32_t mode, uint32_t multiplayerPhase) {
     // transition below), not here: this runs inside the load, and before the
     // match exists there is no simulation state for input to corrupt.
     s_state = PLAYER_WAITING_EPOCH;
+    ++s_generation;
     return s_state;
+}
+
+uint32_t replayPlayerGeneration() { return s_generation; }
+
+bool replayPlayerSavePosition(ReplayPlayerPosition *out) {
+    uint32_t rel = 0;
+
+    if (!replayPlayerPlaybackJob(&rel)) {
+        return false;
+    }
+
+    out->job = rel;
+    out->cursorOffset = s_cursorOffset;
+    out->multiplayerPhase = *(const volatile uint8_t *)(exeBase() + 0x17e6a34);
+    return true;
+}
+
+// Inside the keyframe's LoadGame. Everything loaded stays: the log, the order
+// plans, the stream, the timing mode. Only the epoch is taken again.
+bool replayPlayerRearmForKeyframe() {
+    if (s_state != PLAYER_PLAYING && s_state != PLAYER_DONE) {
+        return false;
+    }
+
+    g_replayMpRulesRequested = s_multiplayerTiming ? 1u : 0u;
+    g_replayMpCadence = 0;
+    s_playbackEpoch = 0;
+    resetInjectedTracking();
+    s_state = PLAYER_WAITING_EPOCH;
+    return true;
 }
 
 // --- Occupancy-list order restore (see replayPlayer.h) ----------------------
@@ -599,7 +635,16 @@ static void advanceEpochState() {
         return;
     }
 
-    s_playbackEpoch = replayTraceCurrentSimulationTick();
+    const uint32_t now = replayTraceCurrentSimulationTick();
+
+    // The job counter only ever grows, so a keyframe's job is always below it;
+    // an epoch of 0 would read as "no epoch".
+    if (now <= s_epochBack) {
+        s_state = PLAYER_LOADED;
+        return;
+    }
+
+    s_playbackEpoch = now - s_epochBack;
 
     if (s_multiplayerTiming) {
         *(uint8_t *)(exeBase() + 0x17e6a34) = s_multiplayerPhase;
@@ -616,6 +661,19 @@ static void advanceEpochState() {
 
 bool replayPlayerStartNow() {
     advanceEpochState();
+    return s_state == PLAYER_PLAYING;
+}
+
+bool replayPlayerStartAt(const ReplayPlayerPosition &pos) {
+    if (s_state != PLAYER_WAITING_EPOCH || pos.cursorOffset > s_logBytes) {
+        return false;
+    }
+
+    s_cursorOffset = pos.cursorOffset;
+    s_multiplayerPhase = pos.multiplayerPhase;
+    s_epochBack = pos.job;
+    advanceEpochState();
+    s_epochBack = 0;
     return s_state == PLAYER_PLAYING;
 }
 

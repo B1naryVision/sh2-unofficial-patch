@@ -210,6 +210,16 @@ void sessionReset() {
     s_counters.sessionResets++;
 }
 
+void sessionRebindSlots() {
+    uintptr_t *table = playerTable((uintptr_t)GetModuleHandleA(NULL));
+
+    for (int i = 0; i < PLAYER_TABLE_SLOTS; ++i) {
+        if (s_slots[i].objPtr && table[i]) {
+            s_slots[i].objPtr = table[i];
+        }
+    }
+}
+
 bool sessionInGame() { return s_inGame; }
 
 SlotView sessionSlot(int slot) {

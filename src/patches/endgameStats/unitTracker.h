@@ -13,4 +13,9 @@ const uint32_t *unitCountsForSlot(int slot);
 bool slotHasRecruits(int slot);
 
 void resetUnitCounts();
+
+// The tallies as raw bytes, for a replay keyframe (see killCountsSave).
+uint32_t unitCountsBytes();
+void unitCountsSave(void *out);
+void unitCountsRestore(const void *in);
 void resetUnitCountsForSlot(int slot);

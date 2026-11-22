@@ -13,6 +13,7 @@
 #include "prngGuard.h"
 #include "replayCommon.h"
 #include "replayFormat.h"
+#include "replayKeyframes.h"
 #include "replayPlayer.h"
 #include "replayRecorder.h"
 #include "replayRetime.h"
@@ -83,6 +84,11 @@ static bool s_canRecord = false;
 static wchar_t s_savePath[MAX_PATH] = L"";
 // The save the current playback was loaded from (full path).
 static wchar_t s_playPath[MAX_PATH] = L"";
+// The next LoadGame is a keyframe of the running playback (replayKeyframes.h):
+// its path, and the match rules the playback had at that keyframe.
+static bool s_keyframeExpected = false;
+static wchar_t s_keyframePath[MAX_PATH] = L"";
+static MatchRulesReplayPosition s_keyframeRules = {};
 static wchar_t s_sidecarPath[MAX_PATH] = L"";
 static bool s_armConfirmed = false;
 static bool s_exitWritten = false;
@@ -1090,6 +1096,7 @@ static void endMatch(LONG outcome) {
         finishRecording(reason);
     } else if (s_mode == SESSION_PLAYBACK) {
         stopPlayback();
+        replayKeyframesForget();
     }
 }
 
@@ -1249,7 +1256,48 @@ static void setViewerName(const wchar_t *path) {
     replayViewerSetReplayName(buf);
 }
 
+// A keyframe of the running playback: the same match carries on, so nothing is
+// closed out or reset, and the playback's buffers stay loaded.
+static bool keyframeLoad(const GameWString *arg) {
+    if (!s_keyframeExpected) {
+        return false;
+    }
+
+    s_keyframeExpected = false;
+    const wchar_t *text = gameWStringText(arg);
+
+    if (!text || arg->size == 0 || arg->size >= MAX_PATH || s_mode != SESSION_PLAYBACK ||
+        wcsncmp(text, s_keyframePath, arg->size) != 0 || s_keyframePath[arg->size] != 0) {
+        return false;
+    }
+
+    if (!replayPlayerRearmForKeyframe()) {
+        return false;
+    }
+
+    matchRulesReplayRestore(s_keyframeRules);
+    // A jump back from the end hold: the keyframe is before the end.
+    replayViewerSetEnded(false);
+    return true;
+}
+
+void replaySessionExpectKeyframe(const wchar_t *path, const MatchRulesReplayPosition *rules) {
+    s_keyframeExpected = false;
+
+    if (!path || !rules || wcslen(path) >= MAX_PATH) {
+        return;
+    }
+
+    wcscpy(s_keyframePath, path);
+    s_keyframeRules = *rules;
+    s_keyframeExpected = true;
+}
+
 extern "C" void replaySessionOnLoadGame(const GameWString *arg) {
+    if (keyframeLoad(arg)) {
+        return;
+    }
+
     // Whatever was running is being replaced. Close it out first.
     if (s_mode == SESSION_RECORDING) {
         finishRecording(REPLAY_END_REPLACED);
@@ -1268,6 +1316,7 @@ extern "C" void replaySessionOnLoadGame(const GameWString *arg) {
     const wchar_t *text = gameWStringText(arg);
 
     if (!text || arg->size == 0 || arg->size >= MAX_PATH) {
+        replayKeyframesOnLoad(nullptr);
         return;
     }
 
@@ -1286,6 +1335,9 @@ extern "C" void replaySessionOnLoadGame(const GameWString *arg) {
             memcpy(path, full, sizeof(full));
         }
     }
+
+    // A restart keeps the replay's keyframes; any other save drops them.
+    replayKeyframesOnLoad(path);
 
     if (armReplay(path)) {
         s_mode = SESSION_PLAYBACK;

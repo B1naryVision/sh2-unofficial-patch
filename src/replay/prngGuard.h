@@ -132,9 +132,52 @@ const ReplayPrngUpdates *prngGuardRecordUpdates();
 // draw the simulation would otherwise have taken from the wrong place).
 void prngGuardRestoreStats(uint32_t *restored, uint32_t *corrected);
 
+// Replay keyframes. Where a playback stands in the loaded stream, taken at a
+// frame boundary (no update open) and put back after the keyframe's load and
+// before the first update, so the next update reads as the one that follows: a
+// keyframe can fall between two updates of one job. False while no stream is
+// applied.
+struct ReplayPrngPosition {
+    uint32_t streamPos;
+    uint32_t jobEntry;
+    uint32_t gatePos;
+    uint32_t updateRel;
+    uint32_t updateIndex;
+    bool haveUpdateRel;
+    bool curGatesValid;
+    uint8_t curGates;
+};
+
+// Playback check against the recording: iterator 0 at each job's first update
+// must equal the recorded startCursor0. Reset by a stream load and a position
+// restore; the seeker also resets it after a restart. True once a job has
+// differed, with `*job` the first such (relative) job; `*checked` counts the
+// jobs compared since the reset.
+void prngGuardVerifyReset();
+bool prngGuardVerifyMismatch(uint32_t *job, uint32_t *checked);
+
+bool prngGuardSavePosition(ReplayPrngPosition *out);
+void prngGuardRestorePosition(const ReplayPrngPosition &in);
+
+// The live Monastery stage clocks (+0x164, which no serializer saves), at most
+// `max` (REPLAY_CLOCK_MAX); 0xffffffff when the building table is unreadable.
+// Restore applies them at the next simulation update's entry, as the
+// checkpoint's own clocks are.
+uint32_t prngGuardSaveClocks(ReplayMonasteryClock *out, uint32_t max);
+void prngGuardRestoreClocks(const ReplayMonasteryClock *in, uint32_t count);
+
 #ifdef DEBUG
 // Running totals, in performance-counter ticks, of the simulation tick body's
 // subsystem updates (entry to SIM_END) and of the emitter manager (SIM_END to
 // SIM_DONE), with the number of updates. For the seek probe.
 void prngGuardDebugTimes(uint64_t *subsystems, uint64_t *emitters, uint32_t *updates);
+#endif
+
+#ifdef DEBUG
+// Debug builds: 1 from the entry of a simulation update to SIM_END, the part of
+// the tick whose random draws are simulation and not presentation (seek probe).
+extern volatile uint32_t g_prngGuardInSimulation;
+// Called at the entry of every simulation update, on the game thread, with the
+// x87 stack empty (seek probe).
+extern void (*volatile g_prngGuardEntryObserver)();
 #endif

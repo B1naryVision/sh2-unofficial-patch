@@ -200,7 +200,7 @@ static DWORD s_lastPoll = 0;
 // options file) would otherwise inherit.
 static bool s_haveSavedSpeed = false;
 static uint32_t s_savedSpeed = 0;
-static uint32_t s_lastEpoch = 0;
+static uint32_t s_lastGeneration = 0;
 static uint32_t s_jobNow = 0;
 static volatile LONG s_pauseToggle = 0;
 // Skip requests from the window procedure, applied by the frame tick.
@@ -880,9 +880,12 @@ static void viewerTick() {
 
     if (epoch) {
         // A new playback in this process starts its tallies from zero; spawns
-        // replayed by the checkpoint load are not recruits.
-        if (epoch != s_lastEpoch) {
-            s_lastEpoch = epoch;
+        // replayed by the checkpoint load are not recruits. A playback resumed
+        // from a keyframe is not new: the keyframe put its tallies back.
+        const uint32_t generation = replayPlayerGeneration();
+
+        if (generation != s_lastGeneration) {
+            s_lastGeneration = generation;
             EnterCriticalSection(&s_lock);
             resetTallies();
             LeaveCriticalSection(&s_lock);

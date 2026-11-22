@@ -3,7 +3,9 @@
 #include "../core/exeBase.h"
 #include "../core/frameTick.h"
 #include "../core/observerContext.h"
+#include "prngGuard.h"
 #include "replayCommon.h"
+#include "replayKeyframes.h"
 #include "replayPlayer.h"
 #include "replaySession.h"
 #include "replayViewer.h"
@@ -55,10 +57,11 @@ static const int64_t OVERHEAD_SHARE = 8;
 static const uint32_t UPDATES_START = 20;
 static const uint32_t UPDATES_MAX = 5000;
 
-// Rewinding. The replay is reloaded from its own save and then skipped forward
-// to the target, which is exact for the same reason any playback is. Two rules
-// from the phase 0 restarts (docs/features/replay-seeking.md), both of which a
-// restart broke when ignored:
+// Loading. A rewind, and a forward seek with a keyframe well ahead, reload the
+// world: from the newest keyframe at or before the target (replayKeyframes.h),
+// otherwise from the replay's own save, then skip forward to the target. Two
+// rules from the phase 0 restarts (docs/features/replay-seeking.md), both of
+// which a restart broke when ignored:
 //   - Load only at a job with no command queued and no placement deferred:
 //     LoadGame keeps the lockstep queue, and the new world would execute the
 //     old one's commands. Until such a job comes the simulation runs on, a few
@@ -67,12 +70,15 @@ static const uint32_t UPDATES_MAX = 5000;
 //   - Sample the playback epoch straight after the load. The load runs here, in
 //     the frame tick after the player's own; left to the next frame, this
 //     frame's update loop would run the new world ahead of its schedule.
-static const uint32_t REWIND_WAIT_UPDATES = 10;
-static const uint32_t REWIND_WAIT_FRAMES_MAX = 600;
+static const uint32_t LOAD_WAIT_UPDATES = 10;
+static const uint32_t LOAD_WAIT_FRAMES_MAX = 600;
+// A forward seek loads a keyframe only when it saves at least this much
+// skipping: below it the load (about 400 ms with its wait) gains nothing.
+static const uint32_t KEYFRAME_JUMP_MIN_JOBS = 600;
 
 enum SeekPhase : uint32_t {
     SEEK_IDLE = 0,
-    SEEK_REWIND_WAIT = 1, // running to a quiet job, then reloading
+    SEEK_LOAD_WAIT = 1, // running to a quiet job, then loading
     SEEK_FORWARD = 2, // running fast to the target
 };
 
@@ -97,6 +103,19 @@ static int64_t s_overheadUs = 0; // smoothed time per frame outside the simulati
 // Jobs the pump saw this frame, with the clock at the first and the last.
 static uint32_t s_frameJobs = 0;
 static int64_t s_firstJobQpc = 0, s_lastJobQpc = 0;
+// The run a keyframe started, until it is shown to have left the recording:
+// prngGuard checks every job against it, and on the first job that differs the
+// keyframe is dropped and the seek is redone from an older one or the replay's
+// own save, which is always exact. A rewind that lands on a keyframe the load
+// cannot reproduce therefore costs time, never correctness.
+static bool s_fromKeyframe = false;
+static uint32_t s_sourceKeyframe = 0;
+static bool s_forceReload = false;
+// Every divergence seen so far showed within 40 jobs of the load. A keyframe
+// at least this far before the target is checked during the skip, before the
+// viewer sees anything; one that has played this far in step is trusted after.
+static const uint32_t VERIFY_JOBS = 60;
+static uint32_t s_repairs = 0;
 static bool s_muted = false;
 static bool s_particlesOff = false;
 static uint32_t s_particleGate = 0;
@@ -167,15 +186,24 @@ static void beginForward() {
     replayViewerSetUpdateOverride(s_updates);
 }
 
-static void beginRewindWait() {
+static void beginLoadWait() {
     s_waitFrames = 0;
-    s_phase = SEEK_REWIND_WAIT;
-    replayViewerSetUpdateOverride(REWIND_WAIT_UPDATES);
+    s_phase = SEEK_LOAD_WAIT;
+    replayViewerSetUpdateOverride(LOAD_WAIT_UPDATES);
 }
 
-// A target ahead of the current job runs forward; one behind it rewinds; one
-// on it ends a seek. A new request replaces the running seek's target, so
-// further presses keep adding to it, either way.
+// A forward target with a keyframe far enough past the current job to be worth
+// loading.
+static bool keyframeJumpPays(uint32_t now, uint32_t target) {
+    uint32_t keyframe = 0;
+    return replayKeyframeAtOrBefore(target, VERIFY_JOBS, &keyframe) &&
+           keyframe > now + KEYFRAME_JUMP_MIN_JOBS;
+}
+
+// A target ahead of the current job runs forward (through a keyframe when one
+// is well ahead); one behind it loads; one on it ends a seek. A new request
+// replaces the running seek's target, so further presses keep adding to it,
+// either way.
 static void start(uint32_t target) {
     uint32_t now = 0, end = 0, msPerJob = 0;
 
@@ -201,7 +229,7 @@ static void start(uint32_t target) {
         enter();
     }
 
-    if (target > now) {
+    if (target > now && !keyframeJumpPays(now, target)) {
         if (s_phase != SEEK_FORWARD) {
             beginForward();
         }
@@ -209,14 +237,26 @@ static void start(uint32_t target) {
         return;
     }
 
-    if (s_phase != SEEK_REWIND_WAIT) {
-        beginRewindWait();
+    if (s_phase != SEEK_LOAD_WAIT) {
+        beginLoadWait();
     }
 }
 
-// The rewind's load, once the job is quiet. A target of the very start needs
-// nothing more; anything later is a forward seek from there.
-static void reload() {
+// After a load: on the target, or a forward seek from where the load left off.
+static void afterLoad() {
+    uint32_t now = 0;
+
+    if (!replayPlayerPlaybackJob(&now) || s_target <= now) {
+        finish();
+        return;
+    }
+
+    beginForward();
+}
+
+// The replay from its own save: always possible, and the fallback when a
+// keyframe fails.
+static void restart() {
     const wchar_t *playing = replaySessionPlaybackPath();
 
     if (!playing) {
@@ -240,31 +280,67 @@ static void reload() {
         return;
     }
 
-    if (s_target == 0) {
-        finish();
+    replayKeyframesBeginRun();
+    prngGuardVerifyReset();
+    s_fromKeyframe = false;
+    afterLoad();
+}
+
+// The load, once the job is quiet. The target may have moved during the wait,
+// so the choice is made here: the newest keyframe at or before it, when that is
+// behind the current job (a rewind) or well ahead of it (a forward jump);
+// otherwise a restart for a rewind and a plain forward seek for the rest.
+static void load() {
+    uint32_t now = 0, keyframe = 0;
+    replayPlayerPlaybackJob(&now);
+    // A repair reloads even for a target on the current job.
+    const bool back = s_target < now || s_forceReload;
+    s_forceReload = false;
+    const bool haveKeyframe = replayKeyframeAtOrBefore(s_target, VERIFY_JOBS, &keyframe);
+
+    if (!back && !(haveKeyframe && keyframe > now)) {
+        beginForward();
         return;
     }
 
-    beginForward();
+    if (haveKeyframe) {
+        bool loaded = false;
+
+        if (replayKeyframeRestore(keyframe, &loaded)) {
+            replayKeyframesBeginRun();
+            s_fromKeyframe = true;
+            s_sourceKeyframe = keyframe;
+            afterLoad();
+            return;
+        }
+
+        // Nothing replaced: a forward seek just carries on from here.
+        if (!loaded && !back) {
+            beginForward();
+            return;
+        }
+    }
+
+    restart();
 }
 
-static void rewindWaitFrame() {
-    // The in-game menu holds a rewind as it holds any seek.
+static void loadWaitFrame() {
+    // The in-game menu holds a load as it holds any seek.
     if (replayScreenPopupOn()) {
         return;
     }
 
     if (replayNetQueuedCommands() == 0 && replayPendingPlacements() == 0) {
-        reload();
+        load();
         return;
     }
 
-    if (++s_waitFrames >= REWIND_WAIT_FRAMES_MAX) {
+    if (++s_waitFrames >= LOAD_WAIT_FRAMES_MAX) {
         finish(); // never quiet: give up rather than load into a broken run
         return;
     }
 
-    replayViewerSetUpdateOverride(REWIND_WAIT_UPDATES);
+    replayViewerSetUpdateOverride(LOAD_WAIT_UPDATES);
 }
 
 // The frame's time outside the simulation: the frame minus the span from its
@@ -325,6 +401,45 @@ static void adapt(int64_t frameUs) {
     s_updates = (uint32_t)next;
 }
 
+// A run from a keyframe that has left the recording: drop that keyframe and
+// what this run took since, then seek again to where the viewer was going.
+static void verifyFrame() {
+    uint32_t job = 0, checked = 0, now = 0;
+
+    if (!s_fromKeyframe || s_phase == SEEK_LOAD_WAIT) {
+        return;
+    }
+
+    if (!prngGuardVerifyMismatch(&job, &checked)) {
+        // Still checked after this, in case a later job leaves the recording.
+        if (checked >= VERIFY_JOBS) {
+            replayKeyframesMarkVerified(s_sourceKeyframe);
+        }
+
+        return;
+    }
+
+    if (!replayPlayerPlaybackJob(&now)) {
+        return;
+    }
+
+    // The world was still on the recording at the start of `job`.
+    s_fromKeyframe = false;
+    replayKeyframesDiscard(job, true);
+    replayKeyframesDiscard(s_sourceKeyframe, false);
+
+    const uint32_t target = s_active ? s_target : now;
+    ++s_repairs;
+    s_target = target;
+    s_forceReload = true;
+
+    if (!s_active) {
+        enter();
+    }
+
+    beginLoadWait();
+}
+
 static void seekerTick() {
     if (InterlockedExchange(&s_cancel, 0) && s_active) {
         finish();
@@ -332,8 +447,23 @@ static void seekerTick() {
 
     const LONG request = InterlockedExchange(&s_request, -1);
 
+    if (!replayInGame()) {
+        s_fromKeyframe = false;
+    }
+
     if (request >= 0 && spectatorGuardActive() && replayInGame()) {
         start((uint32_t)request);
+    }
+
+    if (spectatorGuardActive() && replayInGame()) {
+        verifyFrame();
+    }
+
+    // Keyframes are taken while watching and while skipping, never while a
+    // load is pending: that world is about to be replaced.
+    if (s_phase != SEEK_LOAD_WAIT && spectatorGuardActive() && replayInGame() &&
+        replayKeyframesFrame()) {
+        s_lastQpc = qpcNow(); // a frame that held a save says nothing about the simulation
     }
 
     if (!s_active) {
@@ -347,8 +477,8 @@ static void seekerTick() {
 
     // A rewind may start from the end of the recording, which is what it is
     // for; a forward seek stops there.
-    if (s_phase == SEEK_REWIND_WAIT) {
-        rewindWaitFrame();
+    if (s_phase == SEEK_LOAD_WAIT) {
+        loadWaitFrame();
         return;
     }
 
@@ -419,6 +549,8 @@ bool replaySeekerActive(uint32_t *targetJob) {
 }
 
 bool replaySeekerInstalled() { return s_installed; }
+
+uint32_t replaySeekerRepairs() { return s_repairs; }
 
 void installReplaySeeker() {
     LARGE_INTEGER f;

@@ -4,10 +4,11 @@
 
 // Seeking during a replay, both ways. Forward: run the simulation as fast as
 // the machine allows until a target job, then hand back to normal playback.
-// Back: reload the replay from its own save at the next quiet job, start the
-// playback there at once, and seek forward from the start to the target. A
-// rewind therefore costs the forward seek from 0:00; see replaySeeker.cpp for
-// the two rules the reload follows.
+// Back: at the next quiet job, reload the newest keyframe at or before the
+// target (replayKeyframes.h), or the replay's own save when there is none,
+// start the playback there at once, and seek forward to the target. A forward
+// seek loads a keyframe too when one lies well ahead. See replaySeeker.cpp for
+// the two rules every load follows.
 //
 // No simulation code changes. The seek replaces the pacer's update count for
 // each frame (replayViewerSetUpdateOverride), so a frame runs a hundred or more
@@ -20,6 +21,10 @@
 
 void installReplaySeeker();
 bool replaySeekerInstalled();
+
+// How many seeks were redone because the keyframe they resumed from had left
+// the recording (for the seek probe).
+uint32_t replaySeekerRepairs();
 
 // Asks for a seek to `targetJob` (relative to the playback epoch). Any thread;
 // the frame tick starts it. Clamped to the end of the recording. A target

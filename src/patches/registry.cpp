@@ -1,6 +1,7 @@
 #include "registry.h"
 #include "../core/config.h"
 #include "../replay/prngGuard.h"
+#include "../replay/replayKeyframes.h"
 #include "../replay/replayOrderSounds.h"
 #include "../replay/replayPlayer.h"
 #include "../replay/replaySeeker.h"
@@ -68,6 +69,7 @@ void applyUnofficialPatches() {
     installPrngGuard();
     installReplayOrderSounds();
     installSpectatorGuard();
+    installReplayKeyframes();
     installReplaySeeker();
     installReplayViewer();
     // After the spectator guard: its window subclass must sit outside the

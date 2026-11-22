@@ -1408,6 +1408,12 @@ const uint32_t *killCountsForSlot(int slot) {
     return s_killsByType[slot];
 }
 
+uint32_t killCountsBytes() { return (uint32_t)sizeof(s_killsByType); }
+
+void killCountsSave(void *out) { memcpy(out, s_killsByType, sizeof(s_killsByType)); }
+
+void killCountsRestore(const void *in) { memcpy(s_killsByType, in, sizeof(s_killsByType)); }
+
 void resetKillCounts() {
     KLOG("reset,all,count=%u", s_killCount);
     memset(s_killsByType, 0, sizeof(s_killsByType));

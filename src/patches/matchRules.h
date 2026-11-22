@@ -48,3 +48,14 @@ void matchRulesCapture(MatchRulesState *out);
 // the first rules line from anyone.
 void matchRulesReplayBegin(const MatchRulesState *state);
 void matchRulesReplayEnd();
+
+// A replay keyframe: the playback's rules as they stand now, taken while a
+// replay plays and put back when the playback resumes from that keyframe. Unlike
+// matchRulesCapture it keeps the replay's own host, not the live session's.
+struct MatchRulesReplayPosition {
+    MatchRulesState state;
+    bool anyHost; // an older sidecar: a rules line from anyone commits
+};
+
+void matchRulesReplaySave(MatchRulesReplayPosition *out);
+void matchRulesReplayRestore(const MatchRulesReplayPosition &in);

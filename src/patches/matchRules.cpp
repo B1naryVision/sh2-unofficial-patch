@@ -475,6 +475,22 @@ void matchRulesReplayBegin(const MatchRulesState *state) {
     setActive(active & s_supported);
 }
 
+void matchRulesReplaySave(MatchRulesReplayPosition *out) {
+    out->state.active = s_active;
+    out->state.hostPeer = s_replayHostPeer;
+    out->state.committed = s_committed;
+    out->anyHost = s_replayAnyHost;
+}
+
+void matchRulesReplayRestore(const MatchRulesReplayPosition &in) {
+    s_replay = true;
+    s_replayAnyHost = in.anyHost;
+    s_replayHostPeer = in.state.hostPeer;
+    s_committed = in.state.committed;
+    s_posted = true;
+    setActive(in.state.active & s_supported);
+}
+
 // Back to the live rules: vanilla, until the frame tick decides otherwise.
 void matchRulesReplayEnd() {
     if (!s_replay) {

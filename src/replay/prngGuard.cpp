@@ -62,6 +62,13 @@ static ReplayPrngUpdates *s_streamUpdates = nullptr; // null for a v2..v4 stream
 static uint32_t s_streamCount = 0;
 static uint32_t s_streamPos = 0;
 static bool s_streamHasGates = false;
+// Playback check: iterator 0 at each job's first update against the recorded
+// startCursor0. Both are sampled at this same hook, so an exact playback
+// matches every job; the first job that does not is where it left the
+// recording.
+static const uint32_t NO_MISMATCH = 0xffffffffu;
+static uint32_t s_verifyChecked = 0;
+static uint32_t s_verifyMismatch = NO_MISMATCH;
 // The stream entry of the job now running, or NO_ENTRY when the stream has
 // none for it; its later updates restore from this entry's ReplayPrngUpdates.
 static const uint32_t NO_ENTRY = 0xffffffffu;
@@ -115,6 +122,10 @@ uintptr_t g_prngGuardEntryReturn = 0;
 uintptr_t g_prngGuardDoneReturn = 0;
 uintptr_t g_prngGuardFxFlag = 0;
 uintptr_t g_prngSimEndEcx = 0;
+#ifdef DEBUG
+volatile uint32_t g_prngGuardInSimulation = 0;
+void (*volatile g_prngGuardEntryObserver)() = nullptr;
+#endif
 uintptr_t g_prngSimEndReturn = 0;
 uintptr_t g_monasteryClockReturn = 0;
 
@@ -224,6 +235,84 @@ static void epochClocks(bool recording) {
     }
 }
 
+bool prngGuardSavePosition(ReplayPrngPosition *out) {
+    if (!s_applying) {
+        return false;
+    }
+
+    out->streamPos = s_streamPos;
+    out->jobEntry = s_jobEntry;
+    out->gatePos = s_gatePos;
+    out->updateRel = s_updateRel;
+    out->updateIndex = s_updateIndex;
+    out->haveUpdateRel = s_haveUpdateRel;
+    out->curGatesValid = s_curGatesValid;
+    out->curGates = s_curGates;
+    return true;
+}
+
+void prngGuardVerifyReset() {
+    s_verifyChecked = 0;
+    s_verifyMismatch = NO_MISMATCH;
+}
+
+bool prngGuardVerifyMismatch(uint32_t *job, uint32_t *checked) {
+    *checked = s_verifyChecked;
+    *job = s_verifyMismatch;
+    return s_verifyMismatch != NO_MISMATCH;
+}
+
+void prngGuardRestorePosition(const ReplayPrngPosition &in) {
+    prngGuardVerifyReset();
+    s_streamPos = in.streamPos <= s_streamCount ? in.streamPos : s_streamCount;
+    s_jobEntry = in.jobEntry < s_streamCount ? in.jobEntry : NO_ENTRY;
+    s_gatePos = in.gatePos <= s_streamCount ? in.gatePos : s_streamCount;
+    s_updateRel = in.updateRel;
+    s_updateIndex = in.updateIndex;
+    s_haveUpdateRel = in.haveUpdateRel;
+    s_curGatesValid = in.curGatesValid;
+    s_curGates = in.curGates;
+    s_openTick = false;
+}
+
+uint32_t prngGuardSaveClocks(ReplayMonasteryClock *out, uint32_t max) {
+    const uintptr_t *slots = nullptr;
+    uint32_t count = 0;
+
+    if (!buildingSlots(&slots, &count)) {
+        return 0xffffffffu;
+    }
+
+    uint32_t n = 0;
+
+    for (uint32_t i = 0; i < count; ++i) {
+        const uintptr_t b = slots[i];
+
+        if (!b || !observerReadable(b, 0x168) ||
+            *(const uintptr_t *)b != s_exeBase + MONASTERY_VTABLE_RVA) {
+            continue;
+        }
+
+        if (n == max || *(const uint16_t *)(b + 0x9c) != i) {
+            return 0xffffffffu;
+        }
+
+        out[n++] = {(uint16_t)i, *(const uint16_t *)(b + 0x9e), *(const uint32_t *)(b + 0x164)};
+    }
+
+    return n;
+}
+
+void prngGuardRestoreClocks(const ReplayMonasteryClock *in, uint32_t count) {
+    if (count > REPLAY_CLOCK_MAX) {
+        count = REPLAY_CLOCK_MAX;
+    }
+
+    memcpy(s_streamClocks, in, count * sizeof(ReplayMonasteryClock));
+    s_streamClockCount = count;
+    s_clocksPending = true;
+}
+
 // Every simulation update, duplicates of a job included. `sub` is the update's
 // index within its job.
 static void renderGates(uint32_t relative, uint32_t sub, bool recording) {
@@ -330,6 +419,11 @@ extern "C" void prngGuardTickEntry() {
     s_dbgEntryQpc = dbgClock();
     s_dbgEndQpc = 0;
     ++s_dbgUpdates;
+    g_prngGuardInSimulation = 1;
+
+    if (g_prngGuardEntryObserver) {
+        g_prngGuardEntryObserver();
+    }
 #endif
     const uint32_t epoch = activeEpoch();
 
@@ -376,6 +470,17 @@ extern "C" void prngGuardTickEntry() {
         }
 
         if (s_streamPos < s_streamCount && s_stream[s_streamPos].relativeTick == relative) {
+            const uint16_t *live0 = iter0Cursor();
+
+            if (live0) {
+                ++s_verifyChecked;
+
+                if (*live0 != s_stream[s_streamPos].startCursor0 &&
+                    s_verifyMismatch == NO_MISMATCH) {
+                    s_verifyMismatch = relative;
+                }
+            }
+
             *cursor = s_stream[s_streamPos].startCursor;
             s_jobEntry = s_streamPos;
             ++s_streamPos;
@@ -393,6 +498,7 @@ extern "C" void prngGuardTickEntry() {
 
 extern "C" void prngGuardSimEnd() {
 #ifdef DEBUG
+    g_prngGuardInSimulation = 0;
     s_dbgEndQpc = dbgClock();
 
     if (s_dbgEntryQpc) {
@@ -414,6 +520,7 @@ extern "C" void prngGuardSimEnd() {
 // The live cursor is left untouched; the next update's entry restore handles it.
 extern "C" void prngGuardSimDone() {
 #ifdef DEBUG
+    g_prngGuardInSimulation = 0;
     if (s_dbgEndQpc) {
         s_dbgEmitters += dbgClock() - s_dbgEndQpc;
     }
@@ -693,6 +800,7 @@ uint32_t prngGuardLoadBytes(const void *data, uint32_t bytes) {
     s_jobEntry = NO_ENTRY;
     s_updatesRestored = 0;
     s_updatesCorrected = 0;
+    prngGuardVerifyReset();
     s_applying = true;
     return s_streamCount;
 }

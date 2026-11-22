@@ -81,6 +81,12 @@ bool slotHasRecruits(int slot) {
 
 void resetUnitCounts() { memset(s_unitsMade, 0, sizeof(s_unitsMade)); }
 
+uint32_t unitCountsBytes() { return (uint32_t)sizeof(s_unitsMade); }
+
+void unitCountsSave(void *out) { memcpy(out, s_unitsMade, sizeof(s_unitsMade)); }
+
+void unitCountsRestore(const void *in) { memcpy(s_unitsMade, in, sizeof(s_unitsMade)); }
+
 void resetUnitCountsForSlot(int slot) {
     if (slot >= 0 && slot < PLAYER_TABLE_SLOTS) {
         memset(s_unitsMade[slot], 0, sizeof(s_unitsMade[slot]));

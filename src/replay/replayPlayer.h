@@ -62,6 +62,31 @@ uint32_t replayPlayerPlaybackEpoch();
 // A load from a menu needs nothing: it runs in processEvents, before the frame
 // tick. True when the playback is now running.
 bool replayPlayerStartNow();
+
+// Replay keyframes. A keyframe is a save taken during playback, at a frame
+// with nothing queued; resuming from it reloads the save and carries on at its
+// job, exactly where the uninterrupted playback would be.
+//
+// Save: the playback's position now (relative job, command cursor, the MP
+// cadence byte NetGameMgr+4). Rearm: called from inside the keyframe's
+// LoadGame by the session; keeps every loaded buffer and waits for the epoch
+// again. StartAt: right after that load, like StartNow, but with the epoch set
+// back so the relative job continues at `pos.job`. Tile order, projectile
+// damage and the iterator-0 cursor are applied at that epoch as for any load;
+// the caller loads the keyframe's own before it.
+struct ReplayPlayerPosition {
+    uint32_t job;
+    uint32_t cursorOffset;
+    uint8_t multiplayerPhase;
+};
+
+bool replayPlayerSavePosition(ReplayPlayerPosition *out);
+bool replayPlayerRearmForKeyframe();
+bool replayPlayerStartAt(const ReplayPlayerPosition &pos);
+
+// Counts fresh playbacks (a load of a replay save), not keyframe resumes: the
+// viewer restarts its tallies when it changes.
+uint32_t replayPlayerGeneration();
 // Playing (or finished) with an epoch: the current job relative to it.
 bool replayPlayerPlaybackJob(uint32_t *relativeJob);
 // Armed at all: waiting for the epoch, playing, or finished but not stopped.

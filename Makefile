@@ -73,9 +73,11 @@ SRCS = src/dllmain.cpp \
        src/patches/autoMarket/overlay.cpp \
        src/patches/settingsOverlay.cpp \
        src/replay/choreCodec.cpp \
+       src/replay/keyframeSerial.cpp \
        src/replay/prngGuard.cpp \
        src/replay/replayCommon.cpp \
        src/replay/replayFormat.cpp \
+       src/replay/replayKeyframes.cpp \
        src/replay/replayOrderSounds.cpp \
        src/replay/replayPlayer.cpp \
        src/replay/replayRecorder.cpp \

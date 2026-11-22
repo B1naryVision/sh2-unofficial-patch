@@ -36,6 +36,12 @@ void installSession(); // registers the poll with the frame-tick dispatcher
 void sessionReset(); // full reset to Idle; call when the endgame screen closes
 void sessionOnRecruit(int slot, uintptr_t playerBase); // from the unit tracker
 
+// A replay resumed from a keyframe: the world was reloaded, so every player
+// object moved. Point each tracked slot at its new object without clearing it;
+// the next poll would otherwise read the move as a recycled slot and drop its
+// unit and kill counts.
+void sessionRebindSlots();
+
 bool sessionInGame();
 SlotView sessionSlot(int slot);
 

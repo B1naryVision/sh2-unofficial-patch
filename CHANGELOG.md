@@ -32,7 +32,7 @@
 ### [Feature] - Skip Ahead and Jump Back in Replays
 
 - **What the issue was:** A replay could only be watched from the start and straight through, so getting to the fighting meant sitting through the whole peace time first, and a moment you missed was gone.
-- **What we changed:** The replay panel (`]`) now shows the match time on a timeline. Click a point on it, use the skip-ahead and jump-back buttons, or press `.` and `,` to go a minute either way, and the replay races to that point with sound effects muted, then plays on exactly as the match went. Press `P` or Stop to end it early. Jumping back starts the replay again and races forward, so it takes longer the later in the match the point is.
+- **What we changed:** The replay panel (`]`) now shows the match time on a timeline. Click a point on it, use the skip-ahead and jump-back buttons, or press `.` and `,` to go a minute either way, and the replay races to that point with sound effects muted, then plays on exactly as the match went. Press `P` or Stop to end it early. While you watch, the replay keeps a resume point for every minute of the match (saving one can cause a very short pause about once a minute), so jumping back takes a moment wherever you are; if a resume point ever fails to match the recording, the replay notices and starts again from an earlier one, so what you see is always the match as it was played.
 
 ### [Feature] - Replays Are Named After the Teams
 
