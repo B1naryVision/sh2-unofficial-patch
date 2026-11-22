@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### [Fix] - Loading a Save No Longer Crashes With Ballista Auto-Fire On
+
+- **What the issue was:** With field ballistae firing by themselves, loading a save in which a ballista was aiming at a target crashed the game as soon as it started.
+- **What we changed:** A ballista now checks its target properly after a load, so the save loads and the ballista carries on shooting at the same target.
+
 ### [Fix] - Replays No Longer Play the Recording Player's Orders
 
 - **What the issue was:** While watching a replay you heard the marching, hooves and siege engines of every order the recording player gave, wherever you were looking on the map.

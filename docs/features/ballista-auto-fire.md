@@ -224,7 +224,7 @@ instead of new logic:
 ```asm
 cave:
     cmp   dword [esi+0x198], 0      ; 83 be 98 01 00 00 00
-    je    auto_fire                 ; 74 44            no target
+    je    auto_fire                 ; 74 68            no target
     push  dword [esi+0x198]         ; ff b6 98 01 00 00   Handle.id
     push  dword [esi+0x194]         ; ff b6 94 01 00 00   Handle.ptr (callee overwrites)
     push  0                         ; 6a 00            unused by 0x1778d0
@@ -232,8 +232,21 @@ cave:
     mov   ecx, esi                  ; 8b ce
     call  [eax+0x180]               ; ff 90 80 01 00 00   canEngage, pops 0xc
     test  al, al                    ; 84 c0
-    je    release                   ; 74 14
-    mov   ecx, [esi+0x194]          ; 8b 8e 94 01 00 00
+    je    release                   ; 74 38
+    mov   ecx, [esi+0x194]          ; 8b 8e 94 01 00 00   the cached pointer,
+    test  ecx, ecx                  ; 85 c9               as the first version
+    jne   alive                     ; 75 20
+    mov   eax, [esi+0x198]          ; 8b 86 98 01 00 00   null only after a load:
+    push  eax                       ; 50                  resolve the id as
+    shr   eax, 16                   ; c1 e8 10            canEngage does
+    push  eax                       ; 50
+    push  <actor handle class>      ; 68 <imm32, VA 0x12b0e98 relocated>
+    mov   ecx, <ActorMgr>           ; b9 <imm32, VA 0xae8728 relocated>
+    call  ActorMgr::resolve         ; e8 <rel32 → base+0x369360>, pops 0xc
+    test  eax, eax                  ; 85 c0
+    je    release                   ; 74 10
+    mov   ecx, eax                  ; 8b c8
+alive:
     call  S2Actor::isAlive          ; e8 <rel32 → base+0x15ed0>
     test  al, al                    ; 84 c0
     je    release                   ; 74 05
@@ -247,17 +260,33 @@ auto_fire:
     jmp   player_check              ; e9 <rel32 → base+0x180c55>
 ```
 
-The cave is 82 bytes (was 57). It holds three rel32 fields, at cave offsets `0x2c`, `0x35` and
-`0x4e`, and no absolute addresses, so it is position-independent apart from those
-install-time displacements. The site patch at `0x180c48` and the other three patches are
-unchanged.
+The cave is 118 bytes (108 in the first load-crash fix, 82 before it, 57 before that). It holds
+four rel32 fields, at cave offsets `0x45` (resolve), `0x50` (isAlive), `0x59` (manual handler)
+and `0x72` (return), and two absolute immediates at `0x3b` and `0x40`. The immediates are copied
+at install from `canEngage`'s own `push <class>` / `mov ecx, <ActorMgr>` / `call resolve` at RVA
+`0x1778e9`, after checking that the three opcodes are there, that the two immediates equal the
+relocated VAs `0x12b0e98` and `0xae8728`, and that the call reaches `0x369360`. The site patch at
+`0x180c48` and the other three patches are unchanged.
 
 Why each piece is shaped this way:
 
-- **Safe to dereference `[this+0x194]` after `canEngage` succeeds.** Every writer of `+0x198`
-  stores `+0x194` from the same resolution. If the id still resolves, which `canEngage` has just
-  confirmed, the pointer is the same live object. If the id no longer resolves, the cave never
-  dereferences the pointer.
+- **Use the cached pointer when there is one; resolve the id only when it is null.** The 82-byte
+  cave passed `[this+0x194]` to `isAlive` after `canEngage` succeeded, reasoning that every writer
+  of `+0x198` stores `+0x194` from the same resolution. One writer does not: **the loader**. The
+  handle serializer reads only the id (`+0x198`), and the cached pointer stays null until
+  something resolves it, which `canEngage` does into its own copy only. So in any save loaded
+  while a field ballista held a target, the first `think` called `isAlive(0)` and crashed
+  (`0xc0000005` at RVA `0x15ed0`, reading `0x98`). Found by replay keyframes, which load saves
+  taken late in a match (2026-11-15; the probe's crash report put `isAlive`'s caller in the cave).
+  The first fix resolved the id for every check, on the reasoning that the cache and a fresh
+  resolve are always the same object. They are not quite: the resolve also refuses an actor that
+  the class and state tests at `0x769391`/`0x421830` reject, and a cache can outlive the slot it
+  came from. A recorded match with the rule on (`634pm-5n`, recorded with the 82-byte cave) left
+  the recording at job 11381 in every playback with the first fix, and stayed exact to job 11895
+  with the cave below (2026-11-21). A rule may not change what it simulates
+  under the same bit (CLAUDE.md, "A rule bit names one behaviour"), so the cave now takes exactly
+  the first version's path whenever `+0x194` is set, and resolves only in the case where the first
+  version crashed.
 - **Re-scan immediately.** Clearing `[this+0x352]` sends the tick gate down its immediate path
   (`cmp byte [esi+0x352], bl / je 0x180ef3`). The fresh search therefore runs on the same tick
   the target is released, instead of up to 60 ticks later. If the search finds nothing, the fire

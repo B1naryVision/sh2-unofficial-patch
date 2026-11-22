@@ -31,37 +31,68 @@ static const uint8_t DEAD_STOCK[1] = {0x74};
 static const uint8_t IS_ALIVE_STOCK[13] = {0x83, 0xb9, 0x98, 0x00, 0x00, 0x00, 0x00,
                                            0x75, 0x0c, 0x83, 0x79, 0x20, 0x03};
 
-static const int CAVE_LEN = 82;
+static const int CAVE_LEN = 118;
 
 // Keeps a held target only while the engine's own canEngage (vtable +0x180:
 // resolves, in range, line of sight) and isAlive accept it. Otherwise the target
 // is released and +0x352 cleared, so the tick gate searches again this tick.
+// isAlive gets the cached pointer at +0x194, as the first version of this rule
+// did: that is the behaviour recordings and every other client run, so it must
+// not change under the same rule bit. Only when the cache is null does the cave
+// resolve the id at +0x198 itself, the way canEngage does. A load restores only
+// the id, so after loading a save in which a ballista holds a target the cache
+// is null while the id resolves; the first version passed that null to isAlive
+// and crashed (2026-11-15). A fresh resolve for every check changed which
+// targets were kept and broke the playback of a recorded match (2026-11-21).
 static const uint8_t CAVE_TEMPLATE[CAVE_LEN] = {
-    0x83, 0xbe, 0x98, 0x01, 0x00, 0x00, 0x00, // cmp dword [esi+0x198], 0
-    0x74, 0x44, // je auto_fire
-    0xff, 0xb6, 0x98, 0x01, 0x00, 0x00, // push dword [esi+0x198]
-    0xff, 0xb6, 0x94, 0x01, 0x00, 0x00, // push dword [esi+0x194]
-    0x6a, 0x00, // push 0
-    0x8b, 0x06, // mov eax, [esi]
-    0x8b, 0xce, // mov ecx, esi
-    0xff, 0x90, 0x80, 0x01, 0x00, 0x00, // call [eax+0x180]
-    0x84, 0xc0, // test al, al
-    0x74, 0x14, // je release
-    0x8b, 0x8e, 0x94, 0x01, 0x00, 0x00, // mov ecx, [esi+0x194]
-    0xe8, 0x00, 0x00, 0x00, 0x00, // call S2Actor::isAlive
-    0x84, 0xc0, // test al, al
-    0x74, 0x05, // je release
-    0xe9, 0x00, 0x00, 0x00, 0x00, // jmp manual handler
-    0x31, 0xc0, // release: xor eax, eax
-    0x89, 0x86, 0x94, 0x01, 0x00, 0x00, // mov [esi+0x194], eax
-    0x89, 0x86, 0x98, 0x01, 0x00, 0x00, // mov [esi+0x198], eax
-    0x88, 0x86, 0x52, 0x03, 0x00, 0x00, // mov [esi+0x352], al
-    0xe9, 0x00, 0x00, 0x00, 0x00 // auto_fire: jmp back to the player check
+    0x83, 0xbe, 0x98, 0x01, 0x00, 0x00, 0x00, // 00 cmp dword [esi+0x198], 0
+    0x74, 0x68, // 07 je auto_fire
+    0xff, 0xb6, 0x98, 0x01, 0x00, 0x00, // 09 push dword [esi+0x198]
+    0xff, 0xb6, 0x94, 0x01, 0x00, 0x00, // 0f push dword [esi+0x194]
+    0x6a, 0x00, // 15 push 0
+    0x8b, 0x06, // 17 mov eax, [esi]
+    0x8b, 0xce, // 19 mov ecx, esi
+    0xff, 0x90, 0x80, 0x01, 0x00, 0x00, // 1b call [eax+0x180]
+    0x84, 0xc0, // 21 test al, al
+    0x74, 0x38, // 23 je release
+    0x8b, 0x8e, 0x94, 0x01, 0x00, 0x00, // 25 mov ecx, [esi+0x194]
+    0x85, 0xc9, // 2b test ecx, ecx
+    0x75, 0x20, // 2d jne alive
+    0x8b, 0x86, 0x98, 0x01, 0x00, 0x00, // 2f mov eax, [esi+0x198]
+    0x50, // 35 push eax
+    0xc1, 0xe8, 0x10, // 36 shr eax, 16
+    0x50, // 39 push eax
+    0x68, 0x00, 0x00, 0x00, 0x00, // 3a push <actor handle class id>
+    0xb9, 0x00, 0x00, 0x00, 0x00, // 3f mov ecx, <actor manager>
+    0xe8, 0x00, 0x00, 0x00, 0x00, // 44 call resolve
+    0x85, 0xc0, // 49 test eax, eax
+    0x74, 0x10, // 4b je release
+    0x8b, 0xc8, // 4d mov ecx, eax
+    0xe8, 0x00, 0x00, 0x00, 0x00, // 4f alive: call S2Actor::isAlive
+    0x84, 0xc0, // 54 test al, al
+    0x74, 0x05, // 56 je release
+    0xe9, 0x00, 0x00, 0x00, 0x00, // 58 jmp manual handler
+    0x31, 0xc0, // 5d release: xor eax, eax
+    0x89, 0x86, 0x94, 0x01, 0x00, 0x00, // 5f mov [esi+0x194], eax
+    0x89, 0x86, 0x98, 0x01, 0x00, 0x00, // 65 mov [esi+0x198], eax
+    0x88, 0x86, 0x52, 0x03, 0x00, 0x00, // 6b mov [esi+0x352], al
+    0xe9, 0x00, 0x00, 0x00, 0x00 // 71 auto_fire: jmp back to the player check
 };
 
-static const int CAVE_IS_ALIVE_DISP = 0x2c;
-static const int CAVE_MANUAL_DISP = 0x35;
-static const int CAVE_RETURN_DISP = 0x4e;
+static const int CAVE_CLASS_IMM = 0x3b;
+static const int CAVE_MANAGER_IMM = 0x40;
+static const int CAVE_RESOLVE_DISP = 0x45;
+static const int CAVE_IS_ALIVE_DISP = 0x50;
+static const int CAVE_MANUAL_DISP = 0x59;
+static const int CAVE_RETURN_DISP = 0x72;
+
+// canEngage's own resolve (RVA 0x1778e9): push <class id>; mov ecx, <actor
+// manager>; call ActorMgr::resolve. Both immediates are base-relocated, so the
+// cave copies them from the loaded code instead of rebuilding them.
+static const uintptr_t CAN_ENGAGE_RESOLVE_RVA = 0x1778e9;
+static const uintptr_t RESOLVE_RVA = 0x369360;
+static const uintptr_t ACTOR_CLASS_VA = 0x12b0e98;
+static const uintptr_t ACTOR_MANAGER_VA = 0xae8728;
 
 static uint8_t *s_cave = nullptr;
 static uint8_t s_gatePatched[13];
@@ -122,6 +153,21 @@ bool installBallistaAutoFire() {
         return false;
     }
 
+    // The resolve the cave repeats: canEngage's, operand for operand.
+    const uint8_t *resolve = (const uint8_t *)(base + CAN_ENGAGE_RESOLVE_RVA);
+    uint32_t classId = 0, manager = 0;
+    int32_t call = 0;
+    memcpy(&classId, resolve + 1, sizeof(classId));
+    memcpy(&manager, resolve + 6, sizeof(manager));
+    memcpy(&call, resolve + 11, sizeof(call));
+
+    if (resolve[0] != 0x68 || resolve[5] != 0xb9 || resolve[10] != 0xe8 ||
+        classId != (uint32_t)(base + ACTOR_CLASS_VA - 0x400000) ||
+        manager != (uint32_t)(base + ACTOR_MANAGER_VA - 0x400000) ||
+        (uintptr_t)(resolve + 15) + call != base + RESOLVE_RVA) {
+        return false;
+    }
+
     s_cave =
         (uint8_t *)VirtualAlloc(NULL, CAVE_LEN, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 
@@ -130,6 +176,11 @@ bool installBallistaAutoFire() {
     }
 
     memcpy(s_cave, CAVE_TEMPLATE, CAVE_LEN);
+    memcpy(s_cave + CAVE_CLASS_IMM, &classId, sizeof(classId));
+    memcpy(s_cave + CAVE_MANAGER_IMM, &manager, sizeof(manager));
+    writeRel32(
+        s_cave + CAVE_RESOLVE_DISP, (uintptr_t)s_cave + CAVE_RESOLVE_DISP + 4, base + RESOLVE_RVA
+    );
     writeRel32(
         s_cave + CAVE_IS_ALIVE_DISP, (uintptr_t)s_cave + CAVE_IS_ALIVE_DISP + 4, base + IS_ALIVE_RVA
     );

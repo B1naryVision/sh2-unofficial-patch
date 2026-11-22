@@ -329,6 +329,7 @@ const HISTORY = [
     "Replays no longer play the marching and hooves of the recording player's orders",
     "Replays are named after the players and their teams",
     "Fixed a crash when outlaws filling a moat stop to attack",
+    "Fixed a crash when loading a save while a field ballista with auto-fire is aiming at a target",
     "Troops answer attack orders with their own attack lines",
     "Bug fixes that were meant to be always on in single player now really are, in Kingmaker and the campaign too"
   ]},
