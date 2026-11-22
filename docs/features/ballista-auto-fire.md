@@ -1,7 +1,8 @@
 # Ballista Auto-Fire Restore
 
 **Status:** Added in v0.8.0 as a host-chosen [match rule](match-rules.md) (`[matchrules] BallistaAutoFire`):
-switched on per match only when every player supports it. Never installed on its own.  
+switched on per match only when every player supports it. Never installed on its own. The
+save-load crash fix (below) shipped in v0.9.0 under the same rule bit.  
 **Affects:** Stronghold 2 Steam v1.5.0 (32-bit, `Stronghold2.exe`)
 
 ---
@@ -330,6 +331,10 @@ Why each piece is shaped this way:
   that carries it) first shipped in v0.8.0, with the new cave, so no published build has the old cave. Development builds
   from before 2026-10-31 must not share a match with this rule on. If the ballista logic changes
   again after a release, it needs a new bit, because `handshake.h` forbids reusing one.
+  The v0.9.0 save-load fix keeps bit `0x1` on that rule's terms: whenever `+0x194` is set it
+  takes exactly the v0.8.x path, and it differs only where v0.8.x crashed (a null cached pointer,
+  which only a load produces). A multiplayer match never loads a save, so v0.8.x and v0.9.0
+  players simulate the rule identically, and replays recorded with v0.8.x still reproduce.
 
 ---
 

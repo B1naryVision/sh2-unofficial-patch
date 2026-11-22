@@ -2,7 +2,7 @@
 
 ---
 
-## [Unreleased]
+## [0.9.0]
 
 ### [Fix] - Loading a Save No Longer Crashes With Ballista Auto-Fire On
 

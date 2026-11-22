@@ -1,6 +1,6 @@
 # Units Answer Attack Orders
 
-**Status:** Unreleased. Playtested 2026-11-14: works as expected.
+**Status:** Added in v0.9.0. Playtested 2026-11-14: works as expected.
 **Affected version:** Stronghold 2 Steam v1.5.0
 **Patch type:** Two `call` operands retargeted (recipe A in `CLAUDE.md`), client-local.
 **Source:** `src/patches/attackVoices.cpp`

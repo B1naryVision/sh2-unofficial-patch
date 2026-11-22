@@ -57,7 +57,7 @@ const SITE = {
   releases:    "https://github.com/B1naryVision/sh2-unofficial-patch/releases/latest",
   issues:      "https://github.com/B1naryVision/sh2-unofficial-patch/issues",
   discord:     "BinaryVision",
-  fallbackVer: "v0.7.0",   /* shown if GitHub cannot be reached */
+  fallbackVer: "v0.9.0",   /* shown if GitHub cannot be reached */
 
   /* The video playlist: release walkthroughs, embedded in its own
      section. Clear playlistId to hide that section entirely. */
@@ -118,7 +118,7 @@ const PATCHES = [
     now:"The game closes cleanly at any point during startup."
   },
   {
-    id:"outlaw-moat-crash", cat:"crashes", kind:"fix", version:"next", mp:"all",
+    id:"outlaw-moat-crash", cat:"crashes", kind:"fix", version:"0.9.0", mp:"all",
     title:"Crash when outlaws fill in a moat",
     was:"Outlaws sent to fill in a moat could crash the game to the desktop if they stopped on the way to throw javelins at defenders on the walls. It only happened on some computers.",
     now:"A distracted outlaw picks another nearby patch of moat to fill, or goes back, and the game carries on. It is always on in single player, and on in any multiplayer match where every player has the patch."
@@ -203,7 +203,7 @@ const PATCHES = [
     now:"Ranged troops keep to a move order until they arrive, then pick targets as before. It is always on in single player, and on in any multiplayer match where every player has the patch."
   },
   {
-    id:"attack-voices", cat:"controls", kind:"improvement", version:"next", mp:"solo",
+    id:"attack-voices", cat:"controls", kind:"improvement", version:"0.9.0", mp:"solo",
     title:"Troops answer when you order an attack",
     was:"Troops always answered a move order out loud, but went silent when ordered to attack, so a small group sent into battle sounded no different from one going for a walk.",
     now:"One of your troops now answers an attack order with its own attack line, as the game's recordings intended. Only you hear it.",
@@ -324,7 +324,7 @@ const PATCHES = [
    the bottom of the page. Keep it in step with CHANGELOG.md.
    ================================================================== */
 const HISTORY = [
-  { v:"next", date:"", items:[
+  { v:"0.9.0", date:"", items:[
     "Skip ahead and jump back in replays with a timeline, buttons and the . and , keys",
     "Replays no longer play the marching and hooves of the recording player's orders",
     "Replays are named after the players and their teams",

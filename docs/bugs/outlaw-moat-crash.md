@@ -1,9 +1,9 @@
 # Outlaws Crash the Game While Filling a Moat
 
-**Status:** Unreleased, as an automatic match fix (`src/patches/moatTileGuard.cpp`).
-Root cause established by static analysis of the WER report's fault offset; not yet
-playtested, and the replay test (test 6 in [match-rules.md](../features/match-rules.md))
-has not been run.
+**Status:** Fixed in v0.9.0, as an automatic match fix (`src/patches/moatTileGuard.cpp`).
+Root cause established by static analysis of the WER report's fault offset. Playtested
+before the v0.9.0 release (2026-11-22), including the replay test (test 6 in
+[match-rules.md](../features/match-rules.md)): passed.
 **Affected version:** Stronghold 2 Steam v1.5.0 (exe timestamp `0x5ea311c0`)
 **Patch type:** 6-byte detour into a 26-byte cave, switched per match by
 `patches/matchRules.cpp`.

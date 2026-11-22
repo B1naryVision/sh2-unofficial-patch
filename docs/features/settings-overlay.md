@@ -32,6 +32,10 @@ Two lists in one panel:
 | Attack-move toggle | `AttackToggle` | [attack-move-hotkey.md](attack-move-hotkey.md) |
 | Auto-market panel | `AutoMarketPanel` | [auto-market.md](auto-market.md) |
 | Lobby patch panel | `LobbyPanel` | [lobby-panel.md](lobby-panel.md) |
+| Replay panel | `ReplayPanel` | [multiplayer-replays.md](multiplayer-replays.md) |
+| Replay skip ahead | `ReplaySkip` | [replay-seeking.md](replay-seeking.md) |
+| Replay jump back | `ReplaySkipBack` | [replay-seeking.md](replay-seeking.md) |
+| Replay free view | `ReplayFreeView` | [multiplayer-replays.md](multiplayer-replays.md) |
 | This settings panel | `SettingsPanel` | this doc |
 
 | Option row | Ini key | Control | Feature |

@@ -1,6 +1,6 @@
 # Patch Configuration (`sh2-unofficial-patch.ini`)
 
-**Status:** Added in v0.5.0; extended in v0.6.0 (key combinations, siege camp, recruitment and auto-market settings), v0.6.1 (overlay scale), v0.7.0 (every setting editable in game) and v0.8.0 (match rules, replays)
+**Status:** Added in v0.5.0; extended in v0.6.0 (key combinations, siege camp, recruitment and auto-market settings), v0.6.1 (overlay scale), v0.7.0 (every setting editable in game), v0.8.0 (match rules, replays) and v0.9.0 (attack voices, replay skip keys)
 **Affected version:** Stronghold 2 Steam v1.5.0
 **Patch type:** No game-code change — a config layer (`src/core/config.cpp`) read by the individual patches at install time
 
@@ -61,6 +61,8 @@ the game has created a device to read a backbuffer size from
 | --- | --- | --- | --- |
 | `[hotkeys]` | `SettingsPanel` | `Ctrl+Shift+O` | Open the in-game settings panel, which rebinds the keys below and writes them back here ([settings-overlay.md](settings-overlay.md)); `None` removes the panel |
 | `[hotkeys]` | `ReplayPanel` | `RBracket` | Show or hide the replay panel while watching a replay ([multiplayer-replays.md](multiplayer-replays.md)) |
+| `[hotkeys]` | `ReplaySkip` | `Period` | Skip a minute ahead while a replay plays; presses add up ([replay-seeking.md](replay-seeking.md)) |
+| `[hotkeys]` | `ReplaySkipBack` | `Comma` | Jump a minute back while a replay plays; presses add up ([replay-seeking.md](replay-seeking.md)) |
 | `[hotkeys]` | `ReplayFreeView` | `F` | Free view while watching a replay: hides the HUD, the middle mouse button turns and tilts the camera ([multiplayer-replays.md](multiplayer-replays.md)) |
 | `[hotkeys]` | `StopTroops` | `H` | Stop selected troops ([stop-troops-hotkey.md](stop-troops-hotkey.md)) |
 | `[hotkeys]` | `AttackToggle` | `Mouse4` | Toggle attack-move stance ([attack-move-hotkey.md](attack-move-hotkey.md)) |

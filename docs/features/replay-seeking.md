@@ -1,7 +1,7 @@
 # Replay Seeking (fast-forward and rewind)
 
 **Status:** Phase 0 (measurements) complete, 2026-11-05. Phase 1 (skip ahead)
-implemented and playtested, unreleased. Phase 2 (rewind by restart)
+implemented and playtested; released in v0.9.0 with phases 2 and 3. Phase 2 (rewind by restart)
 implemented and playtested, 2026-11-14. Phase 3 (keyframes) implemented and
 playtested, 2026-11-22: automatic capture is on, and every run resumed from a
 keyframe is checked against the recording and redone from an older point when it

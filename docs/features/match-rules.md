@@ -4,6 +4,9 @@
 patched players and with the tester both as host and as a joining player. Test 4 has been
 checked as far as the lobby (the panel marks the rule unavailable with an unpatched player
 present); the rest of it runs the same "nothing to post" path test 1 exercised.
+v0.9.0 fixed single-player detection, so automatic fixes are now on in Kingmaker and the
+campaign (see [Options and fixes](#options-and-fixes)); test 7 passed before the v0.9.0
+release (2026-11-22).
 **Config**: the host clicks a rule in the [lobby panel](lobby-panel.md); the choice is
 remembered in `[matchrules]` in `sh2-unofficial-patch.ini` for the host's next lobby. Each
 rule defaults to `0` (vanilla). Deliberately **not** in the settings panel: these are

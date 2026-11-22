@@ -1,6 +1,6 @@
 # Multiplayer Replays
 
-**Status:** Added in v0.8.0 (opt-in, experimental)  
+**Status:** Added in v0.8.0 (opt-in, experimental); extended in v0.9.0 (skip ahead and jump back, team names, order sounds silenced)  
 **Affected version:** Stronghold 2 Steam v1.5.0  
 **Patch type:** Opt-in (`[replay] RecordMultiplayer=1`). Hooks are installed at startup so a received replay can be played with recording off; in a match that is neither recorded nor replayed they return after one or two compares (see [Footprint when idle](#footprint-when-idle))
 

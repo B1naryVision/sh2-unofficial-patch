@@ -41,7 +41,7 @@ No game files are modified. Removing the DLL restores the original behavior comp
 
 ## Current Fixes and Features
 
-### v0.8.1
+### v0.9.0
 
 | Description | Offset | Status |
 | --- | --- | --- |
@@ -69,19 +69,20 @@ No game files are modified. Removing the DLL restores the original behavior comp
 | [Patch handshake and `!ver` chat command showing everyone's patch version](docs/features/patch-handshake.md) | `base+0x26cd918` | Added in v0.8.0 |
 | [Lobby panel listing every player's patch version (`Ctrl+Shift+L`)](docs/features/lobby-panel.md) | `base+0x5e2c64` | Added in v0.8.0 |
 | [Disband peasant duplication fix, on automatically when every player has it](docs/bugs/disband-peasant-duplication.md) | `base+0xf6419` | Fixed in v0.8.0 |
-| [Host-chosen match rules, starting with field ballista auto-fire](docs/features/match-rules.md) | `base+0x5c7134`, `base+0x180c48`, `base+0x180c71`, `base+0x180c92`, `base+0x180ef9` | Added in v0.8.0 |
+| [Host-chosen match rules, starting with field ballista auto-fire](docs/features/match-rules.md) | `base+0x5c7134`, `base+0x180c48`, `base+0x180c71`, `base+0x180c92`, `base+0x180ef9` | Added in v0.8.0; ballista save-load crash fix in v0.9.0 |
 | [Chain-load a D3D9 wrapper (DXVK, ReShade, dgVoodoo) as `d3d9_chain.dll`](docs/features/dll-chaining.md) | — | Added in v0.8.0 |
-| [Multiplayer replays with a spectator panel and kill counts (opt-in)](docs/features/multiplayer-replays.md) | `base+0x2ac60`, `base+0x2a2e0`, `base+0x37efb0`, `base+0x367a03`, `base+0x36aca0` | Added in v0.8.0 |
+| [Multiplayer replays with a spectator panel and kill counts (opt-in)](docs/features/multiplayer-replays.md) | `base+0x2ac60`, `base+0x2a2e0`, `base+0x37efb0`, `base+0x367a03`, `base+0x36aca0` | Added in v0.8.0; named after the teams in v0.9.0 |
 | [No Market match rule: no market building or trading for anyone](docs/features/no-market.md) | `base+0x5c5abc`, `base+0x5c6198` | Added in v0.8.0 |
 | [Unit cap 550 match rule: the two-player cap in every lobby size](docs/features/unit-cap-raise.md) | `base+0x16827`, `base+0x18768`, `base+0x189fb`; warning `base+0x2207fd`, `base+0x2255f2` | Added in v0.8.0; warning fix in v0.8.1 |
 | [Wheat farmers and candle makers no longer turn to crime inside their buildings, on automatically when every player has it](docs/bugs/stuck-worker-crime.md) | `base+0x68d528`, `base+0x68d5a0` | Fixed in v0.8.0 |
 | [Archers, crossbowmen and axe throwers no longer ignore move orders in a fight, on automatically when every player has it](docs/bugs/ranged-move-orders.md) | `base+0x113eb0`, `base+0xfe4e7`, `base+0x10a367` | Fixed in v0.8.0 |
 | [Dead shields match rule: a destroyed Mantlet or Cat stops catching shots at once](docs/features/dead-shield-pass-through.md) | `base+0x21fdb` | Added in v0.8.0 |
 | [Crash when the game closes during startup](docs/bugs/startup-quit-crash.md) | `base+0x30331` | Fixed in v0.8.1 |
-| [Skip ahead and jump back in replays: timeline, buttons, `.` and `,`](docs/features/replay-seeking.md) | `base+0x21ea2`, `base+0x367a03`, `base+0x2ac60` | Unreleased |
-| [Replays no longer play the recording player's order sounds](docs/features/multiplayer-replays.md) | `base+0x1993d0` | Unreleased |
-| [Crash when outlaws filling a moat stop to attack, on automatically when every player has it](docs/bugs/outlaw-moat-crash.md) | `base+0xfa229` | Unreleased |
-| [Troops answer attack orders with their attack lines](docs/features/attack-voices.md) | `base+0x2316a1`, `base+0x2319ac` | Unreleased |
+| [Skip ahead and jump back in replays: timeline, buttons, `.` and `,`](docs/features/replay-seeking.md) | `base+0x21ea2`, `base+0x367a03`, `base+0x2ac60` | Added in v0.9.0 |
+| [Replays no longer play the recording player's order sounds](docs/features/multiplayer-replays.md) | `base+0x1993d0` | Fixed in v0.9.0 |
+| [Crash when outlaws filling a moat stop to attack, on automatically when every player has it](docs/bugs/outlaw-moat-crash.md) | `base+0xfa229` | Fixed in v0.9.0 |
+| [Troops answer attack orders with their attack lines](docs/features/attack-voices.md) | `base+0x2316a1`, `base+0x2319ac` | Added in v0.9.0 |
+| [Automatic match fixes always on in single player, Kingmaker and the campaign included](docs/features/match-rules.md#options-and-fixes) | — | Fixed in v0.9.0 |
 
 ---
 
